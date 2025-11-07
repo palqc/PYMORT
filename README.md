@@ -2,10 +2,16 @@
 
 <p align="center">
   <em>A teaching-size Python library and CLI for pricing longevity-linked securities and modeling mortality risk.</em><br>
-  <a href="https://github.com/palqc/pymort"><img src="https://img.shields.io/github/license/palqc/pymort?style=flat-square" /></a>
-  <a href="https://github.com/palqc/pymort/actions"><img src="https://img.shields.io/github/actions/workflow/status/palqc/pymort/python-tests.yml?label=tests&style=flat-square" /></a>
-  <a href="https://pypi.org/project/pymort"><img src="https://img.shields.io/pypi/v/pymort?style=flat-square" /></a>
-  <a href="#"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" /></a>
+  <a href="https://github.com/palqc/PYMORT/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
+  </a>
+  <img src="https://img.shields.io/badge/tests-coming%20soon-orange?style=flat-square" />
+  <a href="https://pypi.org/project/pymort">
+    <img src="https://img.shields.io/pypi/v/pymort?style=flat-square" />
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" />
+  </a>
 </p>
 
 ---
