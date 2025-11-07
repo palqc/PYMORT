@@ -1,9 +1,19 @@
-# PyMort – Longevity Bond Pricing & Mortality Modeling
+<h1 align="center">🧮 PyMORT — Longevity Bond Pricing & Mortality Modeling</h1>
 
-_"A teaching-size library and CLI for pricing longevity-linked securities and modeling mortality risk."_
+<p align="center">
+  <em>A teaching-size Python library and CLI for pricing longevity-linked securities and modeling mortality risk.</em><br>
+  <a href="https://github.com/palqc/pymort"><img src="https://img.shields.io/github/license/palqc/pymort?style=flat-square" /></a>
+  <a href="https://github.com/palqc/pymort/actions"><img src="https://img.shields.io/github/actions/workflow/status/palqc/pymort/python-tests.yml?label=tests&style=flat-square" /></a>
+  <a href="https://pypi.org/project/pymort"><img src="https://img.shields.io/pypi/v/pymort?style=flat-square" /></a>
+  <a href="#"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" /></a>
+</p>
 
-This repository is a **template** for the Winter 2025 MSc final project.
-Fork or use as a GitHub Template → complete the TODOs → tag **`v1.0.0`**.
+---
+
+## ✨ Overview
+**PyMORT** provides a compact yet extensible framework for **mortality modeling** and **longevity-linked security pricing**.  
+It is designed for educational and research purposes within the *Data Science & Advanced Programming* MSc course (HEC Lausanne, Winter 2025).
+
 
 ---
 
@@ -28,46 +38,7 @@ pymort price-bond data/mortality.csv --maturity 20 --coupon survivor
 
 ---
 
-## 📦 What's included
-
-- **Mortality models**: Lee-Carter, Cairns-Blake-Dowd, stochastic projections
-- **Pricing engine**: Longevity bonds, survivor swaps, mortality derivatives
-- **Risk analysis**: Scenario testing, stress analysis, hedging strategies
-- **Data handling**: Life tables, cohort effects, data smoothing
-- **CLI and library**: Use from command line or as a Python package
-- **Full test coverage**: 80%+ with pytest and hypothesis
-- **Type safety**: Strict MyPy configuration
-
----
-
-## 🛠️ Development Workflow
-
-```bash
-make install-dev    # Set up development environment
-make check          # Run all quality checks
-make test           # Run tests with coverage
-```
-
----
-
-## 📊 Project Structure
-
-```
-src/pymort/        # Main package
-├── __init__.py    # Public API exports
-├── cli.py         # CLI interface
-├── models.py      # Mortality models (Lee-Carter, CBD, etc.)
-├── lifetable.py   # Life table operations
-├── pricing.py     # Bond and derivative pricing
-└── analysis.py    # Risk analysis and scenarios
-
-tests/             # Test suite
-└── test_*.py      # Test modules
-```
-
----
-
-## 🎯 Key Features
+## 📦 Key Features
 
 ### Mortality Models
 - Lee-Carter model for mortality forecasting
@@ -87,6 +58,39 @@ tests/             # Test suite
 - Hedging strategy optimization
 - Mortality surface visualization
 
+### Core Tools
+- CLI and Python package modes
+- Full test coverage (80%+) with pytest and hypothesis
+- Type safety via strict mypy configuration
+- Reproducible builds using Makefile targets
+
+
+---
+
+## 📊 Project Structure
+
+```
+src/pymort/        # Main package
+├── __init__.py    # Public API exports
+├── cli.py         # CLI interface
+├── models.py      # Mortality models (Lee-Carter, CBD, etc.)
+├── lifetable.py   # Life table operations
+├── pricing.py     # Bond and derivative pricing
+└── analysis.py    # Risk analysis and scenarios
+
+tests/             # Test suite
+└── test_*.py      # Test modules
+```
+---
+
+## 🛠️ Development Workflow
+
+```bash
+make install-dev    # Set up development environment
+make check          # Run all quality checks
+make test           # Run tests with coverage
+```
+
 ---
 
 ## 📖 Documentation
@@ -100,3 +104,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 👤 Author
+
+Developed and maintained by Pierre-Antoine Le Quellec (@palqc)
+MSc Finance – HEC Lausanne | Focus: Financial Data Science & Risk Analytics.
