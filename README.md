@@ -23,7 +23,7 @@ It is designed for educational and research purposes within the *Data Science & 
 
 ---
 
-## ✨ Quick demo
+## 🚀 Quick demo
 
 ```bash
 # editable install
@@ -69,7 +69,6 @@ pymort price-bond data/mortality.csv --maturity 20 --coupon survivor
 - Full test coverage (80%+) with pytest and hypothesis
 - Type safety via strict mypy configuration
 - Reproducible builds using Makefile targets
-
 
 ---
 

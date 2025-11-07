@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pymort"
 version = "0.1.0"
 description = "Longevity bond pricing and mortality modeling toolkit"
-authors = [{name = "Project Team", email = "team@example.com"}]
+authors = [{name = "Pierre-Antoine Le Quellec", email = "pierre-antoine.lequellec@unil.ch"}]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
