@@ -1,8 +1,11 @@
 # src/pymort/cli.py
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 import typer
-from importlib.metadata import version as _pkg_version, PackageNotFoundError
 
 app = typer.Typer(help="PYMORT – Longevity bond & mortality toolkit")
+
 
 @app.command("version")
 def version_cmd() -> None:
@@ -12,10 +15,12 @@ def version_cmd() -> None:
     except PackageNotFoundError:
         print("0.0.dev")
 
+
 @app.command("echo")
 def echo_cmd(msg: str) -> None:
     """Echo a message."""
     print(msg)
+
 
 if __name__ == "__main__":
     app()

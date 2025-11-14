@@ -1,0 +1,315 @@
+% Advanced Programming 2025 - Project Report Template
+% HEC Lausanne / UNIL
+\documentclass[11pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{fancyhdr}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{biblatex}
+\addbibresource{references.bib} % Create this file for your references
+
+% Code listing settings
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{pythonstyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    language=Python
+}
+
+\lstset{style=pythonstyle}
+
+% Header and footer
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Advanced Programming 2025}
+\lhead{Project Report}
+\rfoot{Page \thepage}
+
+% Title page information - MODIFY THESE
+\title{%
+    \Large \textbf{Advanced Programming 2025} \\
+    \vspace{0.5cm}
+    \LARGE \textbf{PyMORT: Longevity Bond Pricing \& Mortality Modeling} \\[0.5em]
+    \vspace{0.3cm}
+    \large Final Project Report
+}
+\author{
+    Pierre-Antoine Le Quellec \\
+    HEC Lausanne – University of Lausanne \\
+    \texttt{pierre-antoine.lequellec@unil.ch} \\
+    Student ID: 22438071
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+\vspace{1cm}
+\begin{abstract}
+\vspace{0.5cm}
+\noindent
+\textbf{PyMORT} develops a Python-based longevity bond pricing engine addressing the growing challenge of \textit{longevity risk}---the financial risk that people live longer than expected, thereby increasing liabilities for pension funds and insurers. The project aims to model the stochastic evolution of mortality rates, forecast survival probabilities, and price securities that transfer this risk to financial markets.
+
+\medskip
+\noindent
+Our methodology combines actuarial modeling and quantitative finance. Mortality dynamics are estimated using the \textbf{Lee-Carter} and \textbf{Cairns-Blake-Dowd (CBD)} models, fitted to real mortality data from the \textit{Human Mortality Database}. Future mortality is projected through stochastic simulations, incorporating uncertainty and risk-neutral adjustments via a market price of longevity risk parameter. Using these forecasts, we value longevity-linked instruments---notably longevity bonds, survivor swaps, and mortality forwards---through expected discounted cash flows under the risk-neutral measure.
+
+\medskip
+\noindent
+Key results include realistic mortality projections consistent with published studies and internally validated bond prices. The main contribution is a modular, open-source package that integrates actuarial modeling, risk-neutral valuation, and Monte Carlo simulation into a reproducible framework, offering researchers and practitioners a transparent tool for pricing and hedging longevity risk.
+\end{abstract}
+
+\vspace{3cm}
+\noindent\textbf{Keywords:} Data Science, Python, Machine Learning, Longevity risk, Mortality modeling, Lee–Carter, Cairns–Blake–Dowd,
+Risk-neutral valuation, Longevity bonds, Survivor swaps, Quantitative finance.
+\vspace{-1.5em}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ================== MAIN CONTENT ==================
+
+\section{Introduction}
+\label{sec:introduction}
+
+\subsection{Background and Motivation}
+
+Over the past decades, the continuous increase in life expectancy has significantly reshaped the landscape of pension systems and insurance markets.
+This demographic shift introduces a new form of financial uncertainty known as \textbf{longevity risk}---the risk that individuals live longer than anticipated.
+While the extension of human life is a social achievement, it poses a financial challenge for institutions responsible for life-long payments such as pension funds, annuity providers, and governments.
+The longer beneficiaries live, the higher the cumulative liabilities become.
+To hedge against this risk, financial markets have developed a class of \textbf{longevity-linked securities}, whose cashflows depend on realized survival rates.
+These instruments create a bridge between actuarial science and financial engineering, enabling the transfer of longevity risk from pension funds to investors.
+
+\subsection{Problem Statement}
+
+The valuation of longevity-linked securities requires accurate \textbf{models of future mortality dynamics}. 
+Mortality data are inherently complex---age-dependent, non-stationary, and affected by medical progress or sudden shocks such as pandemics. 
+Designing models that capture both the \textbf{age structure} and the \textbf{temporal evolution} of mortality, while remaining stable and interpretable, remains an open problem in quantitative risk management. 
+Furthermore, financial pricing demands translating real-world mortality forecasts into a \textbf{risk-neutral framework}, accounting for the market’s perception of longevity risk. 
+Building such a framework from raw demographic data is both statistically and computationally challenging.
+
+\subsection{Objectives and Goals}
+
+The aim of this project is to develop \textbf{PyMORT}, a Python-based longevity bond pricing engine that combines \textbf{actuarial modeling} and \textbf{financial mathematics}. 
+More specifically, PyMORT will:
+\begin{itemize}
+    \item Fit and calibrate stochastic mortality models, including \textit{Lee--Carter} and \textit{Cairns--Blake--Dowd};
+    \item Generate stochastic forecasts of mortality and survival probabilities with quantified uncertainty;
+    \item Implement a \textbf{risk-neutral valuation} framework for longevity bonds and related derivatives;
+    \item Provide a \textbf{command-line interface} with modular components for fitting, forecasting, pricing, and hedging;
+    \item Ensure high code quality through type checking, testing coverage, and continuous integration.
+\end{itemize}
+Through these goals, PYMORT aims to serve as both an educational and practical tool for understanding how demographic dynamics translate into financial risk and asset pricing.
+
+\subsection{Report Organization}
+
+The remainder of this report is structured as follows:
+\begin{itemize}
+    \item \textbf{Section~2 -- Literature Review / Related Work} surveys the main mortality modeling approaches and existing longevity-linked instruments, including the Lee--Carter and Cairns--Blake--Dowd frameworks.
+    \item \textbf{Section~3 -- Methodology} describes the datasets used, data preprocessing steps, and the implementation of the stochastic mortality and pricing models within the PYMORT architecture.
+        \begin{itemize}
+            \item \textbf{3.1 Data Description} outlines the Human Mortality Database and its key variables.
+            \item \textbf{3.2 Approach} details the statistical models and valuation methods.
+            \item \textbf{3.3 Implementation} presents the system design and major Python components.
+        \end{itemize}
+    \item \textbf{Section~4 -- Results} reports experimental outcomes, including model calibration, forecast accuracy, and bond pricing results, supported by tables and visualizations.
+    \item \textbf{Section~5 -- Discussion} interprets the findings, highlighting the main challenges, limitations, and lessons learned.
+    \item \textbf{Section~6 -- Conclusion and Future Work} summarizes the contributions and outlines potential extensions such as multi-population modeling, market calibration, and integration of stochastic interest rates.
+\end{itemize}
+
+\section{Literature Review / Related Work}
+\label{sec:literature}
+
+Discuss relevant prior work, existing solutions, or theoretical background. For data science projects, this might include:
+\begin{itemize}
+    \item Previous approaches to similar problems
+    \item Relevant algorithms or methodologies
+    \item Datasets used in related studies
+\end{itemize}
+
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{Data Description}
+Describe your dataset(s):
+\begin{itemize}
+    \item Source and collection method
+    \item Size and characteristics
+    \item Features/variables
+    \item Data quality issues
+\end{itemize}
+
+\subsection{Approach}
+Detail your technical approach:
+\begin{itemize}
+    \item Algorithms used
+    \item Data preprocessing steps
+    \item Model architecture (if applicable)
+    \item Evaluation metrics
+\end{itemize}
+
+\subsection{Implementation}
+Discuss the implementation details:
+\begin{itemize}
+    \item Programming languages and libraries
+    \item System architecture
+    \item Key code components
+\end{itemize}
+
+Example code snippet:
+\begin{lstlisting}[caption={Example data preprocessing function}]
+def preprocess_data(df):
+    """
+    Preprocess the input dataframe.
+    
+    Args:
+        df: Input pandas DataFrame
+    
+    Returns:
+        Preprocessed DataFrame
+    """
+    # Remove missing values
+    df = df.dropna()
+    
+    # Normalize numerical features
+    scaler = StandardScaler()
+    df[numerical_cols] = scaler.fit_transform(df[numerical_cols])
+    
+    return df
+\end{lstlisting}
+
+\section{Results}
+\label{sec:results}
+
+Present your findings with appropriate visualizations and tables.
+
+\subsection{Experimental Setup}
+Describe your experimental environment:
+\begin{itemize}
+    \item Hardware specifications
+    \item Software versions
+    \item Hyperparameters
+\end{itemize}
+
+\subsection{Performance Evaluation}
+
+\begin{table}[H]
+\centering
+\caption{Model Performance Metrics}
+\label{tab:performance}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} \\
+\hline
+Baseline & 0.75 & 0.72 & 0.78 \\
+Your Model & 0.85 & 0.83 & 0.87 \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Visualizations}
+
+Include relevant plots and figures. For example:
+
+\begin{figure}[H]
+\centering
+% \includegraphics[width=0.8\textwidth]{figures/results_plot.png}
+\caption{Your results visualization}
+\label{fig:results}
+\end{figure}
+
+\section{Discussion}
+\label{sec:discussion}
+
+Analyze and interpret your results:
+\begin{itemize}
+    \item What worked well?
+    \item What were the challenges?
+    \item How do your results compare to expectations?
+    \item Limitations of your approach
+\end{itemize}
+
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+\subsection{Summary}
+Summarize your key findings and contributions.
+
+\subsection{Future Directions}
+Suggest potential improvements or extensions:
+\begin{itemize}
+    \item Methodological improvements
+    \item Additional experiments
+    \item Real-world applications
+\end{itemize}
+
+% ================== REFERENCES ==================
+\newpage
+\section*{References}
+\addcontentsline{toc}{section}{References}
+
+% If using biblatex (recommended)
+% \printbibliography[heading=none]
+
+% Or manually:
+\begin{enumerate}
+    \item Author, A. (2024). \textit{Title of Article}. Journal Name, 10(2), 123-145.
+    \item Smith, B. \& Jones, C. (2023). \textit{Book Title}. Publisher.
+    \item Dataset Source. (2024). Dataset Name. Available at: \url{https://example.com}
+\end{enumerate}
+
+% ================== APPENDICES ==================
+\newpage
+\appendix
+\section{Additional Figures}
+\label{app:figures}
+
+Include supplementary figures or tables that support but aren't essential to the main narrative.
+
+\section{Code Repository}
+\label{app:code}
+
+\noindent
+\textbf{GitHub Repository:} \url{https://github.com/palqc/PYMORT}
+
+\noindent
+Provide information about:
+\begin{itemize}
+    \item Repository structure
+    \item Installation instructions
+    \item How to reproduce results
+\end{itemize}
+
+\end{document}
