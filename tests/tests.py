@@ -23,19 +23,14 @@ from pymort.lifetables import (
     validate_survival_monotonic,
 )
 from pymort.models import (
+    CBDModel,
     LeeCarter,
+    _logit,
     estimate_rw_params,
     fit_lee_carter,
     reconstruct_log_m,
 )
-
-# optional analysis
-try:
-    from pymort.analysis.validation import reconstruction_rmse_log
-
-    HAVE_ANALYSIS = True
-except Exception:
-    HAVE_ANALYSIS = False
+from pymort.analysis.validation import time_split_backtest_lc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,11 +58,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--sims",
         type=int,
-        default=1000,
+        default=100,
         help="Number of MC sims for k_t forecast, default 1000",
     )
     p.add_argument(
         "--seed", type=int, default=None, help="Random seed (None = random each run)"
+    )
+    p.add_argument(
+        "--horizon", type=int, default=30, help="Forecast horizon (default: 30)"
     )
     args, _unknown = p.parse_known_args(argv)
     if _unknown:
@@ -89,16 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"m min/max: {m.min():.6f} / {m.max():.6f}")
 
-    # fit full-sample diagnostics
-    print("\n=== Fit Lee–Carter (full-sample diagnostics) ===")
-    params = fit_lee_carter(m)
-    ln_hat = reconstruct_log_m(params)
-    ln_true = np.log(m)
-    rms_in = float(np.sqrt(np.mean((ln_true - ln_hat) ** 2)))
-    print(f"In-sample RMSE (log): {rms_in:.6f}")
-    print(f"sum(b): {params.b.sum():.12f}  mean(k): {params.k.mean():.3e}")
-
-    # explicit split: train_end → test starts train_end+1
+        # explicit split: train_end → test starts train_end+1
     if args.train_end < years[0] or args.train_end >= years[-1]:
         raise ValueError(f"--train-end must be within [{years[0]}, {years[-1]-1}]")
     te_start = args.train_end + 1
@@ -113,15 +102,15 @@ def main(argv: list[str] | None = None) -> int:
     yrs_tr, yrs_te = years[tr_mask], years[te_mask]
 
     print("\n=== Backtest (explicit) ===")
+    res = time_split_backtest_lc(ages, years, m, train_end=args.train_end)
+    yrs_tr = res["train_years"]
+    yrs_te = res["test_years"]
+    rmse_log = res["rmse_log"]
+
     print(
-        f"Train: {int(yrs_tr[0])}–{int(yrs_tr[-1])} | Test: {int(yrs_te[0])}–{int(yrs_te[-1])}"
+    f"Train: {int(yrs_tr[0])}–{int(yrs_tr[-1])} | "
+    f"Test: {int(yrs_te[0])}–{int(yrs_te[-1])}"
     )
-    par_tr = fit_lee_carter(m_tr)
-    mu, sigma = estimate_rw_params(par_tr.k)
-    H = len(yrs_te)
-    k_det = par_tr.k[-1] + mu * np.arange(1, H + 1)  # deterministic forecast for speed
-    ln_pred = par_tr.a[:, None] + np.outer(par_tr.b, k_det)
-    rmse_log = float(np.sqrt(np.mean((np.log(m_te) - ln_pred) ** 2)))
     print(f"Out-of-sample RMSE (log): {rmse_log:.6f}")
 
     # MC forecast & survival sanity
@@ -133,8 +122,11 @@ def main(argv: list[str] | None = None) -> int:
         mu2, sigma2 = model.estimate_rw()
         print(f"Estimated (train) mu={mu2:.6f}, sigma={sigma2:.6f}")
         # simulate exactly horizon H (length of test)
-        k_paths = model.simulate_k(horizon=H, n_sims=args.sims, seed=args.seed)
-        print(f"k_paths shape: {k_paths.shape} {args.seed}(n_sims, horizon={H})")
+        H_mc = args.horizon
+        te_start = args.train_end + 1
+        yrs_future = np.arange(te_start, te_start + H_mc)
+        k_paths = model.simulate_k(horizon=H_mc, n_sims=args.sims, seed=args.seed)
+        print(f"k_paths shape: {k_paths.shape} (n_sims, horizon={H_mc})")
         a, b = model.params.a, model.params.b
         ln_m_paths = (
             a[:, None][None, :, :] + b[:, None][None, :, :] * k_paths[:, None, :]
@@ -145,8 +137,11 @@ def main(argv: list[str] | None = None) -> int:
         S = survival_from_q(q)
         validate_survival_monotonic(S)
         print("Survival monotonicity check: OK")
-    """
-    # 1) Refit LC sur train (1970–2015) et tracer a_x, b_x, k_t (train)
+
+    # ================== Plots LC ===================
+
+    print("\n=== Optional plots ===")
+
     mask_tr = years <= 2015
     par_tr = fit_lee_carter(m[:, mask_tr])
 
@@ -166,7 +161,6 @@ def main(argv: list[str] | None = None) -> int:
     plt.tight_layout()
     plt.show()
 
-    # 2) Forecast déterministe 2016–2019 vs observé pour un âge (ex: 80 ans)
     mu_tr, sigma_tr = estimate_rw_params(par_tr.k)
     mask_te = years >= 2016
     yrs_te = years[mask_te]
@@ -193,38 +187,201 @@ def main(argv: list[str] | None = None) -> int:
     plt.tight_layout()
     plt.show()
 
-    # 3) Fan chart sur k_t (Monte Carlo) 2016–2019
-    # Supposons que tu as déjà k_paths de shape (n_sims, H) provenant de model.simulate_k(...)
-    lo, med, hi = np.percentile(k_paths, [5, 50, 95], axis=0)
+    k_last = model.params.k[-1]
 
-    plt.figure(figsize=(7, 4))
-    plt.plot(yrs_te, med, label="Median k_t (MC)")
-    plt.fill_between(yrs_te, lo, hi, alpha=0.3, label="90% band")
-    plt.title("Monte Carlo fan chart for k_t (2016–2019)")
+    k_paths_plot = np.concatenate(
+        [np.full((k_paths.shape[0], 1), k_last), k_paths],
+        axis=1,
+    )
+    years_plot = np.concatenate([[args.train_end], yrs_future])
+
+    lo, med, hi = np.percentile(k_paths_plot, [5, 50, 95], axis=0)
+
+    plt.figure(figsize=(8, 4))
+    plt.fill_between(years_plot, lo, hi, alpha=0.3, label="90% band")
+    plt.plot(years_plot, med, linewidth=2.0, label="Median $k_t$")
+
+    plt.title(f"Monte Carlo fan chart for $k_t$ (H = {H_mc} years)")
     plt.xlabel("Year")
-    plt.ylabel("k_t")
+    plt.ylabel("$k_t$")
     plt.legend()
     plt.tight_layout()
     plt.show()
 
-    # (Option) Fan chart sur m pour l'âge choisi
-    a_x = par_tr.a[i_age]
-    b_x = par_tr.b[i_age]
-    m_paths = np.exp(a_x + b_x * k_paths)  # (n_sims, H)
-    lo, med, hi = np.percentile(m_paths, [5, 50, 95], axis=0)
+    # ================== CBD Model & Plots ===================
 
-    plt.figure(figsize=(7, 4))
-    plt.plot(yrs_te, m_obs[i_age, :], label="Observed")
-    plt.plot(yrs_te, med, "--", label="Median (MC)")
-    plt.fill_between(yrs_te, lo, hi, alpha=0.3, label="90% band")
-    plt.yscale("log")
-    plt.title(f"Fan chart of m(age={ages[i_age]})")
+    # full-sample q
+    q_full = m_to_q(m)
+    cbd = CBDModel().fit(q_full, ages)
+    q_hat_full = cbd.predict_q()
+
+    logit_q = _logit(q_full)
+    logit_q_hat = _logit(q_hat_full)
+    rmse_logit = float(np.sqrt(np.mean((logit_q - logit_q_hat) ** 2)))
+    print(f"CBD in-sample RMSE (logit q): {rmse_logit:.6f}")
+
+    params_cbd = cbd.params
+    assert params_cbd is not None
+
+    # kappa1_t (level)
+    plt.figure(figsize=(8, 4))
+    plt.plot(years, params_cbd.kappa1, linewidth=2)
+    plt.title("CBD factor kappa1_t (level)")
     plt.xlabel("Year")
-    plt.ylabel("Death rate m (log)")
+    plt.ylabel("kappa1_t")
+    plt.tight_layout()
+    plt.show()
+
+    # kappa2_t (slope)
+    plt.figure(figsize=(8, 4))
+    plt.plot(years, params_cbd.kappa2, linewidth=2, color="orange")
+    plt.title("CBD factor kappa2_t (slope)")
+    plt.xlabel("Year")
+    plt.ylabel("kappa2_t")
+    plt.tight_layout()
+    plt.show()
+
+    # observed vs fitted q for age_star
+    plt.figure(figsize=(8, 4))
+    plt.plot(years, q_full[i_age, :], label=f"Observed q(age={ages[i_age]})")
+    plt.plot(years, q_hat_full[i_age, :], "--", label="CBD fitted q")
+    plt.title(f"CBD: observed vs fitted q_x,t (age={ages[i_age]})")
+    plt.xlabel("Year")
+    plt.ylabel("Death probability q")
     plt.legend()
     plt.tight_layout()
     plt.show()
-    """
+
+    # RW params + MC on kappa1, kappa2
+    print("\n=== CBD RW parameters and Monte Carlo ===")
+    mu1, sigma1, mu2, sigma2 = cbd.estimate_rw()
+    print(f"kappa1: mu={mu1:.6f}, sigma={sigma1:.6f}")
+    print(f"kappa2: mu={mu2:.6f}, sigma={sigma2:.6f}")
+
+    horizon_cbd = args.horizon
+    n_sims_cbd = args.sims
+
+    kappa1_paths = cbd.simulate_kappa(
+        "kappa1", horizon=horizon_cbd, n_sims=n_sims_cbd, seed=None, include_last=True
+    )  # (n_sims, H+1)
+
+    years_future_cbd = np.arange(years[-1], years[-1] + horizon_cbd + 1)
+
+    lo1, med1, hi1 = np.percentile(kappa1_paths, [5, 50, 95], axis=0)
+
+    plt.figure(figsize=(8, 4))
+    plt.fill_between(years_future_cbd, lo1, hi1, alpha=0.3, label="90% band")
+    plt.plot(years_future_cbd, med1, linewidth=2.0, label="Median kappa1_t")
+    plt.title("CBD – Monte Carlo fan chart for kappa1_t")
+    plt.xlabel("Year")
+    plt.ylabel("kappa1_t")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # ---------- Unified CBD plot: history + fitted + MC forecast ----------
+
+    horizon_cbd = args.horizon
+    n_sims_cbd = args.sims
+    seed_cbd = args.seed
+
+    # Age of interest (reuse i_age from before)
+    age_star = int(ages[i_age])
+    q_obs_age = q_full[i_age, :]  # observed q_x,t
+    q_fit_age = q_hat_full[i_age, :]  # CBD fitted q_x,t
+
+    split_year = int(years[-1])  # last historical year, e.g. 2019
+
+    # Simulate kappa1 and kappa2 starting from last historical year,
+    # including the last fitted value (year = split_year) as column 0.
+    k1_paths = cbd.simulate_kappa(
+        "kappa1",
+        horizon=horizon_cbd,
+        n_sims=n_sims_cbd,
+        seed=seed_cbd,
+        include_last=True,
+    )  # shape: (n_sims, H+1)
+
+    k2_paths = cbd.simulate_kappa(
+        "kappa2",
+        horizon=horizon_cbd,
+        n_sims=n_sims_cbd,
+        seed=None if seed_cbd is None else seed_cbd + 1,
+        include_last=True,
+    )
+
+    # Years for the simulated paths: [split_year, split_year+1, ..., split_year+H]
+    years_all = np.arange(split_year, split_year + horizon_cbd + 1)
+
+    # Convert kappa-paths to q-paths for the chosen age
+    z_star = age_star - params_cbd.x_bar
+    logit_q_paths = k1_paths + k2_paths * z_star  # (n_sims, H+1)
+    q_paths = 1.0 / (1.0 + np.exp(-logit_q_paths))  # (n_sims, H+1)
+
+    # Fan chart statistics (including last fitted year)
+    q_low, q_med, q_high = np.percentile(q_paths, [5, 50, 95], axis=0)
+
+    # ---- Plot ----
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    # 1) Historical part (fond blanc)
+    ax.plot(
+        years,
+        q_obs_age,
+        color="tab:blue",
+        label=f"Observed q(age={age_star})",
+    )
+    ax.plot(
+        years,
+        q_fit_age,
+        "--",
+        color="tab:orange",
+        label="CBD fitted q",
+    )
+
+    # 2) Future zone: fond gris léger à partir de la première année forecast
+    ax.axvspan(split_year, years_all[-1], color="grey", alpha=0.08)
+
+    # Ligne verticale séparation historique / prévision
+    ax.axvline(split_year, color="black", linestyle="--", linewidth=1)
+
+    # 3) Monte Carlo sample paths (toutes partent de la régression au split_year)
+    n_plot = min(100, n_sims_cbd)  # nombre de chemins visibles
+    for i in range(n_plot):
+        ax.plot(
+            years_all,
+            q_paths[i, :],
+            color="tab:blue",
+            alpha=0.15,
+            linewidth=0.7,
+        )
+
+    # 4) Fan chart (médiane + bande 90 %)
+    ax.fill_between(
+        years_all,
+        q_low,
+        q_high,
+        color="tab:blue",
+        alpha=0.25,
+        label="90% band",
+    )
+    ax.plot(
+        years_all,
+        q_med,
+        color="tab:red",
+        linewidth=2.0,
+        label="Median forecast (CBD)",
+    )
+
+    ax.set_title(f"CBD forecast with MC paths for q(age={age_star})")
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Death probability q")
+    ax.set_ylim(0, max(q_obs_age.max(), q_high.max()) * 1.1)
+    ax.legend(loc="upper right")
+
+    fig.tight_layout()
+    plt.show()
+
     print("\nDONE ✅")
     return 0
 

@@ -1,139 +1,68 @@
 from __future__ import annotations
 
+from typing import Dict
+
 import numpy as np
-from typing import Tuple, Dict, Any
 
-# --- Core LC diagnostics -----------------------------------------------------
+from pymort.models.lc import fit_lee_carter, reconstruct_log_m, estimate_rw_params
 
-def lc_explained_variance(m: np.ndarray) -> float:
+
+def reconstruction_rmse_log(m: np.ndarray) -> float:
+    params = fit_lee_carter(m)
+    ln_hat = reconstruct_log_m(params)
+    ln_true = np.log(m)
+    rms_in = float(np.sqrt(np.mean((ln_true - ln_hat) ** 2)))
+    print(f"In-sample RMSE (log): {rms_in:.6f}")
+    print(f"sum(b): {params.b.sum():.12f}  mean(k): {params.k.mean():.3e}")
+    return rms_in
+
+
+def time_split_backtest_lc(
+    ages: np.ndarray,
+    years: np.ndarray,
+    m: np.ndarray,
+    train_end: int,
+) -> Dict[str, np.ndarray | float]:
     """
-    Proportion of total variance in log-mortality explained by the
-    first singular component used by Lee–Carter.
+    Backtest Lee–Carter with an explicit time split.
 
-    Parameters
-    ----------
-    m : np.ndarray, shape (A, T)
-        Death-rate matrix (strictly positive).
-
-    Returns
-    -------
-    float
-        Explained variance in [0, 1]. For ages 60+, values >= 0.8 are typical.
+    Fits LC on years <= train_end (training set), then produces a
+    deterministic forecast of log m on years > train_end (test set)
+    and computes the out-of-sample RMSE on log m.
     """
     if m.ndim != 2:
-        raise ValueError("m must be 2D (A, T).")
-    if (m <= 0).any() or not np.isfinite(m).all():
-        raise ValueError("m must be strictly positive and finite.")
-    ln_m = np.log(m)
-    a = ln_m.mean(axis=1, keepdims=True)
-    Z = ln_m - a
-    _, s, _ = np.linalg.svd(Z, full_matrices=False)
-    return float((s[0] ** 2) / np.sum(s ** 2))
+        raise ValueError("m must be a 2D array (A, T).")
+    if years.ndim != 1 or years.shape[0] != m.shape[1]:
+        raise ValueError("years must be 1D and match m.shape[1].")
 
+    if train_end < years[0] or train_end >= years[-1]:
+        raise ValueError(f"train_end must be in [{years[0]}, {years[-1] - 1}].")
 
-def reconstruction_rmse_log(m_true: np.ndarray, ln_m_hat: np.ndarray) -> float:
-    """
-    Root-mean-square error on the log scale between observed m and reconstructed ln m.
+    # masks train / test
+    tr_mask = years <= train_end
+    te_mask = years > train_end
 
-    Parameters
-    ----------
-    m_true : np.ndarray, shape (A, T)
-        Observed death rates (positive).
-    ln_m_hat : np.ndarray, shape (A, T)
-        Reconstructed log death rates (e.g., a_x + b_x k_t).
+    yrs_tr = years[tr_mask]
+    yrs_te = years[te_mask]
+    m_tr = m[:, tr_mask]
+    m_te = m[:, te_mask]
 
-    Returns
-    -------
-    float
-        RMS error on log scale.
-    """
-    if m_true.shape != ln_m_hat.shape:
-        raise ValueError("Shapes must match.")
-    if (m_true <= 0).any():
-        raise ValueError("m_true must be > 0.")
-    ln_m_true = np.log(m_true)
-    return float(np.sqrt(np.mean((ln_m_true - ln_m_hat) ** 2)))
+    # fit LC on train
+    params_tr = fit_lee_carter(m_tr)
 
+    # deterministic RW+drift forecast on k_t
+    from pymort.models import estimate_rw_params
 
-# --- Simple train/test split for backtesting ---------------------------------
+    mu, _sigma = estimate_rw_params(params_tr.k)
+    H = m_te.shape[1]
+    k_det = params_tr.k[-1] + mu * np.arange(1, H + 1)
 
-def split_train_test(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
-    *,
-    train_end: int | None = None,
-    holdout: int = 4,
-    min_train: int = 20,
-) -> Tuple[Tuple[np.ndarray, np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """
-    Time-based split (no shuffling). Either set `train_end` explicitly,
-    or hold out the last `holdout` years.
+    ln_pred = params_tr.a[:, None] + np.outer(params_tr.b, k_det)
+    ln_true = np.log(m_te)
+    rmse_log = float(np.sqrt(np.mean((ln_true - ln_pred) ** 2)))
 
-    Returns
-    -------
-    (ages_tr, years_tr, m_tr), (ages_te, years_te, m_te)
-    """
-    years = np.asarray(years)
-    if years.ndim != 1:
-        raise ValueError("years must be 1D.")
-    if m.shape != (len(ages), len(years)):
-        raise ValueError("m shape must be (len(ages), len(years)).")
-
-    if train_end is None:
-        if len(years) <= holdout + min_train:
-            raise ValueError("Not enough years for the requested holdout/min_train.")
-        cut = -holdout
-        tr_mask = np.arange(len(years)) < (len(years) + cut)
-    else:
-        tr_mask = years <= train_end
-        if tr_mask.sum() < min_train or (~tr_mask).sum() == 0:
-            raise ValueError("Invalid split: training too short or empty test set.")
-
-    te_mask = ~tr_mask
-    return (
-        (ages, years[tr_mask], m[:, tr_mask]),
-        (ages, years[te_mask], m[:, te_mask]),
-    )
-
-
-# --- Optional: quick LC backtest (uses the public LC API) --------------------
-
-def backtest_lee_carter(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
-    *,
-    train_end: int | None = None,
-    holdout: int = 4,
-    n_sims: int = 0,
-    seed: int | None = None,
-) -> Dict[str, Any]:
-    """
-    Fit LC on train, forecast test years, and report log-RMSE.
-    Uses deterministic RW mean for speed if n_sims == 0.
-
-    Returns
-    -------
-    dict with keys: 'train_years', 'test_years', 'rmse_log'
-    """
-    from pymort.models import fit_lee_carter, estimate_rw_params, reconstruct_log_m, simulate_k_paths
-
-    (ages_tr, yrs_tr, m_tr), (_ages_te, yrs_te, m_te) = split_train_test(
-        ages, years, m, train_end=train_end, holdout=holdout
-    )
-
-    params = fit_lee_carter(m_tr)
-    mu, sigma = estimate_rw_params(params.k)
-    H = len(yrs_te)
-
-    if n_sims and n_sims > 0:
-        k_paths = simulate_k_paths(params.k[-1], H, mu, sigma, n_sims=n_sims, seed=seed)
-        ln_m_paths = params.a[:, None][None, :, :] + params.b[:, None][None, :, :] * k_paths[:, None, :]
-        ln_m_pred = ln_m_paths.mean(axis=0)  # expected log m under P
-    else:
-        k_det = params.k[-1] + mu * np.arange(1, H + 1)
-        ln_m_pred = params.a[:, None] + np.outer(params.b, k_det)
-
-    rmse = reconstruction_rmse_log(m_te, ln_m_pred)
-    return {"train_years": yrs_tr, "test_years": yrs_te, "rmse_log": rmse}
+    return {
+        "train_years": yrs_tr,
+        "test_years": yrs_te,
+        "rmse_log": rmse_log,
+    }

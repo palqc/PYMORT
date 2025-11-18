@@ -152,7 +152,7 @@ pymort hedge --liabilities pension_obligations.csv --instruments bond_universe.c
 1. **Tagged GitHub repository** (v1.0.0) with all code, tests, and documentation
 2. **Comprehensive README** serving as both user guide and technical documentation
 3. **Published package on TestPyPI** installable via pip
-4. **Technical report** (3-4 pages):
+4. **Technical report** (10 pages):
    - Model validation against published data
    - Pricing example with real mortality data
    - Comparison of models (Lee-Carter vs. CBD)

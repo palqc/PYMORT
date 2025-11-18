@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Literal, Optional, Tuple
+from typing import Dict, Iterable, Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -116,28 +116,14 @@ def load_m_from_excel(
     year_min: int | None = None,
     year_max: int | None = None,
     m_floor: float = 1e-12,
+    drop_years: Iterable[int] | None = None,
 ) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """
-    Robust loader: scans all sheets, auto-detects header row and column order,
-    and returns {'m': (ages, years, m_grid)} with a regular (A,T) matrix.
-    Columns can be in any order, sheet names arbitrary. Requires at least Year, Age,
-    and one of (Total, Female, Male). If 'sex' requested is missing but 'Total' exists,
-    falls back to Total.
+    Load a mortality table from an Excel file.
 
-    Parameters
-    ----------
-    path : str
-        Excel path.
-    sex : {'Total','Female','Male'}
-        Preferred column for death rates.
-    age_min, age_max, year_min, year_max
-        Filters applied after reading.
-    m_floor : float
-        Minimum positive floor for m values.
-
-    Returns
-    -------
-    dict: {'m': (ages, years, m)}
+    The function automatically detects columns 'Year', 'Age', and one mortality column
+    ('Total', 'Male', or 'Female'), regardless of their order in the sheet. It returns
+    a clean mortality surface m[age, year] along with the corresponding age and year grids.
     """
     # Read all sheets raw (no header) to allow header detection
     xls_dict = pd.read_excel(path, sheet_name=None, header=None, engine="openpyxl")
@@ -205,6 +191,11 @@ def load_m_from_excel(
         # If requested sex not present and no Total, fallback to Female or Male (whichever exists)
         rate_col = "Female" if "Female" in df.columns else "Male"
 
+    if drop_years is not None:
+        mask = ~np.isin(years, np.array(list(drop_years)))
+        years = years[mask]
+        m = m[:, mask]
+
     # Filter ranges
     if year_min is not None:
         df = df[df["Year"] >= year_min]
@@ -245,26 +236,45 @@ def load_m_from_excel(
 
 
 def m_to_q(m: np.ndarray) -> np.ndarray:
-    """Mid-year approximation: q ≈ m / (1 + 0.5 m)."""
+    """
+    Convert central death rates m_x,t into one-year death probabilities q_x,t
+    using the standard approximation q = m / (1 + 0.5*m). The output is clipped
+    to maintain 0 < q < 1.
+    """
     q = m / (1.0 + 0.5 * m)
     return np.clip(q, 1e-10, 1 - 1e-10)
 
 
 def q_to_m(q: np.ndarray) -> np.ndarray:
+    """
+    Convert one-year death probabilities q_x,t back to central death rates m_x,t
+    via m = 2q / (1 - q). The result is clipped to ensure numerical stability.
+    """
     q = np.clip(q, 1e-10, 1 - 1e-10)
     return (2.0 * q) / (1.0 - q)
 
 
 def survival_from_q(q: np.ndarray) -> np.ndarray:
-    """Cohort survival along time axis."""
+    """
+    Compute survival probabilities S_x(t) from one-year death probabilities q_x,t
+    by cumulative multiplication of (1 - q). Survival is computed along the time axis.
+    """
     return np.cumprod(1.0 - q, axis=1)
 
 
 def validate_q(q: np.ndarray) -> None:
+    """
+    Validate that all q_x,t lie strictly within (0,1).
+    Raises an AssertionError if invalid values are detected.
+    """
     if not (np.all(q > 0) and np.all(q < 1)):
         raise AssertionError("q must be in (0,1).")
 
 
 def validate_survival_monotonic(S: np.ndarray) -> None:
+    """
+    Check that survival curves S_x(t) are non-increasing over time.
+    Raises an AssertionError if any survival path increases.
+    """
     if np.any(np.diff(S, axis=1) > 1e-12):
         raise AssertionError("S_x(t) must be non-increasing in t.")
