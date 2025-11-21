@@ -7,7 +7,7 @@ import numpy as np
 
 
 @dataclass
-class LCParams:
+class LCM1Params:
     a: np.ndarray  # (A,)
     b: np.ndarray  # (A,)
     k: np.ndarray  # (T,)
@@ -15,7 +15,7 @@ class LCParams:
     sigma: Optional[float] = None  # volatility of k_t
 
 
-def fit_lee_carter(m: np.ndarray) -> LCParams:
+def fit_lee_carter(m: np.ndarray) -> LCM1Params:
     """
     Fit the Lee–Carter model to a mortality surface m[age, year].
     Steps:
@@ -57,11 +57,11 @@ def fit_lee_carter(m: np.ndarray) -> LCParams:
     k = k - k_mean
     a = a + b * k_mean
 
-    return LCParams(a=a, b=b, k=k)
+    return LCM1Params(a=a, b=b, k=k)
 
 
-def reconstruct_log_m(params: LCParams) -> np.ndarray:
-    """ "
+def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
+    """
     Reconstruct the fitted log-mortality surface via:
         log m_x,t = a_x + b_x * k_t
     Returns a matrix with shape (A, T).
@@ -80,11 +80,10 @@ def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
     dk = np.diff(k)
     mu = float(dk.mean())
     sigma = float(dk.std(ddof=1))
-    if not np.isfinite(mu):
-        raise ValueError("Estimated mu is not finite.")
-    if not np.isfinite(sigma) or sigma < 0:
-        # guard against numerical issues
-        sigma = 0.0
+    if not np.isfinite(sigma):
+        raise ValueError("Estimated sigma is not finite.")
+    if sigma < 0:
+        raise ValueError("Estimated sigma is negative, which should not happen.")
     return mu, sigma
 
 
@@ -111,7 +110,9 @@ def simulate_k_paths(
     if horizon <= 0:
         raise ValueError("horizon must be > 0.")
     if n_sims <= 0:
-        raise ValueError("n_sims must be > 0.")
+        raise ValueError(
+            "n_sims must be > 0."
+        )  # if sigma = 0, paths are purely deterministic with drift mu
 
     mu = float(mu)
     sigma = float(sigma)
@@ -119,10 +120,8 @@ def simulate_k_paths(
         raise ValueError("mu must be finite.")
     if not np.isfinite(sigma):
         raise ValueError("sigma must be finite.")
-    # numpy requires scale >= 0; small epsilon avoids degenerate errors
     if sigma < 0:
-        sigma = abs(sigma)
-    sigma = max(sigma, 1e-12)
+        raise ValueError("sigma must be >= 0.")
 
     rng = np.random.default_rng(seed)
     eps = rng.normal(0.0, sigma, size=(n_sims, horizon))
@@ -133,11 +132,11 @@ def simulate_k_paths(
     return k_paths
 
 
-class LeeCarter:
+class LCM1:
     def __init__(self):
-        self.params: Optional[LCParams] = None
+        self.params: Optional[LCM1Params] = None
 
-    def fit(self, m: np.ndarray) -> "LeeCarter":
+    def fit(self, m: np.ndarray) -> "LCM1":
         """
         Fit the Lee–Carter model on a mortality surface m[age, year]
         and store the resulting LC parameters.

@@ -5,9 +5,11 @@ from typing import Optional, Tuple
 
 import numpy as np
 
+from pymort.lifetables import validate_q
+
 
 @dataclass
-class CBDParams:
+class CBDM5Params:
     """
     Parameters of the basic two–factor CBD model:
 
@@ -34,7 +36,7 @@ def _logit(p: np.ndarray) -> np.ndarray:
     return np.log(p_clipped / (1.0 - p_clipped))
 
 
-def _build_cbd_design(ages: np.ndarray) -> tuple[np.ndarray, float]:
+def _build_cbd_design(ages: np.ndarray) -> Tuple[np.ndarray, float]:
     """
     Build the CBD design matrix X = [1, x - x_bar] for given ages.
 
@@ -58,9 +60,10 @@ def _build_cbd_design(ages: np.ndarray) -> tuple[np.ndarray, float]:
     return X, x_bar
 
 
-def fit_cbd(q: np.ndarray, ages: np.ndarray) -> CBDParams:
+def fit_cbd(q: np.ndarray, ages: np.ndarray) -> CBDM5Params:
     """
     Fit the Cairns–Blake–Dowd (CBD) model to a mortality surface q[age, year].
+    The model is only appropriate for higher ages (e.g. 60+); users should filter ages before calling this function.
 
     We assume:
         logit(q_{x,t}) = kappa1_t + kappa2_t * (x - x_bar)
@@ -76,37 +79,32 @@ def fit_cbd(q: np.ndarray, ages: np.ndarray) -> CBDParams:
     A, T = q.shape
     if ages.shape[0] != A:
         raise ValueError("ages length must match q.shape[0].")
-    if not np.isfinite(q).all():
-        raise ValueError("q must contain finite values.")
-    if (q <= 0).any() or (q >= 1).any():
-        raise ValueError("q must lie strictly in (0, 1).")
+    validate_q(q)
 
     # Build design matrix once (same ages for all years)
     X, x_bar = _build_cbd_design(ages)  # X: (A, 2)
     XtX = X.T @ X
-    try:
-        XtX_inv = np.linalg.inv(XtX)
-    except np.linalg.LinAlgError as exc:
-        raise RuntimeError("X'X is singular in CBD fit.") from exc
 
     # transform q to logits
     y = _logit(q)  # (A, T)
+    Xty = X.T @ y
+    try:
+        beta_hat_all = np.linalg.solve(XtX, Xty)  # (2, T)
+    except np.linalg.LinAlgError as exc:
+        raise RuntimeError("X'X is singular in CBD fit.") from exc
 
-    # OLS for all years at once:
-    # beta_hat_all = (X'X)^{-1} X' y  → shape (2, T)
-    beta_hat_all = XtX_inv @ X.T @ y
     kappa1 = beta_hat_all[0, :]  # (T,)
     kappa2 = beta_hat_all[1, :]  # (T,)
 
-    return CBDParams(
+    return CBDM5Params(
         kappa1=kappa1,
         kappa2=kappa2,
-        ages=ages.astype(float),
+        ages=ages,
         x_bar=x_bar,
     )
 
 
-def reconstruct_logit_q(params: CBDParams) -> np.ndarray:
+def reconstruct_logit_q(params: CBDM5Params) -> np.ndarray:
     """
     Reconstruct the logit mortality surface logit(q_{x,t}) from CBD parameters.
     Returns an array of shape (A, T).
@@ -121,7 +119,7 @@ def reconstruct_logit_q(params: CBDParams) -> np.ndarray:
     return k1[None, :] + z[:, None] * k2[None, :]
 
 
-def reconstruct_q(params: CBDParams) -> np.ndarray:
+def reconstruct_q(params: CBDM5Params) -> np.ndarray:
     """
     Reconstruct mortality probabilities q_{x,t} from CBD parameters.
     Returns an array with shape (A, T).
@@ -143,10 +141,14 @@ def _estimate_rw_params(kappa: np.ndarray) -> Tuple[float, float]:
     diffs = np.diff(kappa)
     mu = float(diffs.mean())
     sigma = float(diffs.std(ddof=1))
+    if not np.isfinite(mu):
+        raise ValueError("Estimated mu is not finite.")
+    if not np.isfinite(sigma) or sigma < 0:
+        sigma = 0.0
     return mu, sigma
 
 
-def estimate_rw_params_cbd(params: CBDParams) -> CBDParams:
+def estimate_rw_params_cbd(params: CBDM5Params) -> CBDM5Params:
     """
     Estimate RW+drift parameters for (kappa1_t, kappa2_t) and store them
     in the CBDParams object.
@@ -203,11 +205,11 @@ def simulate_kappa(
     return kappa_paths
 
 
-class CBDModel:
+class CBDM5:
     def __init__(self) -> None:
-        self.params: Optional[CBDParams] = None
+        self.params: Optional[CBDM5Params] = None
 
-    def fit(self, q: np.ndarray, ages: np.ndarray) -> "CBDModel":
+    def fit(self, q: np.ndarray, ages: np.ndarray) -> "CBDM5":
         """
         Fit the CBD model on a mortality surface q[age, year]
         and store the resulting parameters in self.params.

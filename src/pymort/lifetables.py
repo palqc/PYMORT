@@ -1,3 +1,58 @@
+"""
+lifetables.py — Mortality table utilities for PYMORT
+====================================================
+
+This module provides tools for working with mortality surfaces in terms of
+central death rates *mₓ,ₜ* and death probabilities *qₓ,ₜ*. It also includes
+a default Excel loader specifically designed for **HMD-style period mortality
+tables**.
+
+Supported input format (HMD-like)
+---------------------------------
+The default loader `load_m_from_excel()` expects an Excel file structured
+like the Human Mortality Database (HMD) “Mx_1x1” files:
+
+    - one row per (Age, Year) pair,
+    - columns including at least:
+          Age, Year, Total  (or Male / Female),
+    - values representing **period central death rates mₓ,ₜ**.
+
+The loader automatically:
+    • pivots the long-form dataset into a rectangular (ages * years) grid,
+    • extracts the selected sex (“Total”, “Male”, or “Female”),
+    • returns the canonical PYMORT mortality surface:
+          (ages, years, m)
+      where *m* is the central death rate.
+
+Scope and limitations
+---------------------
+`load_m_from_excel()` is intentionally minimal and supports **only**
+HMD-style period death-rate tables.
+
+It does **not** perform:
+    • conversion from death counts or exposures to mₓ,ₜ,
+    • conversion from qₓ,ₜ to mₓ,ₜ,
+    • parsing of arbitrary national statistical formats,
+    • interpretation of cohort-based tables.
+
+Users must therefore supply a dataset that already provides period death rates
+in an HMD-like structure. Once in the form (ages, years, m), all PYMORT models
+(LC M1/M2, APC M3, CBD M5/M6/M7) can be applied directly.
+
+Summary
+-------
+`load_m_from_excel()` is intended for:
+    ✔ HMD-style period mortality tables
+    ✔ datasets where central death rates mₓ,ₜ are already provided
+    ✔ long formats with columns (Age, Year, Total/Male/Female)
+
+It is not intended for:
+    ✘ raw death counts, exposures, cohort tables, or non-HMD layouts
+    ✘ datasets lacking central death rates
+
+Users must preprocess such datasets externally before using PYMORT.
+"""
+
 from __future__ import annotations
 
 from typing import Dict, Iterable, Literal, Optional, Tuple
@@ -32,7 +87,7 @@ _CANON = {
 
 
 def _find_header_and_map(
-    sheet_df: pd.DataFrame, max_scan_rows: int = 30
+    sheet_df: pd.DataFrame, max_scan_rows: int = 50
 ) -> Tuple[Optional[int], Dict[str, int]]:
     """
     Scan top rows to find the header row and a mapping {CanonName -> column index}.
@@ -191,11 +246,6 @@ def load_m_from_excel(
         # If requested sex not present and no Total, fallback to Female or Male (whichever exists)
         rate_col = "Female" if "Female" in df.columns else "Male"
 
-    if drop_years is not None:
-        mask = ~np.isin(years, np.array(list(drop_years)))
-        years = years[mask]
-        m = m[:, mask]
-
     # Filter ranges
     if year_min is not None:
         df = df[df["Year"] >= year_min]
@@ -215,6 +265,11 @@ def load_m_from_excel(
         index=ages, columns=years
     )
     m = pivot.to_numpy(dtype=float)
+
+    if drop_years is not None:
+        mask = ~np.isin(years, np.array(list(drop_years)))
+        years = years[mask]
+        m = m[:, mask]
 
     # Simple imputation if gaps exist (ffill/bfill along time then age)
     if np.isnan(m).any():
@@ -269,6 +324,8 @@ def validate_q(q: np.ndarray) -> None:
     """
     if not (np.all(q > 0) and np.all(q < 1)):
         raise AssertionError("q must be in (0,1).")
+    if not np.isfinite(q).all():
+        raise ValueError("q must contain finite values.")
 
 
 def validate_survival_monotonic(S: np.ndarray) -> None:
