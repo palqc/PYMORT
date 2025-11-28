@@ -5,8 +5,9 @@ from typing import Optional, Tuple
 
 import numpy as np
 
+from pymort.analysis.projections import simulate_random_walk_paths
 from pymort.lifetables import validate_q
-from pymort.models.cbd_m5 import _estimate_rw_params, _logit, simulate_kappa
+from pymort.models.cbd_m5 import _estimate_rw_params, _logit
 
 
 @dataclass
@@ -59,7 +60,7 @@ class CBDM7Params:
         age = float(age)
         c = float(self.years[-1] - age)
         idx = np.searchsorted(self.cohorts, c)
-
+ 
         if idx >= len(self.cohorts) or self.cohorts[idx] != c:
             raise ValueError(
                 f"Cohort index {c} not found in stored gamma grid. "
@@ -299,22 +300,25 @@ class CBDM7:
         include_last: bool = False,
     ) -> np.ndarray:
         """
-        Simulate random–walk forecasts of kappa1_t, kappa2_t or kappa3_t
-        using the fitted drift and volatility parameters.
+        Vectorized simulation of kappa1_t, kappa2_t or kappa3_t under:
+
+            kappa_t = kappa_{t-1} + mu + sigma * eps_t.
+
+        Uses simulate_random_walk_paths for efficiency.
         """
         if self.params is None:
             raise ValueError("Fit the model first.")
 
         if kappa_index == "kappa1":
-            k_last = self.params.kappa1[-1]
+            k_last = float(self.params.kappa1[-1])
             mu = self.params.mu1
             sigma = self.params.sigma1
         elif kappa_index == "kappa2":
-            k_last = self.params.kappa2[-1]
+            k_last = float(self.params.kappa2[-1])
             mu = self.params.mu2
             sigma = self.params.sigma2
         elif kappa_index == "kappa3":
-            k_last = self.params.kappa3[-1]
+            k_last = float(self.params.kappa3[-1])
             mu = self.params.mu3
             sigma = self.params.sigma3
         else:
@@ -323,12 +327,21 @@ class CBDM7:
         if mu is None or sigma is None:
             raise ValueError("Call estimate_rw() before simulate_kappa().")
 
-        return simulate_kappa(
+        horizon = int(horizon)
+        n_sims = int(n_sims)
+        if horizon <= 0 or n_sims <= 0:
+            raise ValueError("horizon and n_sims must be positive integers.")
+
+        rng = np.random.default_rng(seed)
+
+        paths = simulate_random_walk_paths(
             k_last=k_last,
-            mu=mu,
-            sigma=sigma,
+            mu=float(mu),
+            sigma=float(sigma),
             horizon=horizon,
             n_sims=n_sims,
-            seed=seed,
+            rng=rng,
             include_last=include_last,
         )
+
+        return paths

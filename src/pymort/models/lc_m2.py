@@ -5,7 +5,8 @@ from typing import Optional
 
 import numpy as np
 
-from pymort.models.lc_m1 import estimate_rw_params, fit_lee_carter, simulate_k_paths
+from pymort.analysis.projections import simulate_random_walk_paths
+from pymort.models.lc_m1 import estimate_rw_params, fit_lee_carter
 
 
 @dataclass
@@ -221,17 +222,31 @@ class LCM2:
         include_last: bool = False,
     ) -> np.ndarray:
         """
-        Simulate trajectories of k_t under RW+drift using
-        estimated (mu, sigma). Gamma_c remains fixed.
+        Simulate RW-drift paths of k_t using the central vectorized function.
+        Gamma_c stays fixed.
         """
         if self.params is None or self.params.mu is None or self.params.sigma is None:
             raise ValueError("Fit & estimate_rw first.")
-        return simulate_k_paths(
-            k_last=self.params.k[-1],
+
+        horizon = int(horizon)
+        n_sims = int(n_sims)
+        if horizon <= 0 or n_sims <= 0:
+            raise ValueError("horizon and n_sims must be positive integers.")
+
+        rng = np.random.default_rng(seed)
+
+        k_last = float(self.params.k[-1])
+        mu = float(self.params.mu)
+        sigma = float(self.params.sigma)
+
+        paths = simulate_random_walk_paths(
+            k_last=k_last,
+            mu=mu,
+            sigma=sigma,
             horizon=horizon,
-            mu=self.params.mu,
-            sigma=self.params.sigma,
             n_sims=n_sims,
-            seed=seed,
+            rng=rng,
             include_last=include_last,
         )
+
+        return paths

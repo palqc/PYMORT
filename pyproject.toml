@@ -15,6 +15,7 @@ dependencies = [
     "scipy>=1.11",
     "statsmodels>=0.14",
     "typer>=0.12",
+    "cpsplines @ git+https://github.com/ManuelNavarroGarcia/cpsplines",
 ]
 
 [project.optional-dependencies]

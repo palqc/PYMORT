@@ -15,15 +15,18 @@ SRC_DIR = os.path.join(ROOT_DIR, "src")
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-from pymort.analysis.validation import (
+from pymort.analysis import (
+    bootstrap_from_m,
     rmse_aic_bic,
-    time_split_backtest_apc,
+    smooth_mortality_with_cpsplines,
+    time_split_backtest_apc_m3,
     time_split_backtest_cbd_m5,
     time_split_backtest_cbd_m6,
     time_split_backtest_cbd_m7,
     time_split_backtest_lc_m1,
     time_split_backtest_lc_m2,
 )
+from pymort.analysis.projections import project_mortality_from_bootstrap
 from pymort.lifetables import (
     load_m_from_excel,
     m_to_q,
@@ -39,10 +42,8 @@ from pymort.models import (
     LCM1,
     LCM2,
     _logit,
-    estimate_rw_params,
-    fit_lee_carter,
-    reconstruct_log_m,
 )
+from pymort.pipeline import build_mortality_scenarios_for_pricing
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -78,6 +79,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--horizon", type=int, default=50, help="Forecast horizon (default: 50)"
+    )
+    p.add_argument(
+        "--bootstraps",
+        type=int,
+        default=200,
+        help="Number of bootstrap replications (default: 200)",
     )
     args, _unknown = p.parse_known_args(argv)
     if _unknown:
@@ -120,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     res = time_split_backtest_lc_m1(years, m, train_end=args.train_end)
     yrs_tr_bt = res["train_years"]
     yrs_te_bt = res["test_years"]
-    rmse_log = res["rmse_log"]
+    rmse_log = res["rmse_log_forecast"]
 
     print(
         f"Train: {int(yrs_tr_bt[0])}–{int(yrs_tr_bt[-1])} | "
@@ -157,104 +164,13 @@ def main(argv: list[str] | None = None) -> int:
 
     print("\n=== LC diagnostic plots ===")
 
-    mask_tr = years <= args.train_end
-    par_tr = fit_lee_carter(m[:, mask_tr])
-    """
-    fig, axs = plt.subplots(1, 3, figsize=(15, 4))
-    axs[0].plot(ages, par_tr.a)
-    axs[0].set_title("a_x (level by age)")
-    axs[0].set_xlabel("Age")
-    axs[0].set_ylabel("log m")
-
-    axs[1].plot(ages, par_tr.b)
-    axs[1].set_title("b_x (sensitivity by age)")
-    axs[1].set_xlabel("Age")
-
-    axs[2].plot(years[mask_tr], par_tr.k)
-    axs[2].set_title(f"k_t (train {int(years[mask_tr][0])}–{int(years[mask_tr][-1])})")
-    axs[2].set_xlabel("Year")
-    plt.tight_layout()
-    plt.show()
-    """
-    mu_tr, _sigma_tr = estimate_rw_params(par_tr.k)
-    mask_te = years > args.train_end
-    yrs_te_det = years[mask_te]
-    H_det = len(yrs_te_det)
-    k_det = par_tr.k[-1] + mu_tr * np.arange(1, H_det + 1)
-
-    ln_pred = par_tr.a[:, None] + np.outer(par_tr.b, k_det)
-    m_pred = np.exp(ln_pred)
-    m_obs = m[:, mask_te]
-
     age_star = 80
     i_age = (
         int(np.where(ages == age_star)[0][0]) if age_star in ages else len(ages) // 2
     )
 
-    # --- LC: observed vs fitted death probabilities q_x,t on full historical period ---
-
-    # LC fitted on the whole historical m[age, year]
-    par_lc_full = fit_lee_carter(m)
-    ln_m_hat_full = reconstruct_log_m(par_lc_full)
-    m_hat_full = np.exp(ln_m_hat_full)
-
-    # Convert to death probabilities q
     q_full = m_to_q(m)
-    q_hat_lc_full = m_to_q(m_hat_full)
 
-    # Plot for chosen age
-    plt.figure(figsize=(8, 4))
-    plt.plot(
-        years,
-        q_full[i_age, :],
-        label=f"Observed q(age={ages[i_age]})",
-    )
-    plt.plot(
-        years,
-        q_hat_lc_full[i_age, :],
-        "--",
-        label="LC fitted q",
-    )
-    plt.title(f"Lee–Carter: observed vs fitted q_x,t (age={ages[i_age]})")
-    plt.xlabel("Year")
-    plt.ylabel("Death probability q")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-    """
-    plt.figure(figsize=(7, 4))
-    plt.plot(yrs_te_det, m_obs[i_age, :], label=f"Observed m(age={ages[i_age]})")
-    plt.plot(yrs_te_det, m_pred[i_age, :], "--", label="LC deterministic forecast")
-    plt.yscale("log")
-    plt.title(f"Observed vs LC forecast (age {ages[i_age]})")
-    plt.xlabel("Year")
-    plt.ylabel("Death rate m (log scale)")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    """
-    if args.sims > 0:
-        # fan chart on k_t (LC)
-        k_last = model.params.k[-1]
-        k_paths_plot = np.concatenate(
-            [np.full((k_paths.shape[0], 1), k_last), k_paths],
-            axis=1,
-        )
-        years_plot = np.concatenate([[args.train_end], yrs_future])
-
-        lo, med, hi = np.percentile(k_paths_plot, [5, 50, 95], axis=0)
-    """
-        plt.figure(figsize=(8, 4))
-        plt.fill_between(years_plot, lo, hi, alpha=0.3, label="90% band")
-        plt.plot(years_plot, med, linewidth=2.0, label="Median $k_t$")
-        plt.title(f"Monte Carlo fan chart for $k_t$ (H = {H_mc} years)")
-        plt.xlabel("Year")
-        plt.ylabel("$k_t$")
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
-    """
     # ================== CBD Model (baseline) ===================
 
     print("\n=== CBD model: fit & basic plots ===")
@@ -270,67 +186,10 @@ def main(argv: list[str] | None = None) -> int:
 
     params_cbd = cbd.params
     assert params_cbd is not None
-    """
-    # kappa1_t (level)
-    plt.figure(figsize=(8, 4))
-    plt.plot(years, params_cbd.kappa1, linewidth=2)
-    plt.title("CBD factor kappa1_t (level)")
-    plt.xlabel("Year")
-    plt.ylabel("kappa1_t")
-    plt.tight_layout()
-    plt.show()
-    
-    # kappa2_t (slope)
-    plt.figure(figsize=(8, 4))
-    plt.plot(years, params_cbd.kappa2, linewidth=2)
-    plt.title("CBD factor kappa2_t (slope)")
-    plt.xlabel("Year")
-    plt.ylabel("kappa2_t")
-    plt.tight_layout()
-    plt.show()
-
-    # observed vs fitted q for age_star
-    plt.figure(figsize=(8, 4))
-    plt.plot(years, q_full[i_age, :], label=f"Observed q(age={ages[i_age]})")
-    plt.plot(years, q_hat_full[i_age, :], "--", label="CBD fitted q")
-    plt.title(f"CBD: observed vs fitted q_x,t (age={ages[i_age]})")
-    plt.xlabel("Year")
-    plt.ylabel("Death probability q")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    """
-    # RW params + MC on kappa1 (CBD)
     print("\n=== CBD RW parameters and Monte Carlo (kappa1) ===")
     mu1, sigma1, mu2, sigma2 = cbd.estimate_rw()
     print(f"kappa1: mu={mu1:.6f}, sigma={sigma1:.6f}")
     print(f"kappa2: mu={mu2:.6f}, sigma={sigma2:.6f}")
-
-    horizon_cbd = args.horizon
-    n_sims_cbd = args.sims
-
-    kappa1_paths = cbd.simulate_kappa(
-        "kappa1",
-        horizon=horizon_cbd,
-        n_sims=n_sims_cbd,
-        seed=args.seed,
-        include_last=True,
-    )  # (n_sims, H+1)
-
-    years_future_cbd = np.arange(years[-1], years[-1] + horizon_cbd + 1)
-
-    lo1, med1, hi1 = np.percentile(kappa1_paths, [5, 50, 95], axis=0)
-    """
-    plt.figure(figsize=(8, 4))
-    plt.fill_between(years_future_cbd, lo1, hi1, alpha=0.3, label="90% band")
-    plt.plot(years_future_cbd, med1, linewidth=2.0, label="Median kappa1_t")
-    plt.title("CBD – Monte Carlo fan chart for kappa1_t")
-    plt.xlabel("Year")
-    plt.ylabel("kappa1_t")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    """
     # ================== CBD Cohort Model (M6) ===================
 
     print("\n=== CBD + cohort model: fit & comparison ===")
@@ -343,62 +202,13 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"CBD (no cohort)  RMSE (logit q): {rmse_logit:.6f}")
     print(f"CBD + cohort     RMSE (logit q): {rmse_logit_co:.6f}")
-    """
-    # Observed vs CBD vs CBD+cohort for same age_star
-    plt.figure(figsize=(9, 5))
-    plt.plot(
-        years, q_full[i_age, :], color="black", label=f"Observed q(age={ages[i_age]})"
-    )
-    plt.plot(
-        years, q_hat_full[i_age, :], "--", color="tab:orange", label="CBD fitted q"
-    )
-    plt.plot(
-        years, q_hat_co[i_age, :], "-.", color="tab:green", label="CBD+cohort fitted q"
-    )
-    plt.title(f"CBD vs CBD+cohort: observed vs fitted q_x,t (age={ages[i_age]})")
-    plt.xlabel("Year")
-    plt.ylabel("Death probability q")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    """
-    # RW params + MC trên kappa1_t (CBD+cohort)
     print("\n=== CBD + cohort: RW params and MC on kappa1_t ===")
     mu1_co, sigma1_co, mu2_co, sigma2_co = cbd_co.estimate_rw()
     print(f"[CBD+cohort] kappa1: mu={mu1_co:.6f}, sigma={sigma1_co:.6f}")
     print(f"[CBD+cohort] kappa2: mu={mu2_co:.6f}, sigma={sigma2_co:.6f}")
 
-    k1_paths_co = cbd_co.simulate_kappa(
-        "kappa1",
-        horizon=horizon_cbd,
-        n_sims=n_sims_cbd,
-        seed=args.seed,
-        include_last=True,
-    )
-
-    years_future_cbd_co = np.arange(years[-1], years[-1] + horizon_cbd + 1)
-    lo1_co, med1_co, hi1_co = np.percentile(k1_paths_co, [5, 50, 95], axis=0)
-    """
-    plt.figure(figsize=(8, 4))
-    plt.fill_between(
-        years_future_cbd_co, lo1_co, hi1_co, alpha=0.3, label="90% band (CBD+cohort)"
-    )
-    plt.plot(
-        years_future_cbd_co,
-        med1_co,
-        linewidth=2.0,
-        label="Median kappa1_t (CBD+cohort)",
-    )
-    plt.title("CBD + cohort – Monte Carlo fan chart for kappa1_t")
-    plt.xlabel("Year")
-    plt.ylabel("kappa1_t")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    """
     # ================== CBD M7 (quadratic + cohort) ===================
-
-    # Fit M7 on toute la surface q_full
+    """
     m7 = CBDM7().fit(q_full, ages, years)
     q_hat_m7_full = m7.predict_q()  # (A, T)
 
@@ -408,129 +218,80 @@ def main(argv: list[str] | None = None) -> int:
     q_cbd_co_age = q_hat_co[i_age, :]  # CBD + cohort (M6)
     q_m7_age = q_hat_m7_full[i_age, :]  # CBD M7
 
-    plt.figure(figsize=(10, 5), dpi=150)
-    plt.plot(years, q_obs_age, color="black", label=f"Observed q(age={ages[i_age]})")
-    plt.plot(years, q_cbd_age, "--", color="tab:orange", label="CBD M5 fitted q")
-    plt.plot(
-        years,
-        q_cbd_co_age,
-        "--",
-        color="tab:green",
-        linestyle=(0, (5, 2)),
-        label="CBD M6 fitted q",
-    )
-    plt.plot(
-        years,
-        q_m7_age,
-        "--",
-        color="tab:red",
-        linestyle=(0, (3, 1, 1, 1)),
-        label="CBD M7 fitted q",
-    )
-
-    plt.title(f"CBD M5 vs M6 vs M7: observed vs fitted q_x,t (age={ages[i_age]})")
-    plt.xlabel("Year")
-    plt.ylabel("Death probability q")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-    # --------- Plot 2 : forecast fan chart avec MC du modèle M7 ---------
-
-    par_lc_full = fit_lee_carter(m)  # fit LC sur TOUT l’historique
-    ln_m_lc_full = reconstruct_log_m(par_lc_full)
-    m_lc_full = np.exp(ln_m_lc_full)
-    q_lc_full = m_to_q(m_lc_full)  # conversion m -> q
+    # ========== 1) Fits complets pour lignes historiques (comparaison) ==========
+    
+    par_lc_full = fit_lee_carter(m)
+    q_lc_full = m_to_q(np.exp(reconstruct_log_m(par_lc_full)))
     q_lc_age = q_lc_full[i_age, :]
 
-    # LC M2 (LC + cohort) sur tout l’historique
     lcm2_full = LCM2().fit(m, ages, years)
-    m_lcm2_full = lcm2_full.predict_m()
-    q_lcm2_full = m_to_q(m_lcm2_full)
+    q_lcm2_full = m_to_q(lcm2_full.predict_m())
     q_lcm2_age = q_lcm2_full[i_age, :]
 
-    # APC M3 sur tout l’historique
     apc_full = APCM3().fit(m, ages, years)
-    m_apc_full = apc_full.predict_m()
-    q_apc_full = m_to_q(m_apc_full)
+    q_apc_full = m_to_q(apc_full.predict_m())
     q_apc_age = q_apc_full[i_age, :]
 
-    # Estimation RW sur les trois kappa_t
-    mu1, _sig1, mu2, _sig2, mu3, _sig3 = m7.estimate_rw()
-    params_m7 = m7.params
-    assert params_m7 is not None
+    # ========== 2) Bootstrap des paramètres du modèle M7 ==========
+    B = args.bootstraps  # ex: 500
+    seed_bs = args.seed
 
+    bs_m7 = bootstrap_from_m(
+        CBDM7,
+        m,
+        ages,
+        years,
+        B=B,
+        seed=seed_bs,
+        resample="year_block",
+    )
+
+    # ========== 3) Projections futures (param uncertainty × process uncertainty) ==========
     horizon_m7 = args.horizon
-    n_sims_m7 = args.sims
-    seed_m7 = args.seed
+    n_process = args.sims
+    seed_proj = None if args.seed is None else args.seed + 123
 
-    # Simule kappa1, kappa2, kappa3 à partir de la dernière année observée
-    k1_paths = m7.simulate_kappa(
-        "kappa1",
+    proj_m7 = project_mortality_from_bootstrap(
+        CBDM7,
+        ages,
+        years,
+        m,
+        bs_m7,
         horizon=horizon_m7,
-        n_sims=n_sims_m7,
-        seed=seed_m7,
-        include_last=True,
-    )  # (n_sims, H+1)
-
-    k2_paths = m7.simulate_kappa(
-        "kappa2",
-        horizon=horizon_m7,
-        n_sims=n_sims_m7,
-        seed=None if seed_m7 is None else seed_m7 + 1,
+        n_process=n_process,
+        seed=seed_proj,
         include_last=True,
     )
 
-    k3_paths = m7.simulate_kappa(
-        "kappa3",
-        horizon=horizon_m7,
-        n_sims=n_sims_m7,
-        seed=None if seed_m7 is None else seed_m7 + 2,
-        include_last=True,
-    )
+    q_paths_all = proj_m7.q_paths
+    years_forecast = proj_m7.years  # (H,)
 
-    # Grille des années pour la partie forecast (inclut la dernière année historique)
-    split_year = int(years[-1])
-    years_forecast = np.arange(split_year, split_year + horizon_m7 + 1)
-
-    # Termes en z pour l'âge étudié
-    z_vec = params_m7.ages - params_m7.x_bar
-    var_z = float(np.mean(z_vec**2))  # \hat\sigma_x^2
-    z_star = float(ages[i_age] - params_m7.x_bar)
-    z2c_star = float(z_star**2 - var_z)
-
-    # Effet de cohorte : on gèle gamma_{t-x} à sa valeur pour la dernière année observée
-    gamma_last = params_m7.gamma_for_age_at_last_year(float(ages[i_age]))
-
-    # Construction des trajectoires logit(q) puis q pour l’âge étudié
-    # shape (n_sims, H+1)
-    logit_q_paths_m7 = k1_paths + k2_paths * z_star + k3_paths * z2c_star + gamma_last
-    q_paths_m7 = 1.0 / (1.0 + np.exp(-logit_q_paths_m7))
+    q_paths_m7 = q_paths_all[:, i_age, :]
 
     q_low_m7, q_med_m7, q_high_m7 = np.percentile(q_paths_m7, [5, 50, 95], axis=0)
 
-    # Historique complet
+    # ========== 4) Historique OBS pour âge i_age ==========
+    split_year = int(years[-1])
+
     q_obs_age = q_full[i_age, :]
 
-    # Si le fichier Excel contient des années > 2019
     if q_full.shape[1] > len(years):
         extra_years = years[len(years) :]
         extra_obs = q_obs_age[len(years) :]
     else:
-        # sinon, remplir les observations futures par NaN
-        extra_years = years_forecast[1:]  # enlever split_year
+        extra_years = years_forecast
         extra_obs = np.full_like(extra_years, np.nan, dtype=float)
 
     years_obs_extended = np.concatenate([years, extra_years])
     q_obs_extended = np.concatenate([q_obs_age, extra_obs])
 
     q_m7_age = q_hat_m7_full[i_age, :]
-    q_cbd_age = q_hat_full[i_age, :]  # pour comparaison dans la légende
+    q_cbd_age = q_hat_full[i_age, :]
+    q_cbd_co_age = q_hat_co[i_age, :]
 
-    # ---- Plot ----
+    # ========== 5) Plot ==========
     fig, ax = plt.subplots(figsize=(10, 5), dpi=150)
 
-    # Historique (fond blanc)
     ax.plot(
         years_obs_extended,
         q_obs_extended,
@@ -538,37 +299,18 @@ def main(argv: list[str] | None = None) -> int:
         linewidth=1,
         label=f"Observed q(age={ages[i_age]})",
     )
+
     ax.plot(
-        years,
-        q_lc_age,
-        "--",
-        color="tab:brown",
-        linewidth=1,
-        label="LC M1 fitted q",
+        years, q_lc_age, "--", color="tab:brown", linewidth=1, label="LC M1 fitted q"
     )
     ax.plot(
-        years,
-        q_lcm2_age,
-        "--",
-        color="tab:cyan",
-        linewidth=1,
-        label="LC M2 fitted q",
+        years, q_lcm2_age, "--", color="tab:cyan", linewidth=1, label="LC M2 fitted q"
     )
     ax.plot(
-        years,
-        q_apc_age,
-        "--",
-        color="tab:gray",
-        linewidth=1,
-        label="APC M3 fitted q",
+        years, q_apc_age, "--", color="tab:gray", linewidth=1, label="APC M3 fitted q"
     )
     ax.plot(
-        years,
-        q_cbd_age,
-        "--",
-        color="tab:orange",
-        linewidth=1,
-        label="CBD M5 fitted q",
+        years, q_cbd_age, "--", color="tab:orange", linewidth=1, label="CBD M5 fitted q"
     )
     ax.plot(
         years,
@@ -579,240 +321,692 @@ def main(argv: list[str] | None = None) -> int:
         label="CBD M6 fitted q",
     )
     ax.plot(
-        years,
-        q_m7_age,
-        "--",
-        color="tab:green",
-        linewidth=1,
-        label="CBD M7 fitted q",
+        years, q_m7_age, "--", color="tab:green", linewidth=1, label="CBD M7 fitted q"
     )
 
-    # Zone future en gris clair
     ax.axvspan(split_year, years_forecast[-1], color="grey", alpha=0.08)
     ax.axvline(split_year, color="black", linestyle="--", linewidth=1)
 
-    # Quelques trajectoires MC (M7) pour visualiser la dispersion
-    n_plot = min(1000, n_sims_m7)
-    for i in range(n_plot):
+    N_total = q_paths_m7.shape[0]
+    n_plot = min(300, N_total)  # évite de saturer le graph
+    idx_plot = np.linspace(0, N_total - 1, n_plot, dtype=int)
+
+    for i in idx_plot:
         ax.plot(
             years_forecast,
             q_paths_m7[i, :],
             color="tab:blue",
-            alpha=0.08,
+            alpha=0.06,
             linewidth=0.7,
         )
 
-    # Bande 90 % + médiane
     ax.fill_between(
         years_forecast,
         q_low_m7,
         q_high_m7,
-        color="tab:blue",
         alpha=0.25,
-        label="90% band (M7 forecast)",
+        label="90% band (M7 bootstrap forecast)",
     )
     ax.plot(
         years_forecast,
         q_med_m7,
         color="tab:red",
         linewidth=1.5,
-        label="Median forecast (M7)",
+        label="Median forecast (M7 bootstrap)",
     )
 
-    ax.set_title(f"CBD M7 forecast with MC paths for q (age={ages[i_age]})")
+    ax.set_title(
+        f"CBD M7 forecast with bootstrap * RW process risk (age={ages[i_age]})"
+    )
     ax.set_xlabel("Year")
     ax.set_ylabel("Death probability q")
     ax.set_ylim(0, max(q_obs_age.max(), q_high_m7.max()) * 1.1)
     ax.legend(loc="upper right")
     fig.tight_layout()
     plt.show()
+    """
+    # ------------------- CPsplines smoothing (fit once) -------------------
+    print("\n=== CPsplines smoothing (for comparison tables) ===")
+    cp_res = smooth_mortality_with_cpsplines(
+        m,
+        ages,
+        years,
+        k=None,
+        horizon=args.horizon,
+        verbose=True,
+    )
+    m_cp_fit = cp_res["m_fitted"]
+    m_cp_forecast = cp_res["m_forecast"]
+    years_cp_forecast = cp_res["years_forecast"]
+    cp_model = cp_res["model"]
+    print("CPsplines fitted m shape:", m_cp_fit.shape)
+    print("CPsplines forecast m shape:", m_cp_forecast.shape)
+    print("Forecast years (CPsplines):", years_cp_forecast[:5], "...")
 
     # ------------------- RMSE / AIC / BIC + forecast table --------------------------
+    def collect_metrics(
+        label: str,
+        m_fit_surface: np.ndarray,
+        m_eval_surface: np.ndarray,
+    ) -> list[dict[str, float | str]]:
+        """
+        Compute in-sample (RMSE, AIC, BIC) and forecast RMSE (log m / logit q)
+        for one data source, using the backtest helpers in pymort.validation.
 
-    # Dimensions
-    A = len(ages)
-    T = len(years)
+        m_fit_surface  : surface utilisée pour fitter les modèles
+        m_eval_surface : surface de vérité pour les RMSE in-sample / AIC/BIC
+                     (pour le scénario smoothed, c'est le m "raw").
+        """
+        A = len(ages)
+        T = len(years)
 
-    # Vérité sur toute la surface en logit(q)
-    q_full = m_to_q(m)
-    logit_true = _logit(q_full)
-    ln_m_true = np.log(m)
+        q_eval_surface = m_to_q(m_eval_surface)
+        logit_true = _logit(q_eval_surface)
 
-    # ---------- LC M1 : in-sample (full) ----------
-    m_lc_full = np.exp(ln_m_lc_full)
-    q_lc_full = m_to_q(m_lc_full)
+        rows: list[dict[str, float | str]] = []
 
-    rmse_lc_logm_full = float(np.sqrt(np.mean((ln_m_true - ln_m_lc_full) ** 2)))
+        # === LC M1 ===
+        lcm1_full = LCM1().fit(m_fit_surface)
+        ln_hat_lc = lcm1_full.predict_log_m()
+        q_hat_lc = m_to_q(np.exp(ln_hat_lc))
 
-    rmse_lc_logitq, aic_lc, bic_lc = rmse_aic_bic(
-        logit_true,
-        _logit(q_lc_full),
-        n_params=2 * A + T,  # a_x, b_x, k_t
-    )
+        rmse_lc_logm_full = float(
+            np.sqrt(np.mean((np.log(m_eval_surface) - ln_hat_lc) ** 2))
+        )
+        rmse_lc_logitq, aic_lc, bic_lc = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat_lc),
+            n_params=2 * A + T,
+        )
 
-    # ---------- LC M1 : forecast RMSE (logit q) ----------
+        bt_lc = time_split_backtest_lc_m1(
+            years=years,
+            m=m_fit_surface,
+            train_end=args.train_end,
+        )
+        start_te = int(bt_lc["test_years"][0])
+        end_te = int(bt_lc["test_years"][-1])
 
-    res_lc1_bt = time_split_backtest_lc_m1(years, m, train_end=args.train_end)
-    rmse_lc_forecast_logm = float(res_lc1_bt["rmse_log"])
-    rmse_lc_forecast_logit = float(res_lc1_bt["rmse_logit_forecast"])
+        rmse_lc_forecast_logm = bt_lc["rmse_log_forecast"]
+        rmse_lc_forecast_logit = bt_lc["rmse_logit_forecast"]
 
-    # ---------- LC M2 : in-sample (full) + forecast ----------
+        rows.append(
+            {
+                "Data": label,
+                "Model": "LC (M1)",
+                "RMSE in-sample (log m)": rmse_lc_logm_full,
+                "RMSE in-sample (logit q)": rmse_lc_logitq,
+                f"RMSE forecast {start_te}–{end_te} (log m)": rmse_lc_forecast_logm,
+                f"RMSE forecast {start_te}–{end_te} (logit q)": rmse_lc_forecast_logit,
+                "AIC": aic_lc,
+                "BIC": bic_lc,
+            }
+        )
 
-    lcm2_full = LCM2().fit(m, ages, years)
-    params_lcm2 = lcm2_full.params
-    assert params_lcm2 is not None
-    m_lcm2_full = lcm2_full.predict_m()
-    q_lcm2_full = m_to_q(m_lcm2_full)
+        # === LC M2 ===
+        lcm2_full = LCM2().fit(m_fit_surface, ages, years)
+        params_lcm2 = lcm2_full.params
+        assert params_lcm2 is not None
+        m_hat_lcm2 = lcm2_full.predict_m()
+        q_hat_lcm2 = m_to_q(m_hat_lcm2)
 
-    ln_m_lcm2_full = np.log(m_lcm2_full)
-    rmse_lcm2_logm_full = float(np.sqrt(np.mean((ln_m_true - ln_m_lcm2_full) ** 2)))
+        rmse_lcm2_logm_full = float(
+            np.sqrt(np.mean((np.log(m_eval_surface) - np.log(m_hat_lcm2)) ** 2))
+        )
+        rmse_lcm2_logitq, aic_lcm2, bic_lcm2 = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat_lcm2),
+            n_params=2 * A + T + len(params_lcm2.cohorts),
+        )
 
-    C_lcm2 = len(params_lcm2.cohorts)
-    n_params_lcm2 = 2 * A + T + C_lcm2  # a_x, b_x, k_t, gamma_c
-    rmse_lcm2_logitq, aic_lcm2, bic_lcm2 = rmse_aic_bic(
-        logit_true,
-        _logit(q_lcm2_full),
-        n_params=n_params_lcm2,
-    )
+        bt_lcm2 = time_split_backtest_lc_m2(
+            ages=ages,
+            years=years,
+            m=m_fit_surface,
+            train_end=args.train_end,
+        )
+        rmse_lcm2_forecast_logm = bt_lcm2["rmse_log_forecast"]
+        rmse_lcm2_forecast_logit = bt_lcm2["rmse_logit_forecast"]
 
-    res_lcm2_bt = time_split_backtest_lc_m2(ages, years, m, train_end=args.train_end)
-    rmse_lcm2_forecast_logm = float(res_lcm2_bt["rmse_log_forecast"])
-    rmse_lcm2_forecast_logit = float(res_lcm2_bt["rmse_logit_forecast"])
+        rows.append(
+            {
+                "Data": label,
+                "Model": "LC+cohort (M2)",
+                "RMSE in-sample (log m)": rmse_lcm2_logm_full,
+                "RMSE in-sample (logit q)": rmse_lcm2_logitq,
+                f"RMSE forecast {start_te}–{end_te} (log m)": rmse_lcm2_forecast_logm,
+                f"RMSE forecast {start_te}–{end_te} (logit q)": rmse_lcm2_forecast_logit,
+                "AIC": aic_lcm2,
+                "BIC": bic_lcm2,
+            }
+        )
 
-    # ---------- APC M3 : in-sample (full) + forecast ----------
+        # === APC M3 ===
+        apc_full = APCM3().fit(m_fit_surface, ages, years)
+        params_apc = apc_full.params
+        assert params_apc is not None
+        m_hat_apc = apc_full.predict_m()
+        q_hat_apc = m_to_q(m_hat_apc)
 
-    apc_full = APCM3().fit(m, ages, years)
-    params_apc = apc_full.params
-    assert params_apc is not None
-    m_apc_full = apc_full.predict_m()
-    q_apc_full = m_to_q(m_apc_full)
+        rmse_apc_logm_full = float(
+            np.sqrt(np.mean((np.log(m_eval_surface) - np.log(m_hat_apc)) ** 2))
+        )
+        rmse_apc_logitq, aic_apc, bic_apc = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat_apc),
+            n_params=A + T + len(params_apc.cohorts),
+        )
 
-    ln_m_apc_full = np.log(m_apc_full)
-    rmse_apc_logm_full = float(np.sqrt(np.mean((ln_m_true - ln_m_apc_full) ** 2)))
+        bt_apc = time_split_backtest_apc_m3(
+            ages=ages,
+            years=years,
+            m=m_fit_surface,
+            train_end=args.train_end,
+        )
+        rmse_apc_forecast_logm = bt_apc["rmse_log_forecast"]
+        rmse_apc_forecast_logit = bt_apc["rmse_logit_forecast"]
 
-    C_apc = len(params_apc.cohorts)
-    n_params_apc = A + T + C_apc  # beta_x, kappa_t, gamma_c
-    rmse_apc_logitq, aic_apc, bic_apc = rmse_aic_bic(
-        logit_true,
-        _logit(q_apc_full),
-        n_params=n_params_apc,
-    )
+        rows.append(
+            {
+                "Data": label,
+                "Model": "APC (M3)",
+                "RMSE in-sample (log m)": rmse_apc_logm_full,
+                "RMSE in-sample (logit q)": rmse_apc_logitq,
+                f"RMSE forecast {start_te}–{end_te} (log m)": rmse_apc_forecast_logm,
+                f"RMSE forecast {start_te}–{end_te} (logit q)": rmse_apc_forecast_logit,
+                "AIC": aic_apc,
+                "BIC": bic_apc,
+            }
+        )
 
-    res_apc_bt = time_split_backtest_apc(ages, years, m, train_end=args.train_end)
-    rmse_apc_forecast_logm = float(res_apc_bt["rmse_log_forecast"])
-    rmse_apc_forecast_logit = float(res_apc_bt["rmse_logit_forecast"])
+        q_fit_surface = m_to_q(m_fit_surface)
 
-    # ---------- CBD M5 : backtest + AIC/BIC ----------
+        # === CBD M5 ===
+        cbd_m5_full = CBDM5().fit(q_fit_surface, ages)
+        q_hat_m5 = cbd_m5_full.predict_q()
+        rmse_m5_logitq, aic_m5, bic_m5 = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat_m5),
+            n_params=2 * T,
+        )
 
-    res_m5 = time_split_backtest_cbd_m5(ages, years, q_full, train_end=args.train_end)
-    rmse_m5_forecast_logit = float(res_m5["rmse_logit_forecast"])
+        bt_m5 = time_split_backtest_cbd_m5(
+            ages=ages,
+            years=years,
+            q=q_fit_surface,
+            train_end=args.train_end,
+        )
+        rmse_m5_forecast_logit = bt_m5["rmse_logit_forecast"]
 
-    rmse_m5_logitq, aic_m5, bic_m5 = rmse_aic_bic(
-        logit_true,
-        _logit(q_hat_full),  # q_hat_full : fit M5 sur tout l’échantillon
-        n_params=2 * T,  # kappa1_t, kappa2_t
-    )
+        rows.append(
+            {
+                "Data": label,
+                "Model": "CBD (M5)",
+                "RMSE in-sample (log m)": np.nan,
+                "RMSE in-sample (logit q)": rmse_m5_logitq,
+                f"RMSE forecast {start_te}–{end_te} (log m)": np.nan,
+                f"RMSE forecast {start_te}–{end_te} (logit q)": rmse_m5_forecast_logit,
+                "AIC": aic_m5,
+                "BIC": bic_m5,
+            }
+        )
 
-    # ---------- CBD M6 : backtest + AIC/BIC ----------
-    C_cbd = len(params_m7.cohorts)  # nombre de cohortes distinctes pour M6/M7
+        # === CBD M6 ===
+        cbd_m6_full = CBDM6().fit(q_fit_surface, ages, years)
+        params_m6_full = cbd_m6_full.params
+        assert params_m6_full is not None
+        q_hat_m6 = cbd_m6_full.predict_q()
+        rmse_m6_logitq, aic_m6, bic_m6 = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat_m6),
+            n_params=2 * T + len(params_m6_full.cohorts),
+        )
 
-    res_m6 = time_split_backtest_cbd_m6(ages, years, q_full, train_end=args.train_end)
-    rmse_m6_forecast_logit = float(res_m6["rmse_logit_forecast"])
+        bt_m6 = time_split_backtest_cbd_m6(
+            ages=ages,
+            years=years,
+            q=q_fit_surface,
+            train_end=args.train_end,
+        )
+        rmse_m6_forecast_logit = bt_m6["rmse_logit_forecast"]
 
-    rmse_m6_logitq, aic_m6, bic_m6 = rmse_aic_bic(
-        logit_true,
-        _logit(q_hat_co),  # q_hat_co : fit M6 sur tout l’échantillon
-        n_params=2 * T + C_cbd,  # kappa1_t, kappa2_t + gamma_c
-    )
+        rows.append(
+            {
+                "Data": label,
+                "Model": "CBD+cohort (M6)",
+                "RMSE in-sample (log m)": np.nan,
+                "RMSE in-sample (logit q)": rmse_m6_logitq,
+                f"RMSE forecast {start_te}–{end_te} (log m)": np.nan,
+                f"RMSE forecast {start_te}–{end_te} (logit q)": rmse_m6_forecast_logit,
+                "AIC": aic_m6,
+                "BIC": bic_m6,
+            }
+        )
 
-    # ---------- CBD M7 : backtest + AIC/BIC ----------
+        # === CBD M7 ===
+        cbd_m7_full = CBDM7().fit(q_fit_surface, ages, years)
+        params_m7_full = cbd_m7_full.params
+        assert params_m7_full is not None
+        q_hat_m7 = cbd_m7_full.predict_q()
+        rmse_m7_logitq, aic_m7, bic_m7 = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat_m7),
+            n_params=3 * T + len(params_m7_full.cohorts),
+        )
 
-    res_m7_bt = time_split_backtest_cbd_m7(
-        ages, years, q_full, train_end=args.train_end
-    )
-    rmse_m7_forecast_logit = float(res_m7_bt["rmse_logit_forecast"])
+        bt_m7 = time_split_backtest_cbd_m7(
+            ages=ages,
+            years=years,
+            q=q_fit_surface,
+            train_end=args.train_end,
+        )
+        rmse_m7_forecast_logit = bt_m7["rmse_logit_forecast"]
 
-    rmse_m7_logitq, aic_m7, bic_m7 = rmse_aic_bic(
-        logit_true,
-        _logit(q_hat_m7_full),  # q_hat_m7_full : fit M7 sur tout l’échantillon
-        n_params=3 * T + C_cbd,  # kappa1_t, kappa2_t, kappa3_t + gamma_c
-    )
+        rows.append(
+            {
+                "Data": label,
+                "Model": "CBD+quadratic+cohort (M7)",
+                "RMSE in-sample (log m)": np.nan,
+                "RMSE in-sample (logit q)": rmse_m7_logitq,
+                f"RMSE forecast {start_te}–{end_te} (log m)": np.nan,
+                f"RMSE forecast {start_te}–{end_te} (logit q)": rmse_m7_forecast_logit,
+                "AIC": aic_m7,
+                "BIC": bic_m7,
+            }
+        )
 
-    # ---------- Tableau récapitulatif ----------
+        return rows
 
-    start_te = int(args.train_end + 1)
-    end_te = int(years[-1])
+    scenarios = [
+        ("Observed (raw)", m, m),
+        ("Smoothed (CPsplines fit, eval on raw)", m_cp_fit, m),
+    ]
 
-    results_df = pd.DataFrame(
-        {
-            "Model": [
-                "LC (M1)",
-                "LC+cohort (M2)",
-                "APC (M3)",
-                "CBD (M5)",
-                "CBD+cohort (M6)",
-                "CBD+quadratic+cohort (M7)",
-            ],
-            # RMSE log m (full in-sample)
-            "RMSE full (log m)": [
-                rmse_lc_logm_full,
-                rmse_lcm2_logm_full,
-                rmse_apc_logm_full,
-                np.nan,
-                np.nan,
-                np.nan,
-            ],
-            # RMSE logit q (full in-sample)
-            "RMSE full (logit q)": [
-                rmse_lc_logitq,
-                rmse_lcm2_logitq,
-                rmse_apc_logitq,
-                rmse_m5_logitq,
-                rmse_m6_logitq,
-                rmse_m7_logitq,
-            ],
-            # RMSE forecast log m (LC family only)
-            f"RMSE forecast {start_te}–{end_te} (log m)": [
-                rmse_lc_forecast_logm,
-                rmse_lcm2_forecast_logm,
-                rmse_apc_forecast_logm,
-                np.nan,
-                np.nan,
-                np.nan,
-            ],
-            # RMSE forecast logit q (all models)
-            f"RMSE forecast {start_te}–{end_te} (logit q)": [
-                rmse_lc_forecast_logit,
-                rmse_lcm2_forecast_logit,
-                rmse_apc_forecast_logit,
-                rmse_m5_forecast_logit,
-                rmse_m6_forecast_logit,
-                rmse_m7_forecast_logit,
-            ],
-            "AIC": [
-                aic_lc,
-                aic_lcm2,
-                aic_apc,
-                aic_m5,
-                aic_m6,
-                aic_m7,
-            ],
-            "BIC": [
-                bic_lc,
-                bic_lcm2,
-                bic_apc,
-                bic_m5,
-                bic_m6,
-                bic_m7,
-            ],
-        }
-    )
+    all_rows: list[dict[str, float | str]] = []
+    for lbl, m_fit_surface, m_eval_surface in scenarios:
+        all_rows.extend(collect_metrics(lbl, m_fit_surface, m_eval_surface))
 
+    comparison_df = pd.DataFrame(all_rows)
     print(
-        "\n=== Model comparison (RMSE log m, RMSE logit q, AIC, BIC, forecast RMSE) ===\n"
+        "\n=== Model comparison (RMSE in-sample / forecast, AIC, BIC — raw vs smoothed) ===\n"
     )
-    print(results_df.to_string(index=False))
+    print(comparison_df.to_string(index=False))
+
+    # ------------------------- BOOTSTRAP --------------------------------
+    comp_map = {
+        2: ["mu", "sigma"],
+        4: ["mu1", "sigma1", "mu2", "sigma2"],
+        6: ["mu1", "sigma1", "mu2", "sigma2", "mu3", "sigma3"],
+    }
+    bootstrap_rows: list[dict[str, str]] = []
+    bootstrap_results: dict[tuple[str, str], object] = {}
+
+    for lbl, m_fit_surface, _m_eval_surface in scenarios:
+        for model_label, model_cls in [
+            ("LC (M1)", LCM1),
+            ("LC+cohort (M2)", LCM2),
+            ("APC (M3)", APCM3),
+            ("CBD (M5)", CBDM5),
+            ("CBD+cohort (M6)", CBDM6),
+            ("CBD+quadratic+cohort (M7)", CBDM7),
+        ]:
+            bs_res = bootstrap_from_m(
+                model_cls,
+                m_fit_surface,
+                ages,
+                years,
+                B=args.bootstraps,
+                seed=args.seed,
+                resample="year_block",
+            )
+            bootstrap_results[(lbl, model_label)] = bs_res
+            names = comp_map.get(bs_res.mu_sigma.shape[1], [])
+            means = bs_res.mu_sigma.mean(axis=0)
+            stds = bs_res.mu_sigma.std(axis=0)
+            summary_parts = []
+            for name, mean_v, std_v in zip(names, means, stds):
+                summary_parts.append(f"{name}={mean_v:.4f}±{std_v:.4f}")
+            summary = ", ".join(summary_parts) if summary_parts else "n/a"
+            bootstrap_rows.append(
+                {
+                    "Data": lbl,
+                    "Model": model_label,
+                    f"Bootstrap drift/vol (B={args.bootstraps})": summary,
+                }
+            )
+
+    bootstrap_df = pd.DataFrame(bootstrap_rows)
+    print("\n=== Bootstrap drift/vol summary ===\n")
+    print(bootstrap_df.to_string(index=False))
+
+    """
+    # Quick visuals for two reference models on raw data
+    boot_lcm2 = bootstrap_results.get(("Observed (raw)", "LC+cohort (M2)"))
+    boot_m7 = bootstrap_results.get(("Observed (raw)", "CBD+quadratic+cohort (M7)"))
+    if boot_lcm2 is not None:
+        plt.hist(boot_lcm2.mu_sigma[:, 0], bins=30)
+        plt.title("LCM2 – mu (bootstrap)")
+        plt.show()
+    if boot_m7 is not None:
+        plt.hist(boot_m7.mu_sigma[:, 0], bins=30)
+        plt.title("M7 – mu1 (bootstrap)")
+        plt.show()
+    """
     # ---------------------------------------------------------
+
+    # ================== Smoothing diagnostic plots (raw vs CPsplines) ===================
+
+    print("\n=== CPsplines smoothing diagnostics (external cpsplines) ===")
+    m_hist = m
+    years_hist = years
+    """
+    # -------- Plot 1 : Observed vs CPsplines-smoothed m pour un âge --------
+    age_star = 80
+    if age_star in ages:
+        age_idx = int(np.where(ages == age_star)[0][0])
+    else:
+        age_idx = len(ages) // 2
+
+    years_obs = years_hist
+    m_obs_row = m_hist[age_idx, :]
+    m_fit_row = m_cp_fit[age_idx, :]
+
+    plt.figure(figsize=(10, 4))
+    plt.scatter(years_obs, m_obs_row, s=30, label="Observed m")
+    plt.plot(years_obs, m_fit_row, lw=3, label="CPsplines smoothed m")
+    plt.yscale("log")
+    plt.xlabel("Year")
+    plt.ylabel("Central death rate m (log scale)")
+    plt.legend()
+    plt.title(f"Observed vs CPsplines smoothed m (age={ages[age_idx]})")
+    plt.tight_layout()
+    plt.show()
+
+    # -------- Plot 2 : Heatmaps observed vs smoothed --------
+    fig, ax = plt.subplots(1, 2, figsize=(14, 5))
+
+    im0 = ax[0].imshow(
+        np.log(m_hist),
+        aspect="auto",
+        origin="lower",
+        extent=[years_hist[0], years_hist[-1], ages[0], ages[-1]],
+    )
+    ax[0].set_title("Observed log m")
+    ax[0].set_ylabel("Age")
+    ax[0].set_xlabel("Year")
+
+    im1 = ax[1].imshow(
+        np.log(m_cp_fit),
+        aspect="auto",
+        origin="lower",
+        extent=[years_hist[0], years_hist[-1], ages[0], ages[-1]],
+    )
+    ax[1].set_title("CPsplines smoothed log m")
+    ax[1].set_xlabel("Year")
+
+    plt.colorbar(im1, ax=ax, fraction=0.025, pad=0.02)
+    plt.tight_layout()
+    plt.show()
+    """
+
+    print("\n=== CPsplines internal model information ===")
+    print("Selected smoothing parameters (sp):", cp_model.sp_args)
+    print("Degrees:", cp_model.deg)
+    print("Order of differences:", cp_model.ord_d)
+    print("Internal number of basis (k):", cp_model.k)
+
+    # ================== Forecast M2 & M7 (CPsplines -> bootstrap -> projections -> plot) ===================
+    print(
+        "\n=== Forecast fan chart for LC+cohort (M2) and CBD M7 on CPsplines (age_star=80) ==="
+    )
+
+    if args.sims > 0 and args.bootstraps > 0:
+        if age_star in ages:
+            idx_age = int(np.where(ages == age_star)[0][0])
+        else:
+            idx_age = len(ages) // 2
+            print(
+                f"Warning: age_star={age_star} not in ages, using ages[{idx_age}]={ages[idx_age]} instead."
+            )
+            age_star = int(ages[idx_age])
+
+        years_obs = years
+        last_obs_year = int(years_obs[-1])
+
+        # ---------- 1) Observed data in q ----------
+        q_obs_age = m_to_q(m[idx_age, :])  # (T,)
+
+        # ---------- 2) Central fits on CPsplines (historical part) ----------
+        # M2: LC+cohort on smoothed m
+        lcm2_cp = LCM2().fit(m_cp_fit, ages, years)
+        m_hat_lcm2_cp = lcm2_cp.predict_m()
+        q_hat_lcm2_cp = m_to_q(m_hat_lcm2_cp)
+        q_lcm2_hist_age = q_hat_lcm2_cp[idx_age, :]
+
+        # M7: CBD+quadratic+cohort on smoothed (use q from m_cp_fit)
+        q_cp_fit = m_to_q(m_cp_fit)
+        m7_cp = CBDM7().fit(q_cp_fit, ages, years)
+        q_hat_m7_cp = m7_cp.predict_q()
+        q_m7_hist_age = q_hat_m7_cp[idx_age, :]
+
+        # ---------- 3) Bootstrap on CPsplines-fitted surfaces ----------
+        print(
+            f"Bootstrap on CPsplines data: B={args.bootstraps}, n_process={args.sims}"
+        )
+
+        # LC+cohort (M2) bootstrap (on smoothed m)
+        bs_lcm2_cp = bootstrap_from_m(
+            LCM2,
+            m_cp_fit,
+            ages,
+            years,
+            B=args.bootstraps,
+            seed=args.seed,
+            resample="year_block",
+        )
+
+        # CBD M7 bootstrap (on smoothed m, conversion interne vers q)
+        bs_m7_cp = bootstrap_from_m(
+            CBDM7,
+            m_cp_fit,
+            ages,
+            years,
+            B=args.bootstraps,
+            seed=None,
+            resample="year_block",
+        )
+
+        # ---------- 4) Stochastic projections (param + process uncertainty) ----------
+        horizon = args.horizon
+        seed_proj_lcm2 = None
+        seed_proj_m7 = None
+
+        proj_lcm2 = project_mortality_from_bootstrap(
+            model_cls=LCM2,
+            ages=ages,
+            years=years,
+            m=m_cp_fit,
+            bootstrap_result=bs_lcm2_cp,
+            horizon=horizon,
+            n_process=args.sims,
+            seed=seed_proj_lcm2,
+            include_last=True,
+        )
+
+        proj_m7 = project_mortality_from_bootstrap(
+            model_cls=CBDM7,
+            ages=ages,
+            years=years,
+            m=m_cp_fit,
+            bootstrap_result=bs_m7_cp,
+            horizon=horizon,
+            n_process=args.sims,
+            seed=seed_proj_m7,
+            include_last=True,
+        )
+
+        years_future = proj_lcm2.years  # (H,)
+        # Sanity check: both projections should have same future years
+        if not np.array_equal(years_future, proj_m7.years):
+            print(
+                "Warning: proj_lcm2.years and proj_m7.years differ; using proj_lcm2.years for plotting."
+            )
+
+        # ---------- 5) Extract age_star paths and quantiles (in q) ----------
+        # LC+cohort (M2)
+        q_paths_lcm2 = proj_lcm2.q_paths[:, idx_age, :]  # (N, H)
+        q_lcm2_med = np.percentile(q_paths_lcm2, 50, axis=0)
+        q_lcm2_low = np.percentile(q_paths_lcm2, 2.5, axis=0)
+        q_lcm2_high = np.percentile(q_paths_lcm2, 97.5, axis=0)
+
+        # CBD M7
+        q_paths_m7 = proj_m7.q_paths[:, idx_age, :]  # (N, H)
+        q_m7_med = np.percentile(q_paths_m7, 50, axis=0)
+        q_m7_low = np.percentile(q_paths_m7, 2.5, axis=0)
+        q_m7_high = np.percentile(q_paths_m7, 97.5, axis=0)
+
+        # ---------- 6) Plot: observed vs M2 / M7 (fit on CPsplines) + fan charts ----------
+        plt.figure(figsize=(11, 5), dpi=150)
+
+        # Observed q
+        plt.plot(
+            years_obs,
+            q_obs_age,
+            color="black",
+            linestyle="--",
+            linewidth=1.5,
+            label=f"Observed q(x={age_star})",
+        )
+
+        # Historical fitted (on CPsplines) for M2 & M7
+        plt.plot(
+            years_obs,
+            q_lcm2_hist_age,
+            color="tab:blue",
+            linewidth=2,
+            label="LC+cohort (M2) fitted on CPsplines",
+        )
+        plt.plot(
+            years_obs,
+            q_m7_hist_age,
+            color="tab:red",
+            linewidth=2,
+            label="CBD M7 fitted on CPsplines",
+        )
+
+        # Vertical line at last observed year
+        plt.axvline(last_obs_year, color="grey", linestyle=":", linewidth=1)
+
+        # Fan chart for M2 
+        plt.fill_between(
+            years_future,
+            q_lcm2_low,
+            q_lcm2_high,
+            alpha=0.20,
+            color="tab:blue",
+            label=f"M2 forecast 95% band (CPsplines, B={args.bootstraps})",
+        )
+        plt.plot(
+            years_future,
+            q_lcm2_med,
+            color="tab:blue",
+            linestyle="--",
+            linewidth=2,
+            label="M2 median forecast",
+        )
+
+        # Fan chart for M7 
+        plt.fill_between(
+            years_future,
+            q_m7_low,
+            q_m7_high,
+            alpha=0.20,
+            color="tab:red",
+            label=f"M7 forecast 95% band (CPsplines, B={args.bootstraps})",
+        )
+        plt.plot(
+            years_future,
+            q_m7_med,
+            color="tab:red",
+            linestyle="--",
+            linewidth=2,
+            label="M7 median forecast",
+        )
+
+        plt.xlabel("Year")
+        plt.ylabel("Death probability q")
+        plt.title(
+            f"Observed vs CPsplines-fitted M2 & M7 with bootstrap forecast\n(age={age_star})"
+        )
+        plt.ylim(bottom=0)
+        plt.legend(loc="upper right")
+        plt.tight_layout()
+        plt.show()
+    else:
+        print(
+            "Skipping M2/M7 forecast fan chart: need positive --sims and --bootstraps."
+        )
+
+    fitted_best, proj, scen_set = build_mortality_scenarios_for_pricing(
+        ages=ages,
+        years=years,
+        m=m,
+        train_end=args.train_end,
+        selection_metric="logit_q",
+        cpsplines_kwargs={"k": None, "horizon": 0, "verbose": False},
+        B_bootstrap=args.bootstraps,
+        horizon=args.horizon,
+        n_process=args.sims,
+        seed=args.seed,
+        include_last=True,
+    )
+
+    print("Selected model for pricing:", fitted_best.name)
+    print("Scenarios shape (q_paths):", scen_set.q_paths.shape)
+    print("Survival shape (S_paths):", scen_set.S_paths.shape)
+
+    # === Sanity check de la pipeline pricing end-to-end ===
+
+    assert fitted_best.name in {
+        "LCM1",
+        "LCM2",
+        "APCM3",
+        "CBDM5",
+        "CBDM6",
+        "CBDM7",
+    }, f"Unexpected selected model for pricing: {fitted_best.name}"
+
+    A = len(ages)
+    N_expected = args.bootstraps * args.sims
+    H_out = proj.q_paths.shape[2]
+
+    assert proj.q_paths.shape == (N_expected, A, H_out), (
+        "proj.q_paths has wrong shape: "
+        f"{proj.q_paths.shape} != ({N_expected}, {A}, {H_out})"
+    )
+
+    assert scen_set.q_paths.shape == (N_expected, A, H_out), (
+        "scen_set.q_paths has wrong shape: "
+        f"{scen_set.q_paths.shape} != ({N_expected}, {A}, {H_out})"
+    )
+    assert scen_set.S_paths.shape == (N_expected, A, H_out), (
+        "scen_set.S_paths has wrong shape: "
+        f"{scen_set.S_paths.shape} != ({N_expected}, {A}, {H_out})"
+    )
+    assert scen_set.years.shape[0] == H_out, (
+        "Length of scen_set.years inconsistent with horizon: "
+        f"{scen_set.years.shape[0]} != {H_out}"
+    )
+
+    validate_q(scen_set.q_paths)
+    validate_survival_monotonic(scen_set.S_paths)
+
+    diff_S = np.diff(scen_set.S_paths, axis=2)  # (N, A, H_out-1)
+    assert np.all(
+        diff_S <= 1e-10
+    ), "Survival curves must be non-increasing over time in each scenario."
+
+    print("End-to-end pricing pipeline checks: OK ✅")
 
     print("\nDONE ✅")
     return 0

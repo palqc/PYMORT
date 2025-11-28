@@ -250,4 +250,5 @@ __marimo__/
 
 # ── OS & misc junk ────────────────────────────────────────────────
 .DS_Store
-Thumbs.db
+Thumbs.dbCpsplines/
+Cpsplines/

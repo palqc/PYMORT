@@ -303,10 +303,10 @@ def m_to_q(m: np.ndarray) -> np.ndarray:
 def q_to_m(q: np.ndarray) -> np.ndarray:
     """
     Convert one-year death probabilities q_x,t back to central death rates m_x,t
-    via m = 2q / (1 - q). The result is clipped to ensure numerical stability.
+    via m = 2q / (2 - q). The result is clipped to ensure numerical stability.
     """
     q = np.clip(q, 1e-10, 1 - 1e-10)
-    return (2.0 * q) / (1.0 - q)
+    return (2.0 * q) / (2.0 - q)
 
 
 def survival_from_q(q: np.ndarray) -> np.ndarray:
@@ -314,7 +314,13 @@ def survival_from_q(q: np.ndarray) -> np.ndarray:
     Compute survival probabilities S_x(t) from one-year death probabilities q_x,t
     by cumulative multiplication of (1 - q). Survival is computed along the time axis.
     """
-    return np.cumprod(1.0 - q, axis=1)
+    q = np.asarray(q, dtype=float)
+
+    if q.ndim < 1:
+        raise ValueError(f"q must have at least 1 dimension, got shape {q.shape}.")
+    validate_q(q)
+
+    return np.cumprod(1.0 - q, axis=-1)
 
 
 def validate_q(q: np.ndarray) -> None:
@@ -333,5 +339,42 @@ def validate_survival_monotonic(S: np.ndarray) -> None:
     Check that survival curves S_x(t) are non-increasing over time.
     Raises an AssertionError if any survival path increases.
     """
+    S = np.asarray(S, dtype=float)
+    if S.ndim < 1:
+        raise ValueError(f"S must have at least 1 dimension, got shape {S.shape}.")
     if np.any(np.diff(S, axis=1) > 1e-12):
         raise AssertionError("S_x(t) must be non-increasing in t.")
+
+
+def survival_paths_from_q_paths(q_paths: np.ndarray) -> np.ndarray:
+    """
+    Convert multiple stochastic paths of q_{x,t} into survival functions S_{x,t}.
+
+    Parameters
+    ----------
+    q_paths : np.ndarray
+        Array of shape (N, A, H) where:
+        - N = number of stochastic scenarios (bootstrap * process risk)
+        - A = number of ages
+        - H = number of forecast years
+        Each q_paths[n, a, :] is a mortality trajectory over time.
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape (N, A, H) containing survival probabilities S_{x,t}
+        computed along the time axis, i.e. for each (n, a):
+            S[n, a, k] = ∏_{j=0}^{k} (1 - q[n, a, j]),  k = 0..H-1.
+    """
+    q_paths = np.asarray(q_paths, dtype=float)
+
+    if q_paths.ndim != 3:
+        raise ValueError(f"Expected q_paths of shape (N, A, H), got {q_paths.shape}.")
+
+    N, A, H = q_paths.shape
+
+    q_flat = q_paths.reshape(N * A, H)  # (N*A, H)
+    S_flat = survival_from_q(q_flat)  # (N*A, H)
+    S_paths = S_flat.reshape(N, A, H)  # (N, A, H)
+
+    return S_paths

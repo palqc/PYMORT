@@ -5,6 +5,8 @@ from typing import Optional
 
 import numpy as np
 
+from pymort.analysis.projections import simulate_random_walk_paths
+
 
 @dataclass
 class LCM1Params:
@@ -87,51 +89,6 @@ def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
     return mu, sigma
 
 
-def simulate_k_paths(
-    k_last: float,
-    horizon: int,
-    mu: float,
-    sigma: float,
-    n_sims: int = 1000,  # number of Monte Carlo paths (default: 1000; speed/accuracy trade-off)
-    seed: int | None = None,
-    include_last: bool = False,
-) -> np.ndarray:
-    """
-    Simulate future trajectories of the Lee–Carter time index k_t using:
-        k_t = k_{t-1} + mu + eps_t.
-    Generates an array of shape (n_sims, horizon). If include_last=True,
-    the initial value k_last is prepended as the first column.
-    """
-    try:
-        horizon = int(horizon)
-        n_sims = int(n_sims)
-    except Exception as e:
-        raise TypeError("horizon and n_sims must be integers.") from e
-    if horizon <= 0:
-        raise ValueError("horizon must be > 0.")
-    if n_sims <= 0:
-        raise ValueError(
-            "n_sims must be > 0."
-        )  # if sigma = 0, paths are purely deterministic with drift mu
-
-    mu = float(mu)
-    sigma = float(sigma)
-    if not np.isfinite(mu):
-        raise ValueError("mu must be finite.")
-    if not np.isfinite(sigma):
-        raise ValueError("sigma must be finite.")
-    if sigma < 0:
-        raise ValueError("sigma must be >= 0.")
-
-    rng = np.random.default_rng(seed)
-    eps = rng.normal(0.0, sigma, size=(n_sims, horizon))
-    steps = mu + eps
-    k_paths = k_last + np.cumsum(steps, axis=1)
-    if include_last:
-        k_paths = np.concatenate([np.full((n_sims, 1), k_last), k_paths], axis=1)
-    return k_paths
-
-
 class LCM1:
     def __init__(self):
         self.params: Optional[LCM1Params] = None
@@ -167,22 +124,29 @@ class LCM1:
         include_last: bool = False,
     ) -> np.ndarray:
         """
-        Simulate random-walk forecasts of k_t using the fitted drift and volatility.
-        Returns a matrix (n_sims, horizon).
-        """
-        if self.params is None or self.params.mu is None or self.params.sigma is None:
-            raise ValueError("Fit & estimate_rw first.")
-        horizon = int(horizon)
-        n_sims = int(n_sims)
-        if horizon <= 0 or n_sims <= 0:
-            raise ValueError("horizon and n_sims must be positive integers.")
+        Simulate RW paths for k_t using vectorized engine.
+        This method is kept for backward compatibility and diagnostics.
 
-        return simulate_k_paths(
+        Returns
+        -------
+        np.ndarray
+            Shape (n_sims, horizon) or (n_sims, horizon+1).
+        """
+        if (
+            self.params is None
+            or self.params.mu is None
+            or self.params.sigma is None
+        ):
+            raise ValueError("Fit & estimate_rw first.")
+
+        rng = np.random.default_rng(seed)
+
+        return simulate_random_walk_paths(
             k_last=self.params.k[-1],
-            horizon=horizon,
             mu=self.params.mu,
             sigma=self.params.sigma,
-            n_sims=n_sims,
-            seed=seed,
+            horizon=int(horizon),
+            n_sims=int(n_sims),
+            rng=rng,
             include_last=include_last,
         )

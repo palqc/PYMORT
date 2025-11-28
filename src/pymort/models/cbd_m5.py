@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
+from pymort.analysis.projections import simulate_random_walk_paths
 from pymort.lifetables import validate_q
 
 
@@ -160,51 +161,6 @@ def estimate_rw_params_cbd(params: CBDM5Params) -> CBDM5Params:
     return params
 
 
-def simulate_kappa(
-    k_last: float,
-    mu: float,
-    sigma: float,
-    horizon: int,
-    n_sims: int,
-    seed: Optional[int] = None,
-    include_last: bool = False,
-) -> np.ndarray:
-    """
-    Simulate future trajectories of a CBD time index kappa_t using:
-
-        kappa_t = kappa_{t-1} + mu + eps_t.
-
-    Returns an array of shape (n_sims, horizon), or (n_sims, horizon+1)
-    if include_last is True (first column = k_last).
-    """
-    try:
-        horizon = int(horizon)
-        n_sims = int(n_sims)
-    except Exception as exc:
-        raise TypeError("horizon and n_sims must be integers.") from exc
-    if horizon <= 0:
-        raise ValueError("horizon must be > 0.")
-    if n_sims <= 0:
-        raise ValueError("n_sims must be > 0.")
-
-    mu = float(mu)
-    sigma = float(sigma)
-    if not np.isfinite(mu) or not np.isfinite(sigma):
-        raise ValueError("mu and sigma must be finite.")
-    if sigma < 0:
-        sigma = abs(sigma)
-    sigma = max(sigma, 1e-12)
-
-    rng = np.random.default_rng(seed)
-    increments = rng.normal(loc=mu, scale=sigma, size=(n_sims, horizon))
-    kappa_paths = k_last + np.cumsum(increments, axis=1)
-
-    if include_last:
-        kappa_paths = np.hstack([np.full((n_sims, 1), k_last), kappa_paths])
-
-    return kappa_paths
-
-
 class CBDM5:
     def __init__(self) -> None:
         self.params: Optional[CBDM5Params] = None
@@ -257,32 +213,38 @@ class CBDM5:
         include_last: bool = False,
     ) -> np.ndarray:
         """
-        Simulate random–walk forecasts of kappa1_t or kappa2_t using
-        the fitted drift and volatility parameters.
+        Simulate RW forecasts for kappa1_t or kappa2_t using the fitted drift/vol.
         """
+
         if self.params is None:
             raise ValueError("Fit the model first.")
 
         if kappa_index == "kappa1":
-            k_last = self.params.kappa1[-1]
-            mu = self.params.mu1
-            sigma = self.params.sigma1
+            k_last = float(self.params.kappa1[-1])
+            mu = float(self.params.mu1)
+            sigma = float(self.params.sigma1)
         elif kappa_index == "kappa2":
-            k_last = self.params.kappa2[-1]
-            mu = self.params.mu2
-            sigma = self.params.sigma2
+            k_last = float(self.params.kappa2[-1])
+            mu = float(self.params.mu2)
+            sigma = float(self.params.sigma2)
         else:
             raise ValueError("kappa_index must be 'kappa1' or 'kappa2'.")
 
-        if mu is None or sigma is None:
-            raise ValueError("Call estimate_rw() before simulate_kappa().")
+        horizon = int(horizon)
+        n_sims = int(n_sims)
+        if horizon <= 0 or n_sims <= 0:
+            raise ValueError("horizon and n_sims must be positive integers.")
 
-        return simulate_kappa(
+        rng = np.random.default_rng(seed)
+
+        paths = simulate_random_walk_paths(
             k_last=k_last,
             mu=mu,
             sigma=sigma,
             horizon=horizon,
             n_sims=n_sims,
-            seed=seed,
+            rng=rng,
             include_last=include_last,
         )
+
+        return paths

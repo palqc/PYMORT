@@ -5,8 +5,9 @@ from typing import Optional, Tuple
 
 import numpy as np
 
+from pymort.analysis.projections import simulate_random_walk_paths
 from pymort.lifetables import validate_q
-from pymort.models.cbd_m5 import _estimate_rw_params, _logit, fit_cbd, simulate_kappa
+from pymort.models.cbd_m5 import _estimate_rw_params, _logit, fit_cbd
 
 
 @dataclass
@@ -240,17 +241,17 @@ class CBDM6:
     ) -> np.ndarray:
         """
         Simulate random–walk forecasts of kappa1_t or kappa2_t
-        using the fitted drift and volatility parameters.
+        using the fitted drift and volatility parameters (vectorized).
         """
         if self.params is None:
             raise ValueError("Fit the model first.")
 
         if kappa_index == "kappa1":
-            k_last = self.params.kappa1[-1]
+            k_last = float(self.params.kappa1[-1])
             mu = self.params.mu1
             sigma = self.params.sigma1
         elif kappa_index == "kappa2":
-            k_last = self.params.kappa2[-1]
+            k_last = float(self.params.kappa2[-1])
             mu = self.params.mu2
             sigma = self.params.sigma2
         else:
@@ -259,12 +260,21 @@ class CBDM6:
         if mu is None or sigma is None:
             raise ValueError("Call estimate_rw() before simulate_kappa().")
 
-        return simulate_kappa(
+        horizon = int(horizon)
+        n_sims = int(n_sims)
+        if horizon <= 0 or n_sims <= 0:
+            raise ValueError("horizon and n_sims must be positive integers.")
+
+        rng = np.random.default_rng(seed)
+
+        paths = simulate_random_walk_paths(
             k_last=k_last,
-            mu=mu,
-            sigma=sigma,
+            mu=float(mu),
+            sigma=float(sigma),
             horizon=horizon,
             n_sims=n_sims,
-            seed=seed,
+            rng=rng,
             include_last=include_last,
         )
+
+        return paths

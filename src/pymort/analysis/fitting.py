@@ -1,0 +1,641 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, Iterable, Literal, Optional
+
+import numpy as np
+import pandas as pd
+
+from pymort.analysis import (
+    rmse_aic_bic,
+    smooth_mortality_with_cpsplines,
+    time_split_backtest_apc_m3,
+    time_split_backtest_cbd_m5,
+    time_split_backtest_cbd_m6,
+    time_split_backtest_cbd_m7,
+    time_split_backtest_lc_m1,
+    time_split_backtest_lc_m2,
+)
+from pymort.lifetables import m_to_q
+from pymort.models import APCM3, CBDM5, CBDM6, CBDM7, LCM1, LCM2, _logit
+
+ModelName = Literal["LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"]
+
+
+@dataclass
+class FittedModel:
+    """
+    Container for a single fitted mortality model and its diagnostics.
+
+    This object is designed as the bridge between:
+
+    - the modelling layer (LC/CBD/APC fitted on raw or smoothed data), and
+    - the projection / pricing layers.
+
+    Attributes
+    ----------
+    name : str
+        Model name, e.g. 'LCM2', 'CBDM7'.
+    ages : np.ndarray
+        Age grid (A,).
+    years : np.ndarray
+        Time grid (T,) corresponding to the calibration window.
+    model : Any
+        The underlying fitted model instance (LCM2, CBDM7, ...).
+
+    m_fit_surface : np.ndarray | None
+        Surface m_{x,t} actually used for fitting, shape (A, T). For CBD
+        models (which work natively on q/logit q), this is the m-surface
+        associated to the fitting q via m_to_q.
+
+    m_eval_surface : np.ndarray | None
+        "Truth" surface m_{x,t} on which in-sample diagnostics are computed.
+        Typically the *observed raw* m, even when the fit is performed on a
+        smoothed version. This avoids favouring models that overfit noise.
+
+    rmse_logm : float | None
+        In-sample RMSE on log m_{x,t}, when defined (LC/APC family).
+    rmse_logitq : float | None
+        In-sample RMSE on logit(q_{x,t}) for all models (LC/APC via m->q).
+    aic : float | None
+        Akaike Information Criterion under Gaussian errors on logit(q).
+    bic : float | None
+        Bayesian Information Criterion under Gaussian errors on logit(q).
+
+    metadata : dict
+        Extra information, e.g.:
+        - 'data_source': 'raw' or 'cpsplines_fit_eval_on_raw'
+        - 'notes': explanatory string.
+    """
+
+    name: str
+    ages: np.ndarray
+    years: np.ndarray
+    model: Any
+
+    m_fit_surface: Optional[np.ndarray] = None
+    m_eval_surface: Optional[np.ndarray] = None
+
+    rmse_logm: Optional[float] = None
+    rmse_logitq: Optional[float] = None
+    aic: Optional[float] = None
+    bic: Optional[float] = None
+
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+def _fit_single_model(
+    model_name: ModelName,
+    ages: np.ndarray,
+    years: np.ndarray,
+    m_fit: np.ndarray,
+    m_eval: np.ndarray,
+) -> FittedModel:
+    """
+    Internal helper: fit one model on m_fit, evaluate diagnostics on m_eval.
+    """
+
+    ages = np.asarray(ages, dtype=float)
+    years = np.asarray(years, dtype=float)
+    m_fit = np.asarray(m_fit, dtype=float)
+    m_eval = np.asarray(m_eval, dtype=float)
+
+    if m_fit.shape != m_eval.shape:
+        raise ValueError(
+            f"m_fit and m_eval must have the same shape; got {m_fit.shape} vs {m_eval.shape}."
+        )
+
+    A, T = m_fit.shape
+    if A != ages.shape[0] or T != years.shape[0]:
+        raise ValueError("m_fit shape must be consistent with ages and years grids.")
+
+    m_eval_safe = np.clip(m_eval, 1e-12, None) 
+
+    # "Truth" for diagnostics on q/logit q: always from m_eval (usually raw).
+    q_eval = m_to_q(m_eval_safe)
+    logit_true = _logit(q_eval)
+
+    rmse_logm: Optional[float] = None
+    rmse_logitq: Optional[float] = None
+    aic: Optional[float] = None
+    bic: Optional[float] = None
+
+    # -------- LC / APC family: fit on log m --------
+    if model_name == "LCM1":
+        model = LCM1().fit(m_fit)
+        ln_hat = model.predict_log_m()  # (A, T)
+        m_hat = np.exp(ln_hat)
+        q_hat = m_to_q(m_hat)
+
+        rmse_logm = float(np.sqrt(np.mean((np.log(m_eval_safe) - ln_hat) ** 2)))
+        rmse_logitq, aic, bic = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat),
+            n_params=2 * A + T,
+        )
+
+    elif model_name == "LCM2":
+        model = LCM2().fit(m_fit, ages, years)
+        params = model.params
+        if params is None:
+            raise RuntimeError("LCM2.fit() returned None params")
+        m_hat = model.predict_m()
+        q_hat = m_to_q(m_hat)
+
+        rmse_logm = float(np.sqrt(np.mean((np.log(m_eval_safe) - np.log(m_hat)) ** 2)))
+        rmse_logitq, aic, bic = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat),
+            n_params=2 * A + T + len(params.cohorts),
+        )
+
+    elif model_name == "APCM3":
+        model = APCM3().fit(m_fit, ages, years)
+        params = model.params
+        if params is None:
+            raise RuntimeError("APCM3.fit() returned None params")
+        m_hat = model.predict_m()
+        q_hat = m_to_q(m_hat)
+
+        rmse_logm = float(np.sqrt(np.mean((np.log(m_eval_safe) - np.log(m_hat)) ** 2)))
+        rmse_logitq, aic, bic = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat),
+            n_params=A + T + len(params.cohorts),
+        )
+
+    # -------- CBD family: fit on logit q --------
+    elif model_name == "CBDM5":
+        q_fit = m_to_q(m_fit)
+        model = CBDM5().fit(q_fit, ages)
+        q_hat = model.predict_q()
+
+        rmse_logitq, aic, bic = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat),
+            n_params=2 * T,
+        )
+
+    elif model_name == "CBDM6":
+        q_fit = m_to_q(m_fit)
+        model = CBDM6().fit(q_fit, ages, years)
+        params = model.params
+        if params is None:
+            raise RuntimeError("CBDM6.fit() returned None params")
+        q_hat = model.predict_q()
+
+        rmse_logitq, aic, bic = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat),
+            n_params=2 * T + len(params.cohorts),
+        )
+
+    elif model_name == "CBDM7":
+        q_fit = m_to_q(m_fit)
+        model = CBDM7().fit(q_fit, ages, years)
+        params = model.params
+        if params is None:
+            raise RuntimeError("CBDM7.fit() returned None params")
+        q_hat = model.predict_q()
+
+        rmse_logitq, aic, bic = rmse_aic_bic(
+            logit_true,
+            _logit(q_hat),
+            n_params=3 * T + len(params.cohorts),
+        )
+
+    else:
+        raise ValueError(f"Unknown model_name: {model_name}")
+
+    return FittedModel(
+        name=model_name,
+        ages=ages,
+        years=years,
+        model=model,
+        m_fit_surface=m_fit,
+        m_eval_surface=m_eval,
+        rmse_logm=rmse_logm,
+        rmse_logitq=rmse_logitq,
+        aic=aic,
+        bic=bic,
+        metadata={},
+    )
+
+
+def fit_mortality_model(
+    model_name: ModelName,
+    ages: np.ndarray,
+    years: np.ndarray,
+    m: np.ndarray,
+    *,
+    smoothing: Literal["none", "cpsplines"] = "none",
+    cpsplines_kwargs: Optional[Dict[str, Any]] = None,
+    eval_on_raw: bool = True,
+) -> FittedModel:
+    """
+    High-level entry point: fit a single mortality model, with optional CPsplines.
+
+    Parameters
+    ----------
+    model_name : {'LCM1','LCM2','APCM3','CBDM5','CBDM6','CBDM7'}
+        Which model to fit.
+    ages, years : np.ndarray
+        Age and time grids, consistent with m (A, T).
+    m : np.ndarray
+        Observed central death rates m_{x,t}. This is typically the
+        *raw* surface.
+    smoothing : {'none', 'cpsplines'}, default 'none'
+        If 'cpsplines', the model is fitted on a CPsplines-smoothed version
+        of m, but by default the diagnostics (RMSE/AIC/BIC) are still
+        computed against the *raw* m (eval_on_raw=True).
+    cpsplines_kwargs : dict or None
+        Extra keyword arguments forwarded to ``smooth_mortality_with_cpsplines``,
+        e.g. {'k': None, 'horizon': 0, 'verbose': False}.
+    eval_on_raw : bool, default True
+        If True (recommended), RMSE/AIC/BIC are computed on the raw m.
+        If False, diagnostics are computed on the same smoothed surface
+        used for fitting.
+
+        Note
+        ----
+        Comparing models fitted on raw vs smoothed data using RMSE/AIC/BIC
+        can be misleading: models fitted on raw data usually achieve smaller
+        in-sample errors because they partly fit noise. Using eval_on_raw=True
+        keeps the evaluation surface fixed (raw) and isolates the impact of
+        smoothing on the *systematic* component rather than the noise.
+
+    Returns
+    -------
+    FittedModel
+        Fitted model and associated diagnostics.
+    """
+    ages = np.asarray(ages, dtype=float)
+    years = np.asarray(years, dtype=float)
+    m = np.asarray(m, dtype=float)
+
+    if m.shape != (ages.shape[0], years.shape[0]):
+        raise ValueError(
+            f"Shape mismatch: m has shape {m.shape}, "
+            f"expected ({ages.shape[0]}, {years.shape[0]})."
+        )
+
+    if smoothing == "none":
+        m_fit = m
+        m_eval = m
+        data_source = "raw"
+    elif smoothing == "cpsplines":
+        kw = dict(k=None, horizon=0, verbose=False)
+        if cpsplines_kwargs is not None:
+            kw.update(cpsplines_kwargs)
+
+        cp_res = smooth_mortality_with_cpsplines(
+            m, ages, years, k=kw["k"], horizon=kw["horizon"], verbose=kw["verbose"]
+        )
+        m_fit = cp_res["m_fitted"]
+
+        m_eval = m if eval_on_raw else m_fit
+        data_source = (
+            "cpsplines_fit_eval_on_raw"
+            if eval_on_raw
+            else "cpsplines_fit_eval_on_smooth"
+        )
+    else:
+        raise ValueError(f"Unknown smoothing option: {smoothing!r}")
+
+    fitted = _fit_single_model(
+        model_name=model_name,
+        ages=ages,
+        years=years,
+        m_fit=m_fit,
+        m_eval=m_eval,
+    )
+
+    fitted.metadata["data_source"] = data_source
+    if smoothing == "cpsplines":
+        fitted.metadata["smoothing"] = "cpsplines"
+    else:
+        fitted.metadata["smoothing"] = "none"
+    fitted.metadata["eval_on_raw"] = bool(eval_on_raw)
+
+    return fitted
+
+
+def model_selection_by_forecast_rmse(
+    ages: np.ndarray,
+    years: np.ndarray,
+    m: np.ndarray,
+    *,
+    train_end: int,
+    model_names: Iterable[ModelName] = (
+        "LCM1",
+        "LCM2",
+        "APCM3",
+        "CBDM5",
+        "CBDM6",
+        "CBDM7",
+    ),
+    metric: Literal["log_m", "logit_q"] = "logit_q",
+) -> tuple[pd.DataFrame, ModelName]:
+    """
+    Select a mortality model based on out-of-sample forecast RMSE
+    using the explicit time-split backtest helpers.
+
+    This is the “official” PYMORT way to choose the structural model
+    when the goal is pricing / forecasting (not just in-sample fit).
+
+    Workflow
+    --------
+    - Uses observed (raw) m_{x,t} as the truth surface.
+    - Splits years into:
+        train: years <= train_end
+        test : years >  train_end
+    - For each candidate model:
+        * runs the appropriate time_split_backtest_* function
+        * extracts RMSE forecast on log m (when defined) and logit(q)
+    - Builds a comparison DataFrame.
+    - Returns:
+        (comparison_df, best_model_name)
+      where best_model_name is the model with smallest forecast RMSE
+      according to the chosen metric ('log_m' or 'logit_q').
+
+    Notes
+    -----
+    - LC / APC models yield both:
+        * RMSE_forecast_logm
+        * RMSE_forecast_logitq
+    - CBD models (M5, M6, M7) work on logit(q) only, so
+      RMSE_forecast_logm is NaN for them.
+
+    Parameters
+    ----------
+    ages, years, m : np.ndarray
+        Age grid, time grid and central death rate surface (A, T).
+        These are the *observed raw* data.
+    train_end : int
+        Last year in the training set (e.g. 2015 -> test starts in 2016).
+    model_names : iterable of ModelName
+        Subset of {"LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"}
+        to include in the comparison.
+    metric : {'log_m', 'logit_q'}
+        Forecast error metric used to select the best model:
+        - 'log_m'     : use RMSE forecast on log m (LC/APC only)
+        - 'logit_q'   : use RMSE forecast on logit(q) (all models)
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        Table with one row per model and columns:
+            ['Model',
+             'RMSE forecast (log m)',
+             'RMSE forecast (logit q)',
+             'train_start', 'train_end',
+             'test_start', 'test_end']
+    best_model : ModelName
+        Name of the model minimizing the chosen forecast RMSE.
+
+    Raises
+    ------
+    ValueError
+        If metric='log_m' and no model has a defined log-m forecast RMSE.
+    """
+    ages = np.asarray(ages, dtype=float)
+    years = np.asarray(years, dtype=float)
+    m = np.asarray(m, dtype=float)
+
+    if m.shape != (ages.shape[0], years.shape[0]):
+        raise ValueError(
+            f"Shape mismatch: m has shape {m.shape}, "
+            f"expected ({ages.shape[0]}, {years.shape[0]})."
+        )
+
+    if train_end < years[0] or train_end >= years[-1]:
+        raise ValueError(
+            f"train_end must lie in [{int(years[0])}, {int(years[-1]) - 1}], "
+            f"got {train_end}."
+        )
+
+    q_full = m_to_q(m)
+
+    rows: list[dict[str, Any]] = []
+
+    for name in model_names:
+        # Default NaN forecast errors
+        rmse_forecast_logm = np.nan
+        rmse_forecast_logit = np.nan
+        train_start = int(years[0])
+        train_end_eff = int(train_end)
+        test_start = train_end + 1
+        test_end = int(years[-1])
+
+        if name == "LCM1":
+            res = time_split_backtest_lc_m1(
+                years=years,
+                m=m,
+                train_end=train_end,
+            )
+            rmse_forecast_logm = float(res["rmse_log_forecast"])
+            rmse_forecast_logit = float(res["rmse_logit_forecast"])
+            train_start = int(res["train_years"][0])
+            train_end_eff = int(res["train_years"][-1])
+            test_start = int(res["test_years"][0])
+            test_end = int(res["test_years"][-1])
+
+        elif name == "LCM2":
+            res = time_split_backtest_lc_m2(
+                ages=ages,
+                years=years,
+                m=m,
+                train_end=train_end,
+            )
+            rmse_forecast_logm = float(res["rmse_log_forecast"])
+            rmse_forecast_logit = float(res["rmse_logit_forecast"])
+            train_start = int(res["train_years"][0])
+            train_end_eff = int(res["train_years"][-1])
+            test_start = int(res["test_years"][0])
+            test_end = int(res["test_years"][-1])
+
+        elif name == "APCM3":
+            res = time_split_backtest_apc_m3(
+                ages=ages,
+                years=years,
+                m=m,
+                train_end=train_end,
+            )
+            rmse_forecast_logm = float(res["rmse_log_forecast"])
+            rmse_forecast_logit = float(res["rmse_logit_forecast"])
+            train_start = int(res["train_years"][0])
+            train_end_eff = int(res["train_years"][-1])
+            test_start = int(res["test_years"][0])
+            test_end = int(res["test_years"][-1])
+
+        elif name == "CBDM5":
+            res = time_split_backtest_cbd_m5(
+                ages=ages,
+                years=years,
+                q=q_full,
+                train_end=train_end,
+            )
+            rmse_forecast_logit = float(res["rmse_logit_forecast"])
+            train_start = int(res["train_years"][0])
+            train_end_eff = int(res["train_years"][-1])
+            test_start = int(res["test_years"][0])
+            test_end = int(res["test_years"][-1])
+
+        elif name == "CBDM6":
+            res = time_split_backtest_cbd_m6(
+                ages=ages,
+                years=years,
+                q=q_full,
+                train_end=train_end,
+            )
+            rmse_forecast_logit = float(res["rmse_logit_forecast"])
+            train_start = int(res["train_years"][0])
+            train_end_eff = int(res["train_years"][-1])
+            test_start = int(res["test_years"][0])
+            test_end = int(res["test_years"][-1])
+
+        elif name == "CBDM7":
+            res = time_split_backtest_cbd_m7(
+                ages=ages,
+                years=years,
+                q=q_full,
+                train_end=train_end,
+            )
+            rmse_forecast_logit = float(res["rmse_logit_forecast"])
+            train_start = int(res["train_years"][0])
+            train_end_eff = int(res["train_years"][-1])
+            test_start = int(res["test_years"][0])
+            test_end = int(res["test_years"][-1])
+
+        else:
+            raise ValueError(f"Unknown model name in model_selection: {name!r}")
+
+        rows.append(
+            {
+                "Model": name,
+                "RMSE forecast (log m)": rmse_forecast_logm,
+                "RMSE forecast (logit q)": rmse_forecast_logit,
+                "train_start": train_start,
+                "train_end": train_end_eff,
+                "test_start": test_start,
+                "test_end": test_end,
+            }
+        )
+
+    df = pd.DataFrame(rows)
+
+    # Selection of best model according to chosen metric
+    if metric == "log_m":
+        # Only LC/APC have log-m forecast RMSE
+        mask = np.isfinite(df["RMSE forecast (log m)"].to_numpy())
+        if not mask.any():
+            raise ValueError(
+                "No model has a defined forecast RMSE on log m; "
+                "cannot select best model with metric='log_m'."
+            )
+        idx = df.loc[mask, "RMSE forecast (log m)"].idxmin()
+    elif metric == "logit_q":
+        mask = np.isfinite(df["RMSE forecast (logit q)"].to_numpy())
+        if not mask.any():
+            raise ValueError(
+                "No model has a defined forecast RMSE on logit(q); "
+                "cannot select best model with metric='logit_q'."
+            )
+        idx = df.loc[mask, "RMSE forecast (logit q)"].idxmin()
+    else:
+        raise ValueError(f"Unknown metric: {metric!r} (expected 'log_m' or 'logit_q').")
+
+    best_model_name = df.loc[idx, "Model"]
+    return df, best_model_name
+
+
+def select_and_fit_best_model_for_pricing(
+    ages: np.ndarray,
+    years: np.ndarray,
+    m: np.ndarray,
+    *,
+    train_end: int,
+    model_names: Iterable[ModelName] = (
+        "LCM1",
+        "LCM2",
+        "APCM3",
+        "CBDM5",
+        "CBDM6",
+        "CBDM7",
+    ),
+    metric: Literal["log_m", "logit_q"] = "logit_q",
+    cpsplines_kwargs: Optional[Dict[str, Any]] = None,
+) -> tuple[pd.DataFrame, FittedModel]:
+    """
+    High-level helper for the pricing pipeline.
+
+    1) Use out-of-sample forecast RMSE (via model_selection_by_forecast_rmse)
+       on *raw* data to choose the structural model (LCM1, LCM2, APCM3, CBDM5-7).
+    2) Smooth the whole mortality surface m_{x,t} with CPsplines.
+    3) Fit the selected model on the smoothed surface (full window),
+       while evaluating diagnostics against raw m.
+    4) Return:
+         - the model selection table (forecast RMSEs),
+         - the final FittedModel calibrated on CPsplines,
+           ready to be used for bootstrap + projections + pricing.
+
+    This is the “official PYMORT” entry point for:
+        raw data -> model choice -> smoothed final fit -> pricing input.
+
+    Parameters
+    ----------
+    ages, years, m : np.ndarray
+        Raw central death rates surface (A, T) and grids.
+    train_end : int
+        Last year in training set used for forecast backtests.
+    model_names : iterable of ModelName
+        Candidate models for selection.
+    metric : {'log_m', 'logit_q'}
+        Which forecast error metric is used to choose the best model.
+        Recommended: 'logit_q' (works for LC/APC/CBD).
+    cpsplines_kwargs : dict or None
+        Extra arguments forwarded to smooth_mortality_with_cpsplines for
+        the final smoothing step (e.g. {'k': None, 'horizon': 0, 'verbose': False}).
+
+    Returns
+    -------
+    selection_df : pandas.DataFrame
+        Forecast RMSE comparison across candidate models.
+    fitted_best : FittedModel
+        Final fitted model on CPsplines-smoothed data (full window),
+        ready to feed into bootstrap/projection/pricing.
+    """
+    # 1) Model selection on raw data via forecast RMSE
+    selection_df, best_model_name = model_selection_by_forecast_rmse(
+        ages=ages,
+        years=years,
+        m=m,
+        train_end=train_end,
+        model_names=model_names,
+        metric=metric,
+    )
+
+    # 2) Fit best model on CPsplines-smoothed data (full window)
+    #    horizon=0 ici: on ne se sert pas du forecast CPsplines, seulement
+    #    de la surface lissée historique pour le fit structurel.
+    default_cp = dict(k=None, horizon=0, verbose=False)
+    if cpsplines_kwargs is not None:
+        default_cp.update(cpsplines_kwargs)
+
+    fitted_best = fit_mortality_model(
+        model_name=best_model_name,
+        ages=ages,
+        years=years,
+        m=m,
+        smoothing="cpsplines",
+        cpsplines_kwargs=default_cp,
+        eval_on_raw=True,  # diagnostics toujours versus données brutes
+    )
+
+    # Ajouter un peu de métadonnées utiles
+    fitted_best.metadata.setdefault("selection_metric", metric)
+    fitted_best.metadata.setdefault("selection_train_end", int(train_end))
+    fitted_best.metadata.setdefault("selected_from_models", tuple(model_names))
+    fitted_best.metadata["selected_model"] = best_model_name
+
+    return selection_df, fitted_best

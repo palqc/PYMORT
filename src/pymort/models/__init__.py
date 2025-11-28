@@ -16,16 +16,15 @@ from .lc_m1 import (
     estimate_rw_params,
     fit_lee_carter,
     reconstruct_log_m,
-    simulate_k_paths,
 )
 from .lc_m2 import LCM2, LCM2Params
 
 __all__ = [
     "LCM1Params",
+    "LCM1",
     "fit_lee_carter",
     "reconstruct_log_m",
     "estimate_rw_params",
-    "simulate_k_paths",
     "LeeCarterM1",
     "CBDM5Params",
     "CBDM5",

@@ -21,6 +21,8 @@ def _time_split(
 
 
 def _check_surface_time_inputs(years: np.ndarray, mat: np.ndarray, name: str):
+    years = np.asarray(years, dtype=int)
+    mat = np.asarray(mat, dtype=float)
     if mat.ndim != 2:
         raise ValueError(f"{name} must be 2D (A, T).")
     if years.ndim != 1 or years.shape[0] != mat.shape[1]:
@@ -127,8 +129,8 @@ def time_split_backtest_lc_m1(
     return {
         "train_years": yrs_tr,
         "test_years": yrs_te,
-        "rmse_log": rmse_log,  # forecast RMSE on log m
-        "rmse_logit_forecast": rmse_logit_forecast,  # forecast RMSE on logit(q)
+        "rmse_log_forecast": rmse_log,
+        "rmse_logit_forecast": rmse_logit_forecast,
     }
 
 
@@ -150,7 +152,7 @@ def time_split_backtest_lc_m2(
       4) Compute:
              - RMSE logit(q) train
              - RMSE logit(q) forecast
-             - RMSE log(m) forecast  <-- added
+             - RMSE log(m) forecast
     """
     _check_surface_time_inputs(years, m, "m")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
@@ -341,7 +343,7 @@ def time_split_backtest_cbd_m7(
     }
 
 
-def time_split_backtest_apc(
+def time_split_backtest_apc_m3(
     ages: np.ndarray,
     years: np.ndarray,
     m: np.ndarray,

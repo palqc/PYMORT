@@ -5,7 +5,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from pymort.models.lc_m1 import estimate_rw_params, simulate_k_paths
+from pymort.analysis.projections import simulate_random_walk_paths
+from pymort.models.lc_m1 import estimate_rw_params
 
 
 @dataclass
@@ -269,18 +270,33 @@ class APCM3:
         """
         Simulate future trajectories of the period index kappa_t under
 
-            kappa_t = kappa_{t-1} + mu + eps_t.
+            kappa_t = kappa_{t-1} + mu + eps_t
 
-        Gamma_c remains fixed; only period risk is simulated.
+        using the central vectorized RW simulator.
+        Gamma_c remains fixed (cohort effect not simulated).
         """
         if self.params is None or self.params.mu is None or self.params.sigma is None:
             raise ValueError("Fit & estimate_rw first.")
-        return simulate_k_paths(
-            k_last=self.params.kappa[-1],
-            horizon=int(horizon),
-            mu=self.params.mu,
-            sigma=self.params.sigma,
-            n_sims=int(n_sims),
-            seed=seed,
+
+        horizon = int(horizon)
+        n_sims = int(n_sims)
+        if horizon <= 0 or n_sims <= 0:
+            raise ValueError("horizon and n_sims must be positive integers.")
+
+        rng = np.random.default_rng(seed)
+
+        k_last = float(self.params.kappa[-1])
+        mu = float(self.params.mu)
+        sigma = float(self.params.sigma)
+
+        paths = simulate_random_walk_paths(
+            k_last=k_last,
+            mu=mu,
+            sigma=sigma,
+            horizon=horizon,
+            n_sims=n_sims,
+            rng=rng,
             include_last=include_last,
         )
+
+        return paths
