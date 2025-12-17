@@ -5,8 +5,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from pymort.analysis.projections import simulate_random_walk_paths
 from pymort.lifetables import validate_q
+from pymort.models.utils import _estimate_rw_params
 
 
 @dataclass
@@ -33,7 +33,7 @@ class CBDM5Params:
 
 def _logit(p: np.ndarray) -> np.ndarray:
     """Numerically stable logit transform log(p / (1 - p))."""
-    p_clipped = np.clip(p, 1e-10, 1 - 1e-10)
+    p_clipped = np.clip(p, 1e-12, 1 - 1e-12)
     return np.log(p_clipped / (1.0 - p_clipped))
 
 
@@ -129,26 +129,6 @@ def reconstruct_q(params: CBDM5Params) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-logit_q))
 
 
-def _estimate_rw_params(kappa: np.ndarray) -> Tuple[float, float]:
-    """
-    Estimate random–walk–with–drift parameters for a 1D time index:
-
-        k_t = k_{t-1} + mu + eps_t,  eps_t ~ N(0, sigma^2).
-
-    Returns (mu, sigma).
-    """
-    if kappa.ndim != 1 or kappa.size < 2:
-        raise ValueError("kappa must be 1D with at least 2 points.")
-    diffs = np.diff(kappa)
-    mu = float(diffs.mean())
-    sigma = float(diffs.std(ddof=1))
-    if not np.isfinite(mu):
-        raise ValueError("Estimated mu is not finite.")
-    if not np.isfinite(sigma) or sigma < 0:
-        sigma = 0.0
-    return mu, sigma
-
-
 def estimate_rw_params_cbd(params: CBDM5Params) -> CBDM5Params:
     """
     Estimate RW+drift parameters for (kappa1_t, kappa2_t) and store them
@@ -236,6 +216,8 @@ class CBDM5:
             raise ValueError("horizon and n_sims must be positive integers.")
 
         rng = np.random.default_rng(seed)
+
+        from pymort.analysis.projections import simulate_random_walk_paths
 
         paths = simulate_random_walk_paths(
             k_last=k_last,

@@ -5,9 +5,9 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from pymort.analysis.projections import simulate_random_walk_paths
 from pymort.lifetables import validate_q
-from pymort.models.cbd_m5 import _estimate_rw_params, _logit
+from pymort.models.utils import _estimate_rw_params
+from pymort.models.cbd_m5 import _logit
 
 
 @dataclass
@@ -333,6 +333,8 @@ class CBDM7:
             raise ValueError("horizon and n_sims must be positive integers.")
 
         rng = np.random.default_rng(seed)
+
+        from pymort.analysis.projections import simulate_random_walk_paths
 
         paths = simulate_random_walk_paths(
             k_last=k_last,

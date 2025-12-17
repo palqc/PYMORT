@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional, Type
+from typing import Any, Literal, Optional, Type
 
 import numpy as np
 
 from pymort.lifetables import m_to_q, validate_q
-from pymort.models import APCM3, CBDM5, CBDM6, CBDM7, LCM1, LCM2, _logit
+from pymort.models.apc_m3 import APCM3
+from pymort.models.cbd_m5 import CBDM5, _logit
+from pymort.models.cbd_m6 import CBDM6
+from pymort.models.cbd_m7 import CBDM7
+from pymort.models.lc_m1 import LCM1
+from pymort.models.lc_m2 import LCM2
 
 ResampleMode = Literal["cell", "year_block"]
 
@@ -29,7 +34,7 @@ class BootstrapResult:
         RNG seed used.
     """
 
-    params_list: list
+    params_list: list[Any]
     mu_sigma: np.ndarray
     seed: int | None = None
 
@@ -97,8 +102,8 @@ def bootstrap_logm_model(
     -------
     BootstrapResult
     """
-    if B < 0:
-        raise ValueError("B: B must be positive.")
+    if B <= 0:
+        raise ValueError("B must be strictly positive.")
     fit_kwargs = fit_kwargs or {}
     rng = np.random.default_rng(seed)
 
@@ -177,8 +182,8 @@ def bootstrap_logitq_model(
         - estimate_rw() returning d params
         - params attribute
     """
-    if B < 0:
-        raise ValueError("B: B must be positive.")
+    if B <= 0:
+        raise ValueError("B must be strictly positive.")
     fit_kwargs = fit_kwargs or {}
     rng = np.random.default_rng(seed)
 
@@ -218,6 +223,7 @@ def bootstrap_logitq_model(
         logit_star = logit_hat0 + resid_star
         q_star = 1.0 / (1.0 + np.exp(-logit_star))
         q_star = np.clip(q_star, 1e-10, 1 - 1e-10)
+        validate_q(q_star)
 
         if model_cls is CBDM5:
             model_b = model_cls().fit(q_star, ages, **fit_kwargs)

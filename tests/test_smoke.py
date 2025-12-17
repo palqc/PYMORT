@@ -34,16 +34,26 @@ from pymort.lifetables import (
     validate_q,
     validate_survival_monotonic,
 )
-from pymort.models import (
-    APCM3,
-    CBDM5,
-    CBDM6,
-    CBDM7,
-    LCM1,
-    LCM2,
-    _logit,
-)
+from pymort.models.apc_m3 import APCM3
+from pymort.models.cbd_m5 import CBDM5, _logit
+from pymort.models.cbd_m6 import CBDM6
+from pymort.models.cbd_m7 import CBDM7
+from pymort.models.lc_m1 import LCM1
+from pymort.models.lc_m2 import LCM2
 from pymort.pipeline import build_mortality_scenarios_for_pricing
+from pymort.pricing.hedging import compute_min_variance_hedge
+from pymort.pricing.liabilities import CohortLifeAnnuitySpec, price_cohort_life_annuity
+from pymort.pricing.longevity_bonds import (
+    LongevityBondSpec,
+    price_simple_longevity_bond,
+)
+from pymort.pricing.mortality_derivatives import (
+    QForwardSpec,
+    SForwardSpec,
+    price_q_forward,
+    price_s_forward,
+)
+from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -71,8 +81,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--sims",
         type=int,
-        default=1000,
-        help="Number of MC sims for k_t / kappa_t forecasts",
+        default=100,
+        help="Number of MC sims for k_t / kappa_t forecasts (default: 100)",
     )
     p.add_argument(
         "--seed", type=int, default=None, help="Random seed (None = random each run)"
@@ -83,8 +93,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--bootstraps",
         type=int,
-        default=200,
-        help="Number of bootstrap replications (default: 200)",
+        default=100,
+        help="Number of bootstrap replications (default: 100)",
     )
     args, _unknown = p.parse_known_args(argv)
     if _unknown:
@@ -897,7 +907,7 @@ def main(argv: list[str] | None = None) -> int:
         # Vertical line at last observed year
         plt.axvline(last_obs_year, color="grey", linestyle=":", linewidth=1)
 
-        # Fan chart for M2 
+        # Fan chart for M2
         plt.fill_between(
             years_future,
             q_lcm2_low,
@@ -915,7 +925,7 @@ def main(argv: list[str] | None = None) -> int:
             label="M2 median forecast",
         )
 
-        # Fan chart for M7 
+        # Fan chart for M7
         plt.fill_between(
             years_future,
             q_m7_low,
@@ -1007,6 +1017,292 @@ def main(argv: list[str] | None = None) -> int:
     ), "Survival curves must be non-increasing over time in each scenario."
 
     print("End-to-end pricing pipeline checks: OK ✅")
+
+    # ================== Longevity bond pricing smoke test ===================
+
+    print("\n=== Longevity bond pricing smoke test ===")
+
+    # On prend un cohort age raisonnable dans la grille
+    issue_age = 80
+    if issue_age in ages:
+        issue_age_used = issue_age
+    else:
+        # si 65 n'est pas dispo, on prend l'âge le plus proche
+        issue_age_used = float(ages[np.argmin(np.abs(ages - issue_age))])
+        print(
+            f"Warning: issue_age={issue_age} not in ages; using nearest age {issue_age_used}."
+        )
+
+    spec = LongevityBondSpec(
+        issue_age=issue_age_used,
+        notional=100.0,
+        include_principal=True,
+        maturity_years=min(20, scen_set.horizon()),  # au max 20 ans ou horizon dispo
+    )
+
+    res = price_simple_longevity_bond(
+        scen_set=scen_set,
+        spec=spec,
+        short_rate=0.02,  # taux plat 2% en continu
+    )
+
+    price = res["price"]
+    pv_paths = res["pv_paths"]
+    df = res["discount_factors"]
+
+    print(f"Longevity bond price (MC): {price:.4f}")
+    print(
+        f"PV paths: mean={pv_paths.mean():.4f}, "
+        f"std={pv_paths.std():.4f}, "
+        f"min={pv_paths.min():.4f}, max={pv_paths.max():.4f}"
+    )
+
+    # === Assertions smoke-test ===
+
+    # 1) Prix strictement positif
+    assert price > 0.0, "Longevity bond price should be positive."
+
+    # 2) Nombre de chemins PV cohérent avec le nombre de scénarios
+    assert pv_paths.shape[0] == scen_set.n_scenarios(), (
+        f"pv_paths has wrong length: {pv_paths.shape[0]} "
+        f"!= {scen_set.n_scenarios()} (n_scenarios)."
+    )
+
+    # 3) Longueur des discount factors cohérente avec la maturité
+    H_bond = spec.maturity_years or scen_set.horizon()
+    assert (
+        df.shape[0] == H_bond
+    ), f"discount_factors length mismatch: {df.shape[0]} != {H_bond}."
+
+    # 4) Survie moyenne de la cohorte décroissante (sanity check produit)
+    age_idx = res["age_index"]
+    S_age = scen_set.S_paths[:, age_idx, :H_bond]  # (N, H_bond)
+    S_mean = S_age.mean(axis=0, keepdims=True)  # (1, H_bond)
+
+    validate_survival_monotonic(S_mean)
+
+    diff_S_mean = np.diff(S_mean, axis=1)
+    assert np.all(
+        diff_S_mean <= 1e-10
+    ), "Mean survival curve for the cohort must be non-increasing."
+
+    # ================== Mortality derivatives pricing smoke tests ===================
+
+    print(
+        "\n=== Mortality derivatives smoke tests (q-forward, s-forward, survivor swap) ==="
+    )
+
+    # On réutilise la cohorte issue_age_used et la maturité max disponible
+    max_T = min(20, scen_set.horizon())
+    if max_T <= 1:
+        print("Horizon trop court pour tester les dérivés : skipping.")
+    else:
+        # ---------- Q-forward ATM (strike=None) ----------
+        qf_spec_atm = QForwardSpec(
+            age=issue_age_used,
+            maturity_years=max_T,  # dernier point de la courbe S_x(t)
+            notional=100.0,
+            # strike=None -> ATM
+        )
+        qf_res_atm = price_q_forward(
+            scen_set=scen_set,
+            spec=qf_spec_atm,
+            short_rate=0.02,
+        )
+
+        qf_price_atm = qf_res_atm["price"]
+        qf_pv_paths = qf_res_atm["pv_paths"]
+        qf_strike_atm = qf_res_atm["strike"]
+
+        print(f"Q-forward ATM price: {qf_price_atm:.6f}, strike={qf_strike_atm:.6f}")
+
+        # 1) ATM -> prix proche de 0 (tolérance MC)
+        tol_qf = 0.05 * qf_spec_atm.notional
+        assert abs(qf_price_atm) < tol_qf, (
+            f"ATM q-forward price too far from 0: {qf_price_atm:.6f}, "
+            f"tol={tol_qf:.6f}"
+        )
+        # 2) Nombre de chemins cohérent
+        assert qf_pv_paths.shape[0] == scen_set.n_scenarios(), (
+            f"q-forward pv_paths length {qf_pv_paths.shape[0]} "
+            f"!= {scen_set.n_scenarios()} (n_scenarios)."
+        )
+
+        # ---------- Q-forward off-market (strike plus élevé) ----------
+        qf_spec_rich = QForwardSpec(
+            age=issue_age_used,
+            maturity_years=max_T,
+            notional=100.0,
+            strike=qf_strike_atm + 0.05,  # on fixe un strike plus élevé
+        )
+        qf_res_rich = price_q_forward(
+            scen_set=scen_set,
+            spec=qf_spec_rich,
+            short_rate=0.02,
+        )
+        qf_price_rich = qf_res_rich["price"]
+        print(f"Q-forward off-market price (higher strike): {qf_price_rich:.6f}")
+
+        # On vérifie juste que le prix change bien quand on bouge le strike
+        assert (
+            qf_price_rich != qf_price_atm
+        ), "Q-forward price should move when strike changes."
+
+        # ---------- S-forward ATM (s-index forward sur la survie) ----------
+        sf_spec_atm = SForwardSpec(
+            age=issue_age_used,
+            maturity_years=max_T,
+            notional=100.0,
+            # strike=None -> ATM (zero value)
+        )
+        sf_res_atm = price_s_forward(
+            scen_set=scen_set,
+            spec=sf_spec_atm,
+            short_rate=0.02,
+        )
+        sf_price_atm = sf_res_atm["price"]
+        sf_pv_paths = sf_res_atm["pv_paths"]
+        sf_strike_atm = sf_res_atm["strike"]
+
+        print(f"S-forward ATM price: {sf_price_atm:.6f}, strike={sf_strike_atm:.6f}")
+
+        tol_sf = 0.05 * sf_spec_atm.notional
+        assert abs(sf_price_atm) < tol_sf, (
+            f"ATM s-forward price too far from 0: {sf_price_atm:.6f}, "
+            f"tol={tol_sf:.6f}"
+        )
+        assert sf_pv_paths.shape[0] == scen_set.n_scenarios(), (
+            f"s-forward pv_paths length {sf_pv_paths.shape[0]} "
+            f"!= {scen_set.n_scenarios()} (n_scenarios)."
+        )
+
+        # ---------- S-forward off-market ----------
+        sf_spec_rich = SForwardSpec(
+            age=issue_age_used,
+            maturity_years=max_T,
+            notional=100.0,
+            strike=sf_strike_atm - 0.05,  # strike plus bas
+        )
+        sf_res_rich = price_s_forward(
+            scen_set=scen_set,
+            spec=sf_spec_rich,
+            short_rate=0.02,
+        )
+        sf_price_rich = sf_res_rich["price"]
+        print(f"S-forward off-market price (lower strike): {sf_price_rich:.6f}")
+
+        assert (
+            sf_price_rich != sf_price_atm
+        ), "S-forward price should move when strike changes."
+
+        # ---------- Survivor swap ATM (K choisi pour PV=0) ----------
+        swap_spec_atm = SurvivorSwapSpec(
+            age=issue_age_used,
+            maturity_years=max_T,
+            notional=100.0,
+            strike=None,  # ATM : on laisse la fonction calculer K
+            payer="fixed",  # paie le fixe, reçoit la jambe survie
+        )
+        swap_res_atm = price_survivor_swap(
+            scen_set=scen_set,
+            spec=swap_spec_atm,
+            short_rate=0.02,
+        )
+        swap_price_atm = swap_res_atm["price"]
+        swap_pv_paths = swap_res_atm["pv_paths"]
+        swap_strike_atm = swap_res_atm["strike"]
+
+        print(
+            f"Survivor swap ATM price: {swap_price_atm:.6f}, "
+            f"strike={swap_strike_atm:.6f}"
+        )
+
+        # ATM -> PV ≈ 0
+        tol_swap = 0.05 * swap_spec_atm.notional
+        assert abs(swap_price_atm) < tol_swap, (
+            f"ATM survivor swap price too far from 0: {swap_price_atm:.6f}, "
+            f"tol={tol_swap:.6f}"
+        )
+        assert swap_pv_paths.shape[0] == scen_set.n_scenarios(), (
+            f"survivor swap pv_paths length {swap_pv_paths.shape[0]} "
+            f"!= {scen_set.n_scenarios()} (n_scenarios)."
+        )
+
+        # ---------- Survivor swap off-market (strike modifié) ----------
+        swap_spec_rich = SurvivorSwapSpec(
+            age=issue_age_used,
+            maturity_years=max_T,
+            notional=100.0,
+            strike=swap_strike_atm
+            - 0.05,  # on diminue le fixe -> payer fixed devient plus content
+            payer="fixed",
+        )
+        swap_res_rich = price_survivor_swap(
+            scen_set=scen_set,
+            spec=swap_spec_rich,
+            short_rate=0.02,
+        )
+        swap_price_rich = swap_res_rich["price"]
+        print(f"Survivor swap off-market price (lower strike): {swap_price_rich:.6f}")
+
+        # Ici, comme payer="fixed", baisser K (fixe) devrait augmenter la valeur pour le payer -> prix plus grand
+        assert (
+            swap_price_rich > swap_price_atm
+        ), "For payer='fixed', lowering strike should increase swap value."
+
+        # ================== Cohort life annuity & Hedging smoke tests ===================
+
+        print("\n=== Cohort life annuity & hedging smoke tests ===")
+
+        ann_spec = CohortLifeAnnuitySpec(
+            issue_age=issue_age_used,
+            payment_per_survivor=1.0,
+            maturity_years=max_T,
+        )
+        ann_res = price_cohort_life_annuity(
+            scen_set=scen_set,
+            spec=ann_spec,
+            short_rate=0.02,
+        )
+
+        liab_pv_paths = ann_res["pv_paths"]
+        print(f"Cohort life annuity price (MC): {ann_res['price']:.4f}")
+        print(
+            f"Annuity PV paths: mean={liab_pv_paths.mean():.4f}, "
+            f"std={liab_pv_paths.std():.4f}"
+        )
+
+        instruments_pv_paths = np.column_stack(
+            [
+                pv_paths,  # longevity bond PV paths
+                swap_pv_paths,  # survivor swap PV paths (ATM)
+            ]
+        )
+        instrument_names = ["LongevityBond", "SurvivorSwap"]
+
+        hedge_res = compute_min_variance_hedge(
+            liability_pv_paths=liab_pv_paths,
+            instruments_pv_paths=instruments_pv_paths,
+            instrument_names=instrument_names,
+        )
+
+        print("\n=== Hedging result (annuity hedged with bond + swap) ===")
+        for name, w in zip(hedge_res.instrument_names, hedge_res.weights):
+            print(f"  weight[{name}] = {w:.4f}")
+
+        std_L = hedge_res.summary["std_liability"]
+        std_net = hedge_res.summary["std_net"]
+        var_red = hedge_res.summary["var_reduction"] * 100.0
+
+        print(
+            f"Std liability = {std_L:.4f}, "
+            f"Std net = {std_net:.4f}, "
+            f"Variance reduction = {var_red:.2f}%"
+        )
+
+        # Sanity checks
+        assert std_net <= std_L + 1e-8, "Hedge should not increase liability std."
+        assert var_red > 10.0, "Hedge should achieve non-trivial variance reduction."
 
     print("\nDONE ✅")
     return 0

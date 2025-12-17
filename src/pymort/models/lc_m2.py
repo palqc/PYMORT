@@ -5,8 +5,8 @@ from typing import Optional
 
 import numpy as np
 
-from pymort.analysis.projections import simulate_random_walk_paths
-from pymort.models.lc_m1 import estimate_rw_params, fit_lee_carter
+from pymort.models.utils import estimate_rw_params
+from pymort.models.lc_m1 import fit_lee_carter
 
 
 @dataclass
@@ -238,6 +238,8 @@ class LCM2:
         k_last = float(self.params.k[-1])
         mu = float(self.params.mu)
         sigma = float(self.params.sigma)
+
+        from pymort.analysis.projections import simulate_random_walk_paths
 
         paths = simulate_random_walk_paths(
             k_last=k_last,

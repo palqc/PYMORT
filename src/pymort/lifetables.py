@@ -329,7 +329,7 @@ def validate_q(q: np.ndarray) -> None:
     Raises an AssertionError if invalid values are detected.
     """
     if not (np.all(q > 0) and np.all(q < 1)):
-        raise AssertionError("q must be in (0,1).")
+        raise ValueError("q must be strictly in (0,1).")
     if not np.isfinite(q).all():
         raise ValueError("q must contain finite values.")
 
@@ -342,7 +342,7 @@ def validate_survival_monotonic(S: np.ndarray) -> None:
     S = np.asarray(S, dtype=float)
     if S.ndim < 1:
         raise ValueError(f"S must have at least 1 dimension, got shape {S.shape}.")
-    if np.any(np.diff(S, axis=1) > 1e-12):
+    if np.any(np.diff(S, axis=-1) > 1e-12):
         raise AssertionError("S_x(t) must be non-increasing in t.")
 
 

@@ -1,0 +1,30 @@
+data:
+  scen_path: outputs/scen_Q.npz
+  short_rate: 0.02
+
+liability:
+  kind: life_annuity
+  spec:
+    issue_age: 65
+    maturity_years: 25
+    payment_per_survivor: 1.0
+
+hedge_instruments:
+  bond:
+    kind: longevity_bond
+    spec:
+      issue_age: 65
+      maturity_years: 25
+      notional: 1.0
+      include_principal: true
+  swap:
+    kind: survivor_swap
+    spec:
+      age: 70
+      maturity_years: 25
+      notional: 1.0
+      payer: fixed
+
+hedging:
+  method: min_variance
+  output: outputs/hedge/weights.json

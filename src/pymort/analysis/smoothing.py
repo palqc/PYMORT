@@ -52,10 +52,14 @@ def smooth_mortality_with_cpsplines(
 
     m = np.asarray(m, dtype=float)
     ages = np.asarray(ages, dtype=float)
-    years = np.asarray(years, dtype=float)
+    years = np.asarray(years, dtype=int)
 
     # sécurité
     m = np.clip(m, 1e-12, np.inf)
+    if m.shape != (ages.shape[0], years.shape[0]):
+        raise ValueError(
+            f"Shape mismatch: m has shape {m.shape}, expected ({ages.shape[0]}, {years.shape[0]})."
+        )
 
     A, T = m.shape
 
@@ -77,7 +81,7 @@ def smooth_mortality_with_cpsplines(
     df = df.rename(columns={"x0": "age", "x1": "year"})
 
     # ========= 2) Fit CPsplines surface (Age × Year) =========
-    if sp_args == None:
+    if sp_args is None:
         sp_args = {"top_n": 5, "parallel": True}
     model = CPsplines(
         deg=deg,

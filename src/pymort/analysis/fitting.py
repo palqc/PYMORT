@@ -17,7 +17,12 @@ from pymort.analysis import (
     time_split_backtest_lc_m2,
 )
 from pymort.lifetables import m_to_q
-from pymort.models import APCM3, CBDM5, CBDM6, CBDM7, LCM1, LCM2, _logit
+from pymort.models.apc_m3 import APCM3
+from pymort.models.cbd_m5 import CBDM5, _logit
+from pymort.models.cbd_m6 import CBDM6
+from pymort.models.cbd_m7 import CBDM7
+from pymort.models.lc_m1 import LCM1
+from pymort.models.lc_m2 import LCM2
 
 ModelName = Literal["LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"]
 
@@ -96,7 +101,7 @@ def _fit_single_model(
     """
 
     ages = np.asarray(ages, dtype=float)
-    years = np.asarray(years, dtype=float)
+    years = np.asarray(years, dtype=int)
     m_fit = np.asarray(m_fit, dtype=float)
     m_eval = np.asarray(m_eval, dtype=float)
 
@@ -109,7 +114,7 @@ def _fit_single_model(
     if A != ages.shape[0] or T != years.shape[0]:
         raise ValueError("m_fit shape must be consistent with ages and years grids.")
 
-    m_eval_safe = np.clip(m_eval, 1e-12, None) 
+    m_eval_safe = np.clip(m_eval, 1e-12, None)
 
     # "Truth" for diagnostics on q/logit q: always from m_eval (usually raw).
     q_eval = m_to_q(m_eval_safe)
@@ -270,7 +275,7 @@ def fit_mortality_model(
         Fitted model and associated diagnostics.
     """
     ages = np.asarray(ages, dtype=float)
-    years = np.asarray(years, dtype=float)
+    years = np.asarray(years, dtype=int)
     m = np.asarray(m, dtype=float)
 
     if m.shape != (ages.shape[0], years.shape[0]):
@@ -310,12 +315,13 @@ def fit_mortality_model(
         m_eval=m_eval,
     )
 
-    fitted.metadata["data_source"] = data_source
-    if smoothing == "cpsplines":
-        fitted.metadata["smoothing"] = "cpsplines"
-    else:
-        fitted.metadata["smoothing"] = "none"
-    fitted.metadata["eval_on_raw"] = bool(eval_on_raw)
+    fitted.metadata.update(
+        {
+            "data_source": data_source,
+            "smoothing": smoothing,
+            "eval_on_raw": bool(eval_on_raw),
+        }
+    )
 
     return fitted
 
@@ -399,7 +405,7 @@ def model_selection_by_forecast_rmse(
         If metric='log_m' and no model has a defined log-m forecast RMSE.
     """
     ages = np.asarray(ages, dtype=float)
-    years = np.asarray(years, dtype=float)
+    years = np.asarray(years, dtype=int)
     m = np.asarray(m, dtype=float)
 
     if m.shape != (ages.shape[0], years.shape[0]):

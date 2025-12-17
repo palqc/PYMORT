@@ -5,12 +5,18 @@ from typing import Dict, Tuple
 import numpy as np
 
 from pymort.lifetables import m_to_q
-from pymort.models import APCM3, CBDM5, CBDM6, CBDM7, LCM1, LCM2, _logit
+from pymort.models.apc_m3 import APCM3
+from pymort.models.cbd_m5 import CBDM5, _logit
+from pymort.models.cbd_m6 import CBDM6
+from pymort.models.cbd_m7 import CBDM7
+from pymort.models.lc_m1 import LCM1
+from pymort.models.lc_m2 import LCM2
 
 
 def _time_split(
     years: np.ndarray, train_end: int
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    years = np.asarray(years, dtype=int)
     if years.ndim != 1:
         raise ValueError("years must be 1D.")
     if train_end < years[0] or train_end >= years[-1]:
@@ -44,6 +50,8 @@ def _rmse(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def _rmse_logit_q(q_true: np.ndarray, q_hat: np.ndarray) -> float:
+    q_true = np.clip(q_true, 1e-12, 1 - 1e-12)
+    q_hat = np.clip(q_hat, 1e-12, 1 - 1e-12)
     return _rmse(_logit(q_true), _logit(q_hat))
 
 
@@ -59,6 +67,9 @@ def _rmse_logit_forecast_from_logit_hat(
 
 def _rw_drift_forecast(last: float, mu: float, H: int) -> np.ndarray:
     steps = np.arange(1, H + 1)
+    H = int(H)
+    if H <= 0:
+        return np.array([], dtype=float)
     return last + mu * steps
 
 

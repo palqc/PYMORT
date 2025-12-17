@@ -1,0 +1,20 @@
+{
+  "file": "./Data/data_france.xlsx",
+  "sex": "Total",
+  "ages_requested": {
+    "min": 60,
+    "max": 100
+  },
+  "ages_used": {
+    "min": 60,
+    "max": 100,
+    "n": 41
+  },
+  "years_used": {
+    "min": 1970,
+    "max": 2019,
+    "n": 50
+  },
+  "xbar": 80,
+  "notes": "StMoMo CBD fit using Dxt/Ext. Exported logit(q) after q->m->q transform to match PYMORT m_to_q definition."
+}

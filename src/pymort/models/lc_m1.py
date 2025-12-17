@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 
-from pymort.analysis.projections import simulate_random_walk_paths
+from pymort.models.utils import estimate_rw_params
 
 
 @dataclass
@@ -71,24 +71,6 @@ def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
     return params.a[:, None] + np.outer(params.b, params.k)
 
 
-def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
-    """
-    Estimate random-walk-with-drift parameters for the time index k_t:
-        k_t = k_{t-1} + mu + eps_t,   eps_t ~ N(0, sigma^2)
-    Returns (mu, sigma) based on differences of k_t.
-    """
-    if k.ndim != 1 or k.size < 2:
-        raise ValueError("k must be 1D with at least 2 points.")
-    dk = np.diff(k)
-    mu = float(dk.mean())
-    sigma = float(dk.std(ddof=1))
-    if not np.isfinite(sigma):
-        raise ValueError("Estimated sigma is not finite.")
-    if sigma < 0:
-        raise ValueError("Estimated sigma is negative, which should not happen.")
-    return mu, sigma
-
-
 class LCM1:
     def __init__(self):
         self.params: Optional[LCM1Params] = None
@@ -140,6 +122,8 @@ class LCM1:
             raise ValueError("Fit & estimate_rw first.")
 
         rng = np.random.default_rng(seed)
+
+        from pymort.analysis.projections import simulate_random_walk_paths
 
         return simulate_random_walk_paths(
             k_last=self.params.k[-1],
