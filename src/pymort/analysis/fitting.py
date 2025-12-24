@@ -293,17 +293,32 @@ def fit_mortality_model(
         if cpsplines_kwargs is not None:
             kw.update(cpsplines_kwargs)
 
-        cp_res = smooth_mortality_with_cpsplines(
-            m, ages, years, k=kw["k"], horizon=kw["horizon"], verbose=kw["verbose"]
-        )
-        m_fit = cp_res["m_fitted"]
+        try:
+            cp_res = smooth_mortality_with_cpsplines(
+                m=m,
+                ages=ages,
+                years=years,
+                k=kw["k"],
+                horizon=kw["horizon"],
+                verbose=kw["verbose"],
+            )
+            m_fit = cp_res["m_fitted"]
+            data_source = (
+                "cpsplines_fit_eval_on_raw"
+                if eval_on_raw
+                else "cpsplines_fit_eval_on_smooth"
+            )
+        except Exception as exc:
+            # Tiny grids / solver issues (e.g. mosek fusion DimensionError): fall back gracefully
+            if kw.get("verbose", False):
+                print(
+                    f"[fit_mortality_model] CPsplines failed ({type(exc).__name__}: {exc}); "
+                    f"falling back to raw m."
+                )
+            m_fit = m
+            data_source = "raw_fallback_cpsplines_failed"
 
         m_eval = m if eval_on_raw else m_fit
-        data_source = (
-            "cpsplines_fit_eval_on_raw"
-            if eval_on_raw
-            else "cpsplines_fit_eval_on_smooth"
-        )
     else:
         raise ValueError(f"Unknown smoothing option: {smoothing!r}")
 
@@ -343,66 +358,9 @@ def model_selection_by_forecast_rmse(
     metric: Literal["log_m", "logit_q"] = "logit_q",
 ) -> tuple[pd.DataFrame, ModelName]:
     """
-    Select a mortality model based on out-of-sample forecast RMSE
-    using the explicit time-split backtest helpers.
-
-    This is the “official” PYMORT way to choose the structural model
-    when the goal is pricing / forecasting (not just in-sample fit).
-
-    Workflow
-    --------
-    - Uses observed (raw) m_{x,t} as the truth surface.
-    - Splits years into:
-        train: years <= train_end
-        test : years >  train_end
-    - For each candidate model:
-        * runs the appropriate time_split_backtest_* function
-        * extracts RMSE forecast on log m (when defined) and logit(q)
-    - Builds a comparison DataFrame.
-    - Returns:
-        (comparison_df, best_model_name)
-      where best_model_name is the model with smallest forecast RMSE
-      according to the chosen metric ('log_m' or 'logit_q').
-
-    Notes
-    -----
-    - LC / APC models yield both:
-        * RMSE_forecast_logm
-        * RMSE_forecast_logitq
-    - CBD models (M5, M6, M7) work on logit(q) only, so
-      RMSE_forecast_logm is NaN for them.
-
-    Parameters
-    ----------
-    ages, years, m : np.ndarray
-        Age grid, time grid and central death rate surface (A, T).
-        These are the *observed raw* data.
-    train_end : int
-        Last year in the training set (e.g. 2015 -> test starts in 2016).
-    model_names : iterable of ModelName
-        Subset of {"LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"}
-        to include in the comparison.
-    metric : {'log_m', 'logit_q'}
-        Forecast error metric used to select the best model:
-        - 'log_m'     : use RMSE forecast on log m (LC/APC only)
-        - 'logit_q'   : use RMSE forecast on logit(q) (all models)
-
-    Returns
-    -------
-    df : pandas.DataFrame
-        Table with one row per model and columns:
-            ['Model',
-             'RMSE forecast (log m)',
-             'RMSE forecast (logit q)',
-             'train_start', 'train_end',
-             'test_start', 'test_end']
-    best_model : ModelName
-        Name of the model minimizing the chosen forecast RMSE.
-
-    Raises
-    ------
-    ValueError
-        If metric='log_m' and no model has a defined log-m forecast RMSE.
+    Select a mortality model based on out-of-sample forecast RMSE.
+    Robust: if a candidate model fails to fit/backtest on the dataset,
+    it is recorded as failed and skipped from selection.
     """
     ages = np.asarray(ages, dtype=float)
     years = np.asarray(years, dtype=int)
@@ -419,102 +377,120 @@ def model_selection_by_forecast_rmse(
             f"train_end must lie in [{int(years[0])}, {int(years[-1]) - 1}], "
             f"got {train_end}."
         )
+    if not np.isfinite(m).all():
+        raise ValueError("m must contain only finite values.")
+    if (m <= 0.0).any():
+        raise ValueError("m must be strictly positive everywhere.")
+    years_unique = np.unique(years)
+    if years_unique.shape[0] != years.shape[0]:
+        raise ValueError("years must not contain duplicates.")
+    if not np.all(np.diff(years) > 0):
+        raise ValueError("years must be strictly increasing.")
+
+    if train_end not in set(years.tolist()):
+        raise ValueError("train_end must be one of the provided years.")
 
     q_full = m_to_q(m)
 
     rows: list[dict[str, Any]] = []
 
     for name in model_names:
-        # Default NaN forecast errors
+        # Defaults
         rmse_forecast_logm = np.nan
         rmse_forecast_logit = np.nan
         train_start = int(years[0])
         train_end_eff = int(train_end)
-        test_start = train_end + 1
+        test_start = int(train_end + 1)
         test_end = int(years[-1])
+        status = "ok"
 
-        if name == "LCM1":
-            res = time_split_backtest_lc_m1(
-                years=years,
-                m=m,
-                train_end=train_end,
-            )
-            rmse_forecast_logm = float(res["rmse_log_forecast"])
-            rmse_forecast_logit = float(res["rmse_logit_forecast"])
-            train_start = int(res["train_years"][0])
-            train_end_eff = int(res["train_years"][-1])
-            test_start = int(res["test_years"][0])
-            test_end = int(res["test_years"][-1])
+        try:
+            if name == "LCM1":
+                res = time_split_backtest_lc_m1(
+                    years=years,
+                    m=m,
+                    train_end=train_end,
+                )
+                rmse_forecast_logm = float(res["rmse_log_forecast"])
+                rmse_forecast_logit = float(res["rmse_logit_forecast"])
+                train_start = int(res["train_years"][0])
+                train_end_eff = int(res["train_years"][-1])
+                test_start = int(res["test_years"][0])
+                test_end = int(res["test_years"][-1])
 
-        elif name == "LCM2":
-            res = time_split_backtest_lc_m2(
-                ages=ages,
-                years=years,
-                m=m,
-                train_end=train_end,
-            )
-            rmse_forecast_logm = float(res["rmse_log_forecast"])
-            rmse_forecast_logit = float(res["rmse_logit_forecast"])
-            train_start = int(res["train_years"][0])
-            train_end_eff = int(res["train_years"][-1])
-            test_start = int(res["test_years"][0])
-            test_end = int(res["test_years"][-1])
+            elif name == "LCM2":
+                res = time_split_backtest_lc_m2(
+                    ages=ages,
+                    years=years,
+                    m=m,
+                    train_end=train_end,
+                )
+                rmse_forecast_logm = float(res["rmse_log_forecast"])
+                rmse_forecast_logit = float(res["rmse_logit_forecast"])
+                train_start = int(res["train_years"][0])
+                train_end_eff = int(res["train_years"][-1])
+                test_start = int(res["test_years"][0])
+                test_end = int(res["test_years"][-1])
 
-        elif name == "APCM3":
-            res = time_split_backtest_apc_m3(
-                ages=ages,
-                years=years,
-                m=m,
-                train_end=train_end,
-            )
-            rmse_forecast_logm = float(res["rmse_log_forecast"])
-            rmse_forecast_logit = float(res["rmse_logit_forecast"])
-            train_start = int(res["train_years"][0])
-            train_end_eff = int(res["train_years"][-1])
-            test_start = int(res["test_years"][0])
-            test_end = int(res["test_years"][-1])
+            elif name == "APCM3":
+                res = time_split_backtest_apc_m3(
+                    ages=ages,
+                    years=years,
+                    m=m,
+                    train_end=train_end,
+                )
+                rmse_forecast_logm = float(res["rmse_log_forecast"])
+                rmse_forecast_logit = float(res["rmse_logit_forecast"])
+                train_start = int(res["train_years"][0])
+                train_end_eff = int(res["train_years"][-1])
+                test_start = int(res["test_years"][0])
+                test_end = int(res["test_years"][-1])
 
-        elif name == "CBDM5":
-            res = time_split_backtest_cbd_m5(
-                ages=ages,
-                years=years,
-                q=q_full,
-                train_end=train_end,
-            )
-            rmse_forecast_logit = float(res["rmse_logit_forecast"])
-            train_start = int(res["train_years"][0])
-            train_end_eff = int(res["train_years"][-1])
-            test_start = int(res["test_years"][0])
-            test_end = int(res["test_years"][-1])
+            elif name == "CBDM5":
+                res = time_split_backtest_cbd_m5(
+                    ages=ages,
+                    years=years,
+                    q=q_full,
+                    train_end=train_end,
+                )
+                rmse_forecast_logit = float(res["rmse_logit_forecast"])
+                train_start = int(res["train_years"][0])
+                train_end_eff = int(res["train_years"][-1])
+                test_start = int(res["test_years"][0])
+                test_end = int(res["test_years"][-1])
 
-        elif name == "CBDM6":
-            res = time_split_backtest_cbd_m6(
-                ages=ages,
-                years=years,
-                q=q_full,
-                train_end=train_end,
-            )
-            rmse_forecast_logit = float(res["rmse_logit_forecast"])
-            train_start = int(res["train_years"][0])
-            train_end_eff = int(res["train_years"][-1])
-            test_start = int(res["test_years"][0])
-            test_end = int(res["test_years"][-1])
+            elif name == "CBDM6":
+                res = time_split_backtest_cbd_m6(
+                    ages=ages,
+                    years=years,
+                    q=q_full,
+                    train_end=train_end,
+                )
+                rmse_forecast_logit = float(res["rmse_logit_forecast"])
+                train_start = int(res["train_years"][0])
+                train_end_eff = int(res["train_years"][-1])
+                test_start = int(res["test_years"][0])
+                test_end = int(res["test_years"][-1])
 
-        elif name == "CBDM7":
-            res = time_split_backtest_cbd_m7(
-                ages=ages,
-                years=years,
-                q=q_full,
-                train_end=train_end,
-            )
-            rmse_forecast_logit = float(res["rmse_logit_forecast"])
-            train_start = int(res["train_years"][0])
-            train_end_eff = int(res["train_years"][-1])
-            test_start = int(res["test_years"][0])
-            test_end = int(res["test_years"][-1])
+            elif name == "CBDM7":
+                res = time_split_backtest_cbd_m7(
+                    ages=ages,
+                    years=years,
+                    q=q_full,
+                    train_end=train_end,
+                )
+                rmse_forecast_logit = float(res["rmse_logit_forecast"])
+                train_start = int(res["train_years"][0])
+                train_end_eff = int(res["train_years"][-1])
+                test_start = int(res["test_years"][0])
+                test_end = int(res["test_years"][-1])
 
-        else:
-            raise ValueError(f"Unknown model name in model_selection: {name!r}")
+            else:
+                raise ValueError(f"Unknown model name in model_selection: {name!r}")
+
+        except Exception as e:
+            # Record failure, keep RMSE as NaN, move on
+            status = f"failed: {e}"
 
         rows.append(
             {
@@ -525,29 +501,35 @@ def model_selection_by_forecast_rmse(
                 "train_end": train_end_eff,
                 "test_start": test_start,
                 "test_end": test_end,
+                "status": status,
             }
         )
 
     df = pd.DataFrame(rows)
 
-    # Selection of best model according to chosen metric
+    # Selection among finite RMSE only
     if metric == "log_m":
-        # Only LC/APC have log-m forecast RMSE
-        mask = np.isfinite(df["RMSE forecast (log m)"].to_numpy())
+        col = "RMSE forecast (log m)"
+        mask = np.isfinite(df[col].to_numpy())
         if not mask.any():
             raise ValueError(
                 "No model has a defined forecast RMSE on log m; "
                 "cannot select best model with metric='log_m'."
             )
-        idx = df.loc[mask, "RMSE forecast (log m)"].idxmin()
+        idx = df.loc[mask, col].idxmin()
+
     elif metric == "logit_q":
-        mask = np.isfinite(df["RMSE forecast (logit q)"].to_numpy())
+        col = "RMSE forecast (logit q)"
+        mask = np.isfinite(df[col].to_numpy())
         if not mask.any():
+            # Helpful debug: show who failed
+            failed = df[["Model", "status"]].to_dict(orient="records")
             raise ValueError(
                 "No model has a defined forecast RMSE on logit(q); "
-                "cannot select best model with metric='logit_q'."
+                f"all candidates failed or returned NaN. Details: {failed}"
             )
-        idx = df.loc[mask, "RMSE forecast (logit q)"].idxmin()
+        idx = df.loc[mask, col].idxmin()
+
     else:
         raise ValueError(f"Unknown metric: {metric!r} (expected 'log_m' or 'logit_q').")
 

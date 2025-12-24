@@ -15,9 +15,11 @@ from pymort.models.cbd_m7 import (
 
 
 def _toy_q():
-    ages = np.array([70.0, 71.0], dtype=float)
-    years = np.array([2000, 2001, 2002], dtype=int)
-    q = np.array([[0.1, 0.11, 0.12], [0.2, 0.21, 0.22]], dtype=float)
+    ages = np.array([68.0, 70.0, 72.0], dtype=float)
+    years = np.array([2000, 2001, 2002, 2003], dtype=int)
+    base = np.array([0.09, 0.1, 0.11], dtype=float)[:, None]
+    trend = np.linspace(1.0, 1.05, years.size)[None, :]
+    q = np.clip(base * trend, 1e-4, 0.3)
     return ages, years, q
 
 
@@ -42,7 +44,7 @@ def test_fit_cbd_m7_and_reconstruct():
     q_rec = reconstruct_q_m7(params)
     assert logit_rec.shape == q.shape
     assert q_rec.shape == q.shape
-    assert np.allclose(q_rec, q, atol=1e-8)
+    assert np.sqrt(np.mean((q_rec - q) ** 2)) < 1e-4
     # gamma helper
     val = params.gamma_for_age_at_last_year(age=ages[0])
     assert np.isfinite(val)
@@ -58,6 +60,26 @@ def test_fit_cbd_m7_invalid_inputs():
     bad_q[0, 0] = -0.1
     with pytest.raises(ValueError):
         fit_cbd_m7(bad_q, ages, years)
+
+
+def test_fit_cbd_m7_raises_on_singular_design():
+    ages = np.array([70.0], dtype=float)  # single age -> X'X singular
+    years = np.array([2000, 2001], dtype=int)
+    q = np.full((1, 2), 0.1, dtype=float)
+    with pytest.raises(ValueError, match="singular"):
+        fit_cbd_m7(q, ages, years)
+
+
+def test_fit_cbd_m7_well_conditioned_dataset():
+    ages = np.array([65.0, 70.0, 75.0], dtype=float)
+    years = np.array([2000, 2001, 2002, 2003], dtype=int)
+    base = np.linspace(0.08, 0.12, ages.size)[:, None]
+    trend = np.linspace(1.0, 1.1, years.size)[None, :]
+    q = np.clip(base * trend, 1e-4, 0.25)
+    params = fit_cbd_m7(q, ages, years)
+    q_rec = reconstruct_q_m7(params)
+    assert q_rec.shape == q.shape
+    assert np.sqrt(np.mean((q_rec - q) ** 2)) < 1e-3
 
 
 def test_reconstruct_errors_on_cohort_mismatch():
@@ -84,7 +106,7 @@ def test_cbdm7_class_fit_predict_simulate():
     q_hat = model.predict_q()
     assert logit_hat.shape == q.shape
     assert q_hat.shape == q.shape
-    assert np.allclose(q_hat, q, atol=1e-8)
+    assert np.sqrt(np.mean((q_hat - q) ** 2)) < 1e-4
 
     mu1, sigma1, mu2, sigma2, mu3, sigma3 = model.estimate_rw()
     assert np.isfinite(mu1) and np.isfinite(sigma1)

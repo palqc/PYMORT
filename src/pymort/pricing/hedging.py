@@ -142,7 +142,9 @@ def compute_multihorizon_hedge(
     if H_cf.shape[0] == n:
         n_h, m, t_h = H_cf.shape
         if t_h != t:
-            raise ValueError(f"instruments_cf_paths has T={t_h} but liability has T={t}.")
+            raise ValueError(
+                f"instruments_cf_paths has T={t_h} but liability has T={t}."
+            )
     elif H_cf.shape[1] == n:
         m, n_h, t_h = H_cf.shape
         if n_h != n or t_h != t:
@@ -157,37 +159,58 @@ def compute_multihorizon_hedge(
             "with the same N,T as liability_cf_paths."
         )
 
-    # Discount factors
-    if discount_factors is not None:
-        df = np.asarray(discount_factors, dtype=float).reshape(-1)
-        if df.shape[0] != t:
-            raise ValueError(f"discount_factors must have length T={t}, got {df.shape[0]}.")
-        if not np.all(np.isfinite(df)) or np.any(df <= 0.0):
-            raise ValueError("discount_factors must be positive and finite.")
-        L_cf = L_cf * df[None, :]
-        H_cf = H_cf * df[None, None, :]
+    # ---------- Build per-(n,t) sqrt-weights for WLS ----------
+    W = np.ones((n, t), dtype=float)
 
-    # Time weights
+    # Time weights ONLY (do not mix with discount factors)
     if time_weights is not None:
         w_t = np.asarray(time_weights, dtype=float).reshape(-1)
         if w_t.shape[0] != t:
-            raise ValueError(f"time_weights must have length T={t}, got {w_t.shape[0]}.")
+            raise ValueError(
+                f"time_weights must have length T={t}, got {w_t.shape[0]}."
+            )
         if not np.all(np.isfinite(w_t)) or np.any(w_t < 0.0):
             raise ValueError("time_weights must be non-negative and finite.")
-        L_cf = L_cf * w_t[None, :]
-        H_cf = H_cf * w_t[None, None, :]
+        W *= w_t[None, :]
 
-    L_flat = L_cf.reshape(n * t)
-    H_flat = H_cf.transpose(0, 2, 1).reshape(n * t, -1)  # (N,T,M)->(N*T,M)
+    W_sqrt = np.sqrt(W)
 
-    n_flat, m = H_flat.shape
-    if n_flat < m:
-        raise ValueError(f"Not enough points N*T={n_flat} for M={m} instruments; need N*T >= M.")
+    # --- Build PV cashflows using discount_factors (T,) or (N,T) ---
+    df_pv = None
+    if discount_factors is not None:
+        df_arr = np.asarray(discount_factors, dtype=float)
+        if df_arr.ndim == 1:
+            if df_arr.shape[0] != t:
+                raise ValueError(
+                    f"discount_factors must have length T={t}, got {df_arr.shape[0]}."
+                )
+            df_pv = df_arr[None, :]
+        elif df_arr.ndim == 2:
+            if df_arr.shape != (n, t):
+                raise ValueError(
+                    f"discount_factors must have shape (N,T)={(n,t)}, got {df_arr.shape}."
+                )
+            df_pv = df_arr
+        else:
+            raise ValueError("discount_factors must be (T,) or (N,T).")
+        if not np.all(np.isfinite(df_pv)) or np.any(df_pv <= 0.0):
+            raise ValueError("discount_factors must be positive and finite.")
+
+    if df_pv is None:
+        L_cf_pv = L_cf
+        H_cf_pv = H_cf
+    else:
+        L_cf_pv = L_cf * df_pv
+        H_cf_pv = H_cf * df_pv[:, None, :]
+
+    # --- WLS on PV cashflows ---
+    L_flat = (L_cf_pv * W_sqrt).reshape(n * t)
+    H_flat = (H_cf_pv.transpose(0, 2, 1) * W_sqrt[:, :, None]).reshape(n * t, -1)
 
     w, _, rank, _ = np.linalg.lstsq(H_flat, -L_flat, rcond=None)
 
-    liability_pv_paths = L_cf.sum(axis=1)
-    hedge_cf_paths = np.einsum("nmt,m->nt", H_cf, w)
+    liability_pv_paths = L_cf_pv.sum(axis=1)
+    hedge_cf_paths = np.einsum("nmt,m->nt", H_cf_pv, w)
     hedge_pv_paths = hedge_cf_paths.sum(axis=1)
     net_pv_paths = liability_pv_paths + hedge_pv_paths
 
@@ -345,7 +368,9 @@ def compute_duration_convexity_matching_hedge(
     if d1.size == 0 or d2.size == 0:
         raise ValueError("Instrument greeks must contain at least one instrument.")
     if d1.shape != d2.shape:
-        raise ValueError("instruments_dPdr and instruments_d2Pdr2 must have same length.")
+        raise ValueError(
+            "instruments_dPdr and instruments_d2Pdr2 must have same length."
+        )
     if not np.all(np.isfinite(d1)) or not np.all(np.isfinite(d2)):
         raise ValueError("Instrument greeks must be finite.")
 

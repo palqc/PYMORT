@@ -73,6 +73,8 @@ def fit_cbd(q: np.ndarray, ages: np.ndarray) -> CBDM5Params:
       1) Build design matrix X = [1, (x - x_bar)].
       2) For each year t, regress logit(q_{x,t}) on X to get kappa1_t, kappa2_t.
     """
+    q = np.asarray(q, dtype=float)
+    ages = np.asarray(ages, dtype=float)
     if q.ndim != 2:
         raise ValueError("q must be a 2D array with shape (A, T).")
     if ages.ndim != 1:
@@ -80,6 +82,12 @@ def fit_cbd(q: np.ndarray, ages: np.ndarray) -> CBDM5Params:
     A, T = q.shape
     if ages.shape[0] != A:
         raise ValueError("ages length must match q.shape[0].")
+    if not np.isfinite(q).all():
+        raise ValueError("q must contain finite values.")
+    if (q <= 0).any() or (q >= 1).any():
+        raise ValueError("q must be strictly in (0,1).")
+    if not np.isfinite(ages).all():
+        raise ValueError("ages must be finite.")
     validate_q(q)
 
     # Build design matrix once (same ages for all years)

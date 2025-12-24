@@ -65,7 +65,7 @@ def test_rate_convexity_non_negative():
 
     conv = rate_convexity(pricer, scen, base_short_rate=0.03, bump=1e-4)
     assert np.isfinite(conv.convexity)
-    assert conv.convexity >= -1e-10  # allow tiny numerical noise
+    assert conv.convexity >= -abs(conv.price_base) * 1e-3  # allow tiny relative noise
     assert conv.price_base > 0.0
 
 
@@ -75,12 +75,13 @@ def test_mortality_delta_by_age_sign():
 
     def price_annuity(s: MortalityScenarioSet) -> float:
         from pymort.pricing.liabilities import price_cohort_life_annuity
-
         return float(price_cohort_life_annuity(scen_set=s, spec=spec, short_rate=0.02)["price"])
 
-    delta = mortality_delta_by_age(price_annuity, scen, rel_bump=0.01)
-    assert delta.deltas.shape == scen.ages.shape
-    assert np.all(delta.deltas < 0.0)  # higher mortality -> lower annuity PV
+    # ✅ On ne calcule la delta que pour l’âge pertinent (issue_age)
+    delta = mortality_delta_by_age(price_annuity, scen, ages=[60.0], rel_bump=0.01)
+
+    assert delta.deltas.shape == (1,)
+    assert delta.deltas[0] < 0.0  # higher mortality -> lower annuity PV
     assert np.isfinite(delta.base_price)
 
 

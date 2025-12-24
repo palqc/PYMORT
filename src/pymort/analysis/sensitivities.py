@@ -196,8 +196,6 @@ def mortality_delta_by_age(
     if eps == 0.0:
         raise ValueError("rel_bump must be non-zero.")
 
-    N, A, H = q_base.shape
-
     ages_all = np.asarray(scen_set.ages, dtype=float)
     if ages is None:
         ages_sel = ages_all
@@ -213,6 +211,7 @@ def mortality_delta_by_age(
 
     # Base price
     base_price = float(price_func(scen_set))
+    sign = 1.0 if base_price >= 0.0 else -1.0
 
     deltas = np.zeros(len(ages_sel), dtype=float)
 
@@ -243,7 +242,7 @@ def mortality_delta_by_age(
         # Price under bumped mortality for that age
         p_bump = float(price_func(scen_bump))
 
-        deltas[k] = (p_bump - base_price) / eps
+        deltas[k] = ((sign * p_bump) - (sign * base_price)) / eps
 
     return MortalityDeltaByAge(
         base_price=base_price,
@@ -475,14 +474,25 @@ def make_single_product_pricer(
     """
     Returns a function scen_set -> price for ONE instrument.
 
-    kind in:
-      - "longevity_bond"
+    Supported kinds:
+      - "longevity_bond" (alias: "bond")
       - "s_forward"
       - "q_forward"
       - "survivor_swap"
-      - "life_annuity"
+      - "life_annuity" (alias: "annuity")
     """
-    k = str(kind).lower()
+    k = str(kind).strip().lower()
+
+    # ---- aliases (backward-compatible / friendly) ----
+    alias_map = {
+        "bond": "longevity_bond",
+        "longevitybond": "longevity_bond",
+        "longevity-bond": "longevity_bond",
+        "annuity": "life_annuity",
+        "lifeannuity": "life_annuity",
+        "life-annuity": "life_annuity",
+    }
+    k = alias_map.get(k, k)
 
     if k == "longevity_bond":
         return lambda scen: float(
@@ -520,7 +530,7 @@ def make_single_product_pricer(
 
     raise ValueError(
         f"Unknown kind='{kind}'. Expected one of "
-        "['longevity_bond','s_forward','q_forward','survivor_swap','life_annuity']."
+        "['longevity_bond','bond','s_forward','q_forward','survivor_swap','life_annuity','annuity']."
     )
 
 

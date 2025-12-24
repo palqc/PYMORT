@@ -72,7 +72,8 @@ def test_calibration_cache_round_trip(tmp_path: Path):
     scen_q = build_scenarios_under_lambda_fast(
         cache_loaded, lambda_esscher=0.0, scale_sigma=1.0
     )
-    assert scen_q.q_paths.shape[0] == cache_loaded.n_process
+    expected_n = cache_loaded.bs_res.mu_sigma.shape[0] * cache_loaded.n_process
+    assert scen_q.q_paths.shape[0] == expected_n
 
 
 def test_spec_dataclasses_json_round_trip():

@@ -443,13 +443,24 @@ def apply_life_expectancy_shift(
         e1 = _life_expectancy_from_q(q_shift[t0:], include_half_year=True)
         return e1 - target  # root when = 0
 
-    a, b = bracket
-    fa, fb = gap(a), gap(b)
+    a, b = float(bracket[0]), float(bracket[1])
+    fa, fb = float(gap(a)), float(gap(b))
+
+    # Auto-expand upper bound if not bracketed
     if fa * fb > 0:
-        raise ValueError(
-            "Life-expectancy root not bracketed. Widen `bracket` (e.g. (0, 0.8)) "
-            f"or choose a smaller delta_years. gap(a)={fa}, gap(b)={fb}."
-        )
+        # we can only improve by lowering q, so expand b upward toward 1
+        b_try = b
+        for _ in range(12):
+            b_try = min(0.999999, 0.5 * (b_try + 1.0))  # move toward 1
+            fb_try = float(gap(b_try))
+            if fa * fb_try <= 0:
+                b, fb = b_try, fb_try
+                break
+        else:
+            raise ValueError(
+                "Life-expectancy root not bracketed. Widen `bracket` (e.g. (0, 0.99)) "
+                f"or choose a smaller delta_years. gap(a)={fa}, gap(b)={fb}."
+            )
 
     left, right = float(a), float(b)
     f_left, f_right = float(fa), float(fb)

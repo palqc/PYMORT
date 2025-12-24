@@ -12,7 +12,10 @@ from pymort.lifetables import m_to_q, survival_from_q, validate_q
 from pymort.models.cbd_m7 import CBDM7
 from pymort.models.lc_m2 import LCM2
 from pymort.pricing.liabilities import CohortLifeAnnuitySpec, price_cohort_life_annuity
-from pymort.pricing.longevity_bonds import LongevityBondSpec, price_simple_longevity_bond
+from pymort.pricing.longevity_bonds import (
+    LongevityBondSpec,
+    price_simple_longevity_bond,
+)
 from pymort.pricing.mortality_derivatives import (
     QForwardSpec,
     SForwardSpec,
@@ -95,8 +98,8 @@ def esscher_shift_normal_rw(
             f"lambda_esscher must have length 1 or {k}; got {lambda_arr.shape[0]}."
         )
 
-    if np.any(sigma_P_arr <= 0.0):
-        raise ValueError("sigma_P entries must be strictly positive.")
+    if np.any(sigma_P_arr < 0.0):
+        raise ValueError("sigma_P entries must be non-negative.")
 
     mu_Q_arr = mu_P_arr + lambda_arr * (sigma_P_arr**2)
 
@@ -115,10 +118,14 @@ def esscher_shift_normal_rw(
 
 def risk_neutral_from_lcm2(model_lcm2: LCM2, lambda_esscher: Lambda) -> EsscherResult:
     mu_P, sigma_P = model_lcm2.estimate_rw()
-    return esscher_shift_normal_rw(mu_P=mu_P, sigma_P=sigma_P, lambda_esscher=lambda_esscher)
+    return esscher_shift_normal_rw(
+        mu_P=mu_P, sigma_P=sigma_P, lambda_esscher=lambda_esscher
+    )
 
 
-def risk_neutral_from_cbdm7(model_cbdm7: CBDM7, lambda_esscher: Lambda) -> EsscherResult:
+def risk_neutral_from_cbdm7(
+    model_cbdm7: CBDM7, lambda_esscher: Lambda
+) -> EsscherResult:
     rw = model_cbdm7.estimate_rw()
     if len(rw) != 6:
         raise RuntimeError(
@@ -128,7 +135,9 @@ def risk_neutral_from_cbdm7(model_cbdm7: CBDM7, lambda_esscher: Lambda) -> Essch
     mu1, sigma1, mu2, sigma2, mu3, sigma3 = rw
     mu_P = np.array([mu1, mu2, mu3], dtype=float)
     sigma_P = np.array([sigma1, sigma2, sigma3], dtype=float)
-    return esscher_shift_normal_rw(mu_P=mu_P, sigma_P=sigma_P, lambda_esscher=lambda_esscher)
+    return esscher_shift_normal_rw(
+        mu_P=mu_P, sigma_P=sigma_P, lambda_esscher=lambda_esscher
+    )
 
 
 # ============================================================================
@@ -431,7 +440,13 @@ class MultiInstrumentQuote:
     """
 
     kind: str
-    spec: LongevityBondSpec | SurvivorSwapSpec | SForwardSpec | QForwardSpec | CohortLifeAnnuitySpec
+    spec: (
+        LongevityBondSpec
+        | SurvivorSwapSpec
+        | SForwardSpec
+        | QForwardSpec
+        | CohortLifeAnnuitySpec
+    )
     market_price: float
     weight: float = 1.0
 
@@ -486,6 +501,8 @@ def calibrate_lambda_least_squares(
 
     k = _infer_lambda_dim(model_name)
     lam0 = _to_lambda_vec(lambda0, k)
+    if np.allclose(lam0, 0.0):
+        lam0 = lam0 + 1e-3
 
     lo, hi = float(bounds[0]), float(bounds[1])
     if not (np.isfinite(lo) and np.isfinite(hi) and lo < hi):
@@ -531,7 +548,10 @@ def calibrate_lambda_least_squares(
             cohort_pivot_year=cohort_pivot_year,
         )
         model_prices = np.array(
-            [_price_from_scen_set(scen_set_q, q, short_rate=short_rate) for q in quotes_list],
+            [
+                _price_from_scen_set(scen_set_q, q, short_rate=short_rate)
+                for q in quotes_list
+            ],
             dtype=float,
         )
         return (model_prices - market) * w_sqrt
@@ -541,9 +561,10 @@ def calibrate_lambda_least_squares(
         x0=lam0,
         bounds=(lb, ub),
         verbose=int(verbose),
-        ftol=1e-8,
-        xtol=1e-8,
-        gtol=1e-8,
+        ftol=1e-12,
+        xtol=1e-12,
+        gtol=1e-12,
+        max_nfev=200,
     )
 
     lam_star = np.asarray(res.x, dtype=float).reshape(-1)
@@ -560,7 +581,10 @@ def calibrate_lambda_least_squares(
     )
 
     fitted = np.array(
-        [_price_from_scen_set(scen_set_q_star, q, short_rate=short_rate) for q in quotes_list],
+        [
+            _price_from_scen_set(scen_set_q_star, q, short_rate=short_rate)
+            for q in quotes_list
+        ],
         dtype=float,
     )
 

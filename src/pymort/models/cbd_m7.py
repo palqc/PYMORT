@@ -131,10 +131,15 @@ def fit_cbd_m7(q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM7Param
 
     # OLS for all years at once: beta_hat_all = (X'X)^(-1) X' y → shape (3, T)
     XtX = X.T @ X
+    if np.linalg.matrix_rank(XtX) < XtX.shape[0]:
+        raise ValueError(
+            "CBD M7 fit failed: design matrix X'X is singular. "
+            "Use at least two distinct ages with dispersion."
+        )
     try:
         beta_hat_all = np.linalg.solve(XtX, X.T @ y)
     except np.linalg.LinAlgError as exc:
-        raise RuntimeError("X'X is singular in CBD M7 fit.") from exc
+        raise ValueError("CBD M7 fit failed: design matrix X'X is singular.") from exc
 
     kappa1 = beta_hat_all[0, :]  # (T,)
     kappa2 = beta_hat_all[1, :]  # (T,)

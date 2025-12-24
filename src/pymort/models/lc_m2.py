@@ -119,8 +119,7 @@ def fit_lee_carter_cohort(
 
     # 4) Center gamma (weighted mean = 0)
     if np.any(mask_nonzero):
-        w_mean = np.average(gamma[mask_nonzero], weights=counts[mask_nonzero])
-        gamma = gamma - w_mean
+        gamma = gamma - float(np.mean(gamma[mask_nonzero]))
 
     return LCM2Params(
         a=base.a,

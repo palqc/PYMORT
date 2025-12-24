@@ -1,110 +1,120 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Dict, Literal, Optional, Sequence, Tuple
 
 import numpy as np
 
 from pymort.analysis import MortalityScenarioSet
 
+PVKind = Literal["cost", "value", "pnl"]
+
+
 # =============================================================================
-# 1) Core : RiskReport dataclass
+# 1) Core dataclass
 # =============================================================================
 
 
 @dataclass
 class RiskReport:
     """
-    Résumé structuré du risque pour un portefeuille (liability seul ou hedgé).
+    Structured risk summary for scenario PVs.
 
-    Attributes
+    Convention
     ----------
-    name : str
-        Nom du portefeuille / produit (ex: "Cohort annuity", "Annuity + hedge").
-    n_scenarios : int
-        Nombre de scénarios Monte Carlo.
-    mean_pv : float
-        Espérance du PV.
-    std_pv : float
-        Écart-type du PV.
-    pv_min : float
-        Minimum observé.
-    pv_max : float
-        Maximum observé.
-    var_level : float
-        Niveau de VaR (ex: 0.99).
-    var : float
-        Value-at-Risk (perte quantile) à var_level.
-    cvar : float
-        Conditional VaR (Expected Shortfall) à var_level.
-    quantiles : Dict[float, float]
-        Quelques quantiles intermédiaires (par ex. 1%, 5%, 50%, 95%, 99%).
-    hedge_var_reduction : Optional[float]
-        Réduction de variance par rapport à une référence (si fournie).
-    extra : Dict[str, float]
-        Espace libre pour rajouter d'autres métriques.
+    We compute risk on a *loss* variable L:
+      - pv_kind="cost":  L =  PV   (bigger PV = worse)
+      - pv_kind="value": L = -PV   (bigger PV = better, so loss is -PV)
+      - pv_kind="pnl":   L = -PnL  (profit positive -> loss negative)
+
+    Reported VaR/CVaR are on L (loss units).
     """
 
     name: str
+    pv_kind: PVKind
+
     n_scenarios: int
+
+    # PV stats
     mean_pv: float
     std_pv: float
     pv_min: float
     pv_max: float
+
+    # Loss stats (derived from PV convention)
+    mean_loss: float
+    std_loss: float
+
     var_level: float
-    var: float
-    cvar: float
-    quantiles: Dict[float, float]
+    var: float  # VaR on losses
+    cvar: float  # CVaR/ES on losses
+
+    quantiles_pv: Dict[float, float]
+    quantiles_loss: Dict[float, float]
+
+    # Relative-to-reference analytics (optional)
     hedge_var_reduction: Optional[float] = None
+    hedge_var_reduction_loss: Optional[float] = None
+    hedge_var_reduction_var: Optional[float] = None
+    hedge_var_reduction_cvar: Optional[float] = None
+    corr_with_ref: Optional[float] = None
+    beta_vs_ref: Optional[float] = None
+    tracking_error: Optional[float] = None
+
+    # Extra metrics
     extra: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, object]:
-        """
-        Conversion pratique en dict (pour logs, JSON, tableaux, etc.).
-        """
         return asdict(self)
 
 
 # =============================================================================
-# 2) Helpers stats : VaR / CVaR
+# 2) Helpers
 # =============================================================================
 
 
-def _compute_var_cvar(
-    pv_paths: np.ndarray,
-    alpha: float = 0.99,
-) -> Tuple[float, float]:
-    """
-    Compute empirical Value-at-Risk and Conditional VaR (Expected Shortfall).
+def _as_1d(x: np.ndarray, *, name: str) -> np.ndarray:
+    arr = np.asarray(x, dtype=float).reshape(-1)
+    if arr.size == 0:
+        raise ValueError(f"{name} must contain at least one scenario.")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} must be finite.")
+    return arr
 
-    Convention :
-      - pv_paths : chemin de PV (N,)
-      - on s'intéresse au *côté défavorable* du passif.
-        Typiquement, si PV>0 est une perte pour l'assureur, VaR_α est
-        le quantile α des PV.
-    """
-    x = np.asarray(pv_paths, dtype=float).reshape(-1)
-    if x.size == 0:
-        raise ValueError("pv_paths must contain at least one scenario.")
 
+def _pv_to_loss(pv: np.ndarray, pv_kind: PVKind) -> np.ndarray:
+    if pv_kind == "cost":
+        return pv
+    if pv_kind in ("value", "pnl"):
+        return -pv
+    raise ValueError(f"Unknown pv_kind: {pv_kind!r}")
+
+
+def _compute_var_cvar(loss_paths: np.ndarray, alpha: float) -> Tuple[float, float]:
     if not (0.0 < alpha < 1.0):
-        raise ValueError("alpha must be in (0,1).")
+        raise ValueError("var_level (alpha) must be in (0,1).")
 
-    # VaR = quantile alpha
-    var = float(np.quantile(x, alpha))
-
-    # CVaR = moyenne des PV au-delà de VaR (queue droite)
-    tail = x[x >= var]
-    if tail.size == 0:
-        cvar = var
-    else:
-        cvar = float(tail.mean())
-
+    L = loss_paths
+    var = float(np.quantile(L, alpha))
+    tail = L[L >= var]
+    cvar = float(tail.mean()) if tail.size > 0 else var
     return var, cvar
 
 
+def _skew_kurtosis(x: np.ndarray) -> Tuple[float, float]:
+    # population moments (ddof=0)
+    mu = float(x.mean())
+    s = float(x.std(ddof=0))
+    if s <= 0.0:
+        return 0.0, 0.0
+    z = (x - mu) / s
+    skew = float(np.mean(z**3))
+    kurt_excess = float(np.mean(z**4) - 3.0)
+    return skew, kurt_excess
+
+
 # =============================================================================
-# 3) Rapport de risque : un portefeuille, avec éventuellement un hedge
+# 3) Main report generator
 # =============================================================================
 
 
@@ -114,74 +124,140 @@ def generate_risk_report(
     name: str = "Portfolio",
     var_level: float = 0.99,
     ref_pv_paths: Optional[np.ndarray] = None,
+    pv_kind: PVKind = "cost",
+    quantile_grid: Sequence[float] = (0.01, 0.05, 0.50, 0.95, 0.99),
+    loss_threshold: Optional[float] = None,
 ) -> RiskReport:
     """
-    Génère un RiskReport pour un ensemble de PV de scénario.
+    Generate a pro-grade RiskReport from scenario PV paths.
 
-    Paramètres
+    Parameters
     ----------
-    pv_paths : np.ndarray
-        Shape (N,) – PV du portefeuille (liability seul ou net hedgé).
-    name : str
-        Nom du portefeuille.
-    var_level : float, default 0.99
-        Niveau de quantile pour la VaR / CVaR.
-    ref_pv_paths : np.ndarray, optional
-        PV d'une référence (ex: liability seul). Si fourni, on calcule
-        la réduction de variance :
-            1 - Var(portefeuille) / Var(ref)
-
-    Returns
-    -------
-    RiskReport
-        Rapport structuré avec stats + VaR + CVaR.
+    pv_paths:
+        Scenario PVs (N,).
+    pv_kind:
+        "cost" (default): PV is a liability cost. Higher is worse.
+        "value": PV is an asset value. Lower is worse (loss = -PV).
+        "pnl": PV is a PnL. Lower is worse (loss = -PV).
+    ref_pv_paths:
+        Optional reference PVs (same N) to compute reduction metrics.
+    quantile_grid:
+        PV & loss quantiles to store.
+    loss_threshold:
+        Optional loss threshold to report exceedance probability.
+        (Threshold is expressed in *loss* units.)
     """
-    x = np.asarray(pv_paths, dtype=float).reshape(-1)
-    if x.ndim != 1 or x.size == 0:
-        raise ValueError("pv_paths must be a non-empty 1D array.")
+    pv = _as_1d(pv_paths, name="pv_paths")
+    N = pv.size
 
-    n = x.size
-    mean_pv = float(x.mean())
-    std_pv = float(x.std(ddof=0))
-    pv_min = float(x.min())
-    pv_max = float(x.max())
+    loss = _pv_to_loss(pv, pv_kind)
 
-    var, cvar = _compute_var_cvar(x, alpha=var_level)
+    mean_pv = float(pv.mean())
+    std_pv = float(pv.std(ddof=0))
+    pv_min = float(pv.min())
+    pv_max = float(pv.max())
 
-    # Quelques quantiles utiles
-    qs = [0.01, 0.05, 0.50, 0.95, var_level]
-    quantiles = {q: float(np.quantile(x, q)) for q in qs}
+    mean_loss = float(loss.mean())
+    std_loss = float(loss.std(ddof=0))
 
-    # Réduction de variance vs référence
-    hedge_var_reduction: Optional[float] = None
+    # Quantiles (clean + sorted + unique + in (0,1))
+    qs = sorted({float(q) for q in quantile_grid} | {float(var_level)})
+    for q in qs:
+        if not (0.0 < q < 1.0):
+            raise ValueError("quantile_grid values must be in (0,1).")
+
+    quantiles_pv = {q: float(np.quantile(pv, q)) for q in qs}
+    quantiles_loss = {q: float(np.quantile(loss, q)) for q in qs}
+
+    var, cvar = _compute_var_cvar(loss, alpha=float(var_level))
+
+    # Extra moments (on loss is usually what risk teams want)
+    skew_loss, kurt_loss = _skew_kurtosis(loss)
+
+    extra: dict[str, float] = {
+        "skew_loss": float(skew_loss),
+        "kurtosis_excess_loss": float(kurt_loss),
+        "downside_deviation_loss": float(
+            np.sqrt(np.mean(np.minimum(loss - mean_loss, 0.0) ** 2))
+        ),
+    }
+
+    if loss_threshold is not None:
+        thr = float(loss_threshold)
+        extra["prob_loss_exceeds_threshold"] = float(np.mean(loss >= thr))
+
+    # Reference comparisons
+    hedge_var_reduction = None
+    hedge_var_reduction_loss = None
+    hedge_var_reduction_var = None
+    hedge_var_reduction_cvar = None
+    corr_with_ref = None
+    beta_vs_ref = None
+    tracking_error = None
+
     if ref_pv_paths is not None:
-        ref = np.asarray(ref_pv_paths, dtype=float).reshape(-1)
-        if ref.size != n:
+        ref_pv = _as_1d(ref_pv_paths, name="ref_pv_paths")
+        if ref_pv.size != N:
             raise ValueError(
                 "ref_pv_paths must have same number of scenarios as pv_paths."
             )
-        var_ref = float(ref.var(ddof=0))
-        var_port = float(x.var(ddof=0))
-        hedge_var_reduction = 1.0 - var_port / var_ref if var_ref > 0.0 else None
+        ref_loss = _pv_to_loss(ref_pv, pv_kind)
+
+        var_ref_pv = float(ref_pv.var(ddof=0))
+        var_port_pv = float(pv.var(ddof=0))
+        hedge_var_reduction = (
+            (1.0 - var_port_pv / var_ref_pv) if var_ref_pv > 0.0 else None
+        )
+
+        var_ref_loss = float(ref_loss.var(ddof=0))
+        var_port_loss = float(loss.var(ddof=0))
+        hedge_var_reduction_loss = (
+            (1.0 - var_port_loss / var_ref_loss) if var_ref_loss > 0.0 else None
+        )
+
+        ref_var, ref_cvar = _compute_var_cvar(ref_loss, alpha=float(var_level))
+        hedge_var_reduction_var = (1.0 - var / ref_var) if ref_var > 0.0 else None
+        hedge_var_reduction_cvar = (1.0 - cvar / ref_cvar) if ref_cvar > 0.0 else None
+
+        # Corr/beta on losses (risk lens)
+        s_ref = float(ref_loss.std(ddof=0))
+        s_port = float(loss.std(ddof=0))
+        if s_ref > 0.0 and s_port > 0.0:
+            corr_with_ref = float(np.corrcoef(ref_loss, loss)[0, 1])
+            cov = float(np.mean((ref_loss - ref_loss.mean()) * (loss - loss.mean())))
+            beta_vs_ref = float(cov / (s_ref**2)) if s_ref > 0.0 else None
+
+        # Tracking error: std(loss - ref_loss)
+        tracking_error = float((loss - ref_loss).std(ddof=0))
 
     return RiskReport(
-        name=name,
-        n_scenarios=n,
+        name=str(name),
+        pv_kind=pv_kind,
+        n_scenarios=int(N),
         mean_pv=mean_pv,
         std_pv=std_pv,
         pv_min=pv_min,
         pv_max=pv_max,
-        var_level=var_level,
-        var=var,
-        cvar=cvar,
-        quantiles=quantiles,
+        mean_loss=mean_loss,
+        std_loss=std_loss,
+        var_level=float(var_level),
+        var=float(var),
+        cvar=float(cvar),
+        quantiles_pv=quantiles_pv,
+        quantiles_loss=quantiles_loss,
         hedge_var_reduction=hedge_var_reduction,
-        extra={},
+        hedge_var_reduction_loss=hedge_var_reduction_loss,
+        hedge_var_reduction_var=hedge_var_reduction_var,
+        hedge_var_reduction_cvar=hedge_var_reduction_cvar,
+        corr_with_ref=corr_with_ref,
+        beta_vs_ref=beta_vs_ref,
+        tracking_error=tracking_error,
+        extra=extra,
     )
 
 
 # =============================================================================
-# 4) Graphiques : survival fan, distribution de prix, hedge performance
+# 4) Plots (robust)
 # =============================================================================
 
 
@@ -192,13 +268,6 @@ def plot_survival_fan(
     ax=None,
     quantiles: Tuple[float, ...] = (0.05, 0.25, 0.50, 0.75, 0.95),
 ):
-    """
-    Trace un "survival fan" pour un âge donné :
-        - courbe de médiane
-        - bandes inter-quantiles.
-
-    Nécessite matplotlib, mais on gère l'import de façon souple.
-    """
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:
@@ -206,49 +275,43 @@ def plot_survival_fan(
             "matplotlib is required for plot_survival_fan but is not installed."
         ) from e
 
-    required = {0.05, 0.25, 0.50, 0.75, 0.95}
-    if set(quantiles) != required:
-        raise ValueError("quantiles must be exactly (0.05, 0.25, 0.50, 0.75, 0.95).")
+    qs = tuple(float(q) for q in quantiles)
+    if any((q <= 0.0 or q >= 1.0) for q in qs):
+        raise ValueError("quantiles must be in (0,1).")
+    if 0.50 not in qs:
+        raise ValueError("quantiles must include 0.50 (median).")
+    if len(set(qs)) != len(qs):
+        raise ValueError("quantiles must be unique.")
 
     ages = np.asarray(scen_set.ages, dtype=float)
     years = np.asarray(scen_set.years, dtype=float)
     S_paths = np.asarray(scen_set.S_paths, dtype=float)  # (N, A, H)
 
-    # Trouver l'indice d'âge le plus proche
     idx_age = int(np.argmin(np.abs(ages - float(age))))
     S_age = S_paths[:, idx_age, :]  # (N, H)
 
-    # Stats par année
-    bands = {q: np.quantile(S_age, q, axis=0) for q in quantiles}
+    bands = {q: np.quantile(S_age, q, axis=0) for q in qs}
 
     if ax is None:
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
-    # Médiane
     ax.plot(years, bands[0.50], label="Median survival", linewidth=2)
 
-    # Bandes inf/sup
-    ax.fill_between(
-        years,
-        bands[0.25],
-        bands[0.75],
-        alpha=0.3,
-        label="50% band (25–75%)",
-    )
-    ax.fill_between(
-        years,
-        bands[0.05],
-        bands[0.95],
-        alpha=0.2,
-        label="90% band (5–95%)",
-    )
+    # Optional fills if the common bands exist
+    if 0.25 in bands and 0.75 in bands:
+        ax.fill_between(
+            years, bands[0.25], bands[0.75], alpha=0.3, label="50% band (25–75%)"
+        )
+    if 0.05 in bands and 0.95 in bands:
+        ax.fill_between(
+            years, bands[0.05], bands[0.95], alpha=0.2, label="90% band (5–95%)"
+        )
 
     ax.set_title(f"Survival fan – age {ages[idx_age]:.0f}")
     ax.set_xlabel("Calendar year")
     ax.set_ylabel("Survival probability S(x,t)")
     ax.legend()
     ax.grid(True)
-
     return ax
 
 
@@ -260,9 +323,6 @@ def plot_price_distribution(
     density: bool = True,
     label: str = "PV distribution",
 ):
-    """
-    Histogramme de la distribution des PV de scénario.
-    """
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:
@@ -270,17 +330,16 @@ def plot_price_distribution(
             "matplotlib is required for plot_price_distribution but is not installed."
         ) from e
 
-    x = np.asarray(pv_paths, dtype=float).reshape(-1)
+    x = _as_1d(pv_paths, name="pv_paths")
 
     if ax is None:
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
-    ax.hist(x, bins=bins, density=density, alpha=0.7)
+    ax.hist(x, bins=int(bins), density=bool(density), alpha=0.7)
     ax.set_title(label)
     ax.set_xlabel("Present value")
     ax.set_ylabel("Density" if density else "Count")
     ax.grid(True)
-
     return ax
 
 
@@ -292,10 +351,6 @@ def plot_hedge_performance(
     label_liability: str = "Liability PV",
     label_net: str = "Net (Liability + Hedge) PV",
 ):
-    """
-    Scatter plot comparant PV du liability vs PV net hedgé
-    pour visualiser la réduction de dispersion (variance).
-    """
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:
@@ -303,19 +358,22 @@ def plot_hedge_performance(
             "matplotlib is required for plot_hedge_performance but is not installed."
         ) from e
 
-    L = np.asarray(liability_pv_paths, dtype=float).reshape(-1)
-    N = np.asarray(net_pv_paths, dtype=float).reshape(-1)
+    L = _as_1d(liability_pv_paths, name="liability_pv_paths")
+    N = _as_1d(net_pv_paths, name="net_pv_paths")
     if L.size != N.size:
         raise ValueError("liability_pv_paths and net_pv_paths must have same length.")
 
     if ax is None:
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
     ax.scatter(L, N, alpha=0.4, s=10)
     ax.set_title("Hedge performance – scenario scatter")
     ax.set_xlabel(label_liability)
     ax.set_ylabel(label_net)
-    ax.axline((0, 0), slope=1.0, color="black", linewidth=1, linestyle="--")
-    ax.grid(True)
 
+    # 45-degree reference line
+    lo = float(min(L.min(), N.min()))
+    hi = float(max(L.max(), N.max()))
+    ax.plot([lo, hi], [lo, hi], linestyle="--", linewidth=1)
+    ax.grid(True)
     return ax

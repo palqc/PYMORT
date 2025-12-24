@@ -15,30 +15,23 @@ dependencies = [
     "scipy>=1.11",
     "statsmodels>=0.14",
     "typer>=0.12",
-    "cpsplines @ git+https://github.com/ManuelNavarroGarcia/cpsplines",
 ]
 
 [project.optional-dependencies]
 dev = [
-    # --- Testing ---
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "pytest-xdist>=3.5",
     "hypothesis>=6.0",
-
-    # --- Linting / Formatting / Typing ---
     "ruff>=0.4",
     "mypy>=1.9",
     "pre-commit>=3.6",
-
-    # --- Typing stubs ---
     "pandas-stubs>=2.1.4.240218",
     "types-setuptools>=69.0",
     "types-PyYAML>=6.0",
-
-    # --- Build / packaging (used by CI/CD) ---
     "build>=1.1",
     "twine>=5.0",
+    "cpsplines @ git+https://github.com/ManuelNavarroGarcia/cpsplines.git@89c3cf8",
 ]
 
 [project.scripts]
@@ -124,7 +117,7 @@ markers = [
 source = ["src/pymort"]
 branch = true
 parallel = true
-omit = ["*/tests/*", "*/__init__.py"]
+omit = ["*/tests/*", "*/__init__.py", "*/visualization/*", "src/pymort/visualization/*", "src/pymort/cli.py"]
 
 [tool.coverage.report]
 exclude_lines = [

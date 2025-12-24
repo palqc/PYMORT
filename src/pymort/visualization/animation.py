@@ -45,7 +45,15 @@ def animate_mortality_surface(
 
     fig, ax = plt.subplots(figsize=(8, 5))
     vmin, vmax = float(surf.min()), float(surf.max())
-    pcm = ax.pcolormesh(X, Y, surf[:, [0]], shading="auto", vmin=vmin, vmax=vmax, cmap="viridis")
+    pcm = ax.pcolormesh(
+        X[:, :1],
+        Y[:, :1],
+        surf[:, [0]],
+        shading="auto",
+        vmin=vmin,
+        vmax=vmax,
+        cmap="viridis",
+    )
     fig.colorbar(pcm, ax=ax, label=value)
     ax.set_xlabel("Year")
     ax.set_ylabel("Age")

@@ -124,6 +124,7 @@ def price_q_forward(
     else:
         pv_paths = payoff_paths * D_Ts
     price = float(pv_paths.mean())
+    df_settle = float(D_Ts) if np.ndim(D_Ts) == 0 else float(np.mean(D_Ts))
 
     metadata: Dict[str, Any] = {
         "N_scenarios": int(N),
@@ -135,7 +136,7 @@ def price_q_forward(
         "settlement_index": int(ts_idx),
         "notional": float(spec.notional),
         "strike": float(K),
-        "discount_factor_settlement": float(D_Ts),
+        "discount_factor_settlement": float(df_settle),
     }
 
     return {
@@ -229,6 +230,8 @@ def price_s_forward(
     pv_paths = payoff_paths * D_Ts
     price = float(pv_paths.mean())
 
+    df_settle = float(D_Ts) if np.ndim(D_Ts) == 0 else float(np.mean(D_Ts))
+
     metadata: Dict[str, Any] = {
         "N_scenarios": int(N),
         "age": float(spec.age),
@@ -239,7 +242,7 @@ def price_s_forward(
         "settlement_index": int(ts_idx),
         "notional": float(spec.notional),
         "strike": float(K),
-        "discount_factor_settlement": float(D_Ts),
+        "discount_factor_settlement": float(df_settle),
     }
 
     return {
