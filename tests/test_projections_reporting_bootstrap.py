@@ -5,7 +5,12 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from pymort.analysis.bootstrap import bootstrap_logitq_model, bootstrap_logm_model
+from pymort.analysis.bootstrap import (
+    bootstrap_logitq_model,
+    bootstrap_logm_model,
+    bootstrap_from_m,
+    _resample_residuals,
+)
 from pymort.analysis.projections import (
     project_mortality_from_bootstrap,
     simulate_random_walk_paths,
@@ -48,7 +53,9 @@ def test_project_mortality_from_bootstrap_cbd_shapes_and_finiteness():
     years = np.array([2000, 2001, 2002], dtype=int)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params = fit_cbd(q, ages)
-    bs = SimpleNamespace(params_list=[params], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
+    bs = SimpleNamespace(
+        params_list=[params], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
+    )
     eps1 = np.zeros((1, 1, 2))
     eps2 = np.zeros((1, 1, 2))
 
@@ -149,11 +156,17 @@ def test_simulate_random_walk_paths_basic_and_include_last_and_errors():
 
     # errors
     with pytest.raises(ValueError):
-        simulate_random_walk_paths(k_last=1.0, mu=0.0, sigma=0.1, horizon=0, n_sims=1, rng=rng)
+        simulate_random_walk_paths(
+            k_last=1.0, mu=0.0, sigma=0.1, horizon=0, n_sims=1, rng=rng
+        )
     with pytest.raises(ValueError):
-        simulate_random_walk_paths(k_last=1.0, mu=0.0, sigma=0.1, horizon=1, n_sims=0, rng=rng)
+        simulate_random_walk_paths(
+            k_last=1.0, mu=0.0, sigma=0.1, horizon=1, n_sims=0, rng=rng
+        )
     with pytest.raises(ValueError):
-        simulate_random_walk_paths(k_last=1.0, mu=np.nan, sigma=0.1, horizon=1, n_sims=1, rng=rng)
+        simulate_random_walk_paths(
+            k_last=1.0, mu=np.nan, sigma=0.1, horizon=1, n_sims=1, rng=rng
+        )
 
 
 def test_simulate_random_walk_paths_with_eps_basic_and_validation():
@@ -174,7 +187,9 @@ def test_simulate_random_walk_paths_with_eps_basic_and_validation():
     assert np.allclose(paths2[:, 0], 1.0)
 
     # sigma < 0 abs'ed
-    paths3 = simulate_random_walk_paths_with_eps(k_last=1.0, mu=0.1, sigma=-0.2, eps=eps)
+    paths3 = simulate_random_walk_paths_with_eps(
+        k_last=1.0, mu=0.1, sigma=-0.2, eps=eps
+    )
     assert paths3.shape == (2, 3)
 
     # validation errors
@@ -202,7 +217,9 @@ def test_project_mortality_mu_sigma_length_mismatch_raises():
     params = fit_lee_carter(m)
 
     # params_list length 1 but mu_sigma has 2 rows
-    bs = SimpleNamespace(params_list=[params], mu_sigma=np.array([[0.0, 0.05], [0.0, 0.05]]))
+    bs = SimpleNamespace(
+        params_list=[params], mu_sigma=np.array([[0.0, 0.05], [0.0, 0.05]])
+    )
     with pytest.raises(ValueError):
         project_mortality_from_bootstrap(
             model_cls=LCM1,
@@ -224,9 +241,13 @@ def test_project_mortality_horizon_and_n_process_must_be_positive():
     bs = SimpleNamespace(params_list=[params], mu_sigma=np.array([[0.0, 0.05]]))
 
     with pytest.raises(ValueError):
-        project_mortality_from_bootstrap(LCM1, ages, years, m, bs, horizon=0, n_process=1)
+        project_mortality_from_bootstrap(
+            LCM1, ages, years, m, bs, horizon=0, n_process=1
+        )
     with pytest.raises(ValueError):
-        project_mortality_from_bootstrap(LCM1, ages, years, m, bs, horizon=2, n_process=0)
+        project_mortality_from_bootstrap(
+            LCM1, ages, years, m, bs, horizon=2, n_process=0
+        )
 
 
 def test_project_mortality_params_none_in_bootstrap_raises_runtimeerror():
@@ -286,7 +307,9 @@ def test_project_mortality_drift_overrides_validation_lc_and_cbd():
     ages2 = np.array([68.0, 70.0], dtype=float)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params_cbd = fit_cbd(q, ages2)
-    bs_cbd = SimpleNamespace(params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
+    bs_cbd = SimpleNamespace(
+        params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
+    )
     eps1 = np.zeros((1, 1, 2))
     eps2 = np.zeros((1, 1, 2))
 
@@ -356,7 +379,9 @@ def test_project_mortality_scale_sigma_validation_lc_and_cbd():
     ages2 = np.array([68.0, 70.0], dtype=float)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params_cbd = fit_cbd(q, ages2)
-    bs_cbd = SimpleNamespace(params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
+    bs_cbd = SimpleNamespace(
+        params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
+    )
     eps1 = np.zeros((1, 1, 2))
     eps2 = np.zeros((1, 1, 2))
 
@@ -426,7 +451,9 @@ def test_project_mortality_sigma_overrides_validation_lc_and_cbd():
     ages2 = np.array([68.0, 70.0], dtype=float)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params_cbd = fit_cbd(q, ages2)
-    bs_cbd = SimpleNamespace(params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
+    bs_cbd = SimpleNamespace(
+        params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
+    )
     eps1 = np.zeros((1, 1, 2))
     eps2 = np.zeros((1, 1, 2))
 
@@ -481,7 +508,9 @@ def test_project_mortality_crn_validation_errors_lc_and_cbd():
     ages2 = np.array([68.0, 70.0], dtype=float)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params_cbd = fit_cbd(q, ages2)
-    bs_cbd = SimpleNamespace(params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
+    bs_cbd = SimpleNamespace(
+        params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
+    )
 
     with pytest.raises(ValueError):
         project_mortality_from_bootstrap(
@@ -532,3 +561,114 @@ def test_project_mortality_lc_params_age_mismatch_raises():
             seed=0,
             eps_rw=eps_rw,
         )
+
+
+def test_resample_residuals_year_block_and_invalid_mode():
+    rng = np.random.default_rng(0)
+    resid = np.arange(12, dtype=float).reshape(3, 4)
+
+    r = _resample_residuals(resid, mode="year_block", rng=rng)
+    assert r.shape == resid.shape
+    # year_block resamples columns => each column equals some original column
+    for j in range(r.shape[1]):
+        assert any(np.allclose(r[:, j], resid[:, k]) for k in range(resid.shape[1]))
+
+    with pytest.raises(ValueError):
+        _resample_residuals(resid, mode="nope", rng=rng)  # type: ignore[arg-type]
+
+
+def test_bootstrap_logm_model_errors():
+    ages = np.array([60.0, 61.0], dtype=float)
+    years = np.array([2000, 2001], dtype=int)
+    m = np.array([[0.01, 0.011], [0.012, 0.013]], dtype=float)
+
+    with pytest.raises(ValueError):
+        bootstrap_logm_model(LCM1, m, ages, years, B=0)
+
+    class Dummy:
+        pass
+
+    with pytest.raises(ValueError, match="does not support"):
+        bootstrap_logm_model(Dummy, m, ages, years, B=1)
+
+    m_bad = m.copy()
+    m_bad[0, 0] = 0.0
+    with pytest.raises(ValueError, match="strictly positive"):
+        bootstrap_logm_model(LCM1, m_bad, ages, years, B=1)
+
+
+def test_bootstrap_logitq_model_errors():
+    ages = np.array([60.0, 61.0], dtype=float)
+    years = np.array([2000, 2001], dtype=int)
+    q = np.array([[0.1, 0.11], [0.12, 0.13]], dtype=float)
+
+    with pytest.raises(ValueError):
+        bootstrap_logitq_model(CBDM5, q, ages, years, B=0)
+
+    class Dummy:
+        pass
+
+    with pytest.raises(ValueError, match="does not support"):
+        bootstrap_logitq_model(Dummy, q, ages, years, B=1)
+
+    q_bad = q.copy()
+    q_bad[0, 0] = 0.0  # validate_q should reject
+    with pytest.raises(ValueError):
+        bootstrap_logitq_model(CBDM5, q_bad, ages, years, B=1)
+
+
+def test_bootstrap_from_m_routes_to_correct_bootstrap():
+    ages = np.array([60.0, 61.0], dtype=float)
+    years = np.array([2000, 2001], dtype=int)
+    m = np.array([[0.01, 0.011], [0.012, 0.013]], dtype=float)
+
+    # non-CBD => logm bootstrap
+    res_lc = bootstrap_from_m(LCM1, m, ages, years, B=1, seed=0)
+    assert res_lc.mu_sigma.shape == (1, 2)
+
+    # CBD => logitq bootstrap (via m_to_q)
+    res_cbd = bootstrap_from_m(CBDM5, m, ages, years, B=1, seed=0)
+    assert res_cbd.mu_sigma.shape[0] == 1
+    assert res_cbd.mu_sigma.shape[1] == 4
+
+
+def test_bootstrap_logm_rejects_bad_B_and_bad_m():
+    ages = np.array([60.0, 61.0])
+    years = np.array([2000, 2001])
+    m = np.array([[0.01, 0.011], [0.012, 0.013]])
+
+    with pytest.raises(ValueError, match="B must be strictly positive"):
+        bootstrap_logm_model(LCM1, m=m, ages=ages, years=years, B=0)
+
+    m_bad = m.copy()
+    m_bad[0, 0] = 0.0
+    with pytest.raises(ValueError, match="strictly positive"):
+        bootstrap_logm_model(LCM1, m=m_bad, ages=ages, years=years, B=1)
+
+
+def test_bootstrap_logm_rejects_unsupported_model_cls():
+    class Dummy:
+        pass
+
+    ages = np.array([60.0, 61.0])
+    years = np.array([2000, 2001])
+    m = np.array([[0.01, 0.011], [0.012, 0.013]])
+
+    with pytest.raises(ValueError, match="does not support"):
+        bootstrap_logm_model(Dummy, m=m, ages=ages, years=years, B=1)
+
+
+def test_bootstrap_logitq_rejects_bad_B_and_bad_q():
+    from pymort.models.cbd_m5 import CBDM5
+
+    ages = np.array([60.0, 61.0])
+    years = np.array([2000, 2001])
+    q = np.array([[0.1, 0.11], [0.12, 0.13]])
+
+    with pytest.raises(ValueError, match="B must be strictly positive"):
+        bootstrap_logitq_model(CBDM5, q=q, ages=ages, years=years, B=0)
+
+    q_bad = q.copy()
+    q_bad[0, 0] = 1.0
+    with pytest.raises(ValueError, match="strictly in"):
+        bootstrap_logitq_model(CBDM5, q=q_bad, ages=ages, years=years, B=1)

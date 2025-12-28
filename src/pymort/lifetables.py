@@ -205,7 +205,11 @@ def load_m_from_excel(
                 hrow,
             )
         # Prefer sheet where requested sex is available
-        if (sex in table.columns) and (found_df is not None) and (sex not in found_df.columns):
+        if (
+            (sex in table.columns)
+            and (found_df is not None)
+            and (sex not in found_df.columns)
+        ):
             found_df, found_cols, found_sheet, header_row = (
                 table,
                 cmap,
@@ -232,7 +236,9 @@ def load_m_from_excel(
     df = found_df
 
     # Choose the rate column to use
-    rate_col = sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    rate_col = (
+        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    )
     if rate_col is None:
         # If requested sex not present and no Total, fallback to Female or Male (whichever exists)
         rate_col = "Female" if "Female" in df.columns else "Male"
@@ -371,6 +377,14 @@ def cohort_survival_from_q_paths(q_paths: np.ndarray) -> np.ndarray:
     return np.clip(S, 1e-12, 1.0)
 
 
+def survival_paths_from_q_paths(q_paths: np.ndarray) -> np.ndarray:
+    q = np.asarray(q_paths, dtype=float)
+    if q.ndim != 3:
+        raise ValueError("q_paths must have shape (N, A, H).")
+    q = np.clip(q, 0.0, 1.0)
+    return np.cumprod(1.0 - q, axis=2)
+
+
 def load_m_from_excel_any(
     source: str | bytes | bytearray | Any,
     *,
@@ -438,7 +452,11 @@ def load_m_from_excel_any(
                 hrow,
             )
 
-        if (sex in table.columns) and (found_df is not None) and (sex not in found_df.columns):
+        if (
+            (sex in table.columns)
+            and (found_df is not None)
+            and (sex not in found_df.columns)
+        ):
             found_df, found_cols, found_sheet, header_row = (
                 table,
                 cmap,
@@ -455,7 +473,9 @@ def load_m_from_excel_any(
     df = found_df
 
     # Choose the rate column to use
-    rate_col = sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    rate_col = (
+        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    )
     if rate_col is None:
         rate_col = "Female" if "Female" in df.columns else "Male"
 
