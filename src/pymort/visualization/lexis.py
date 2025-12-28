@@ -1,3 +1,9 @@
+"""Lexis diagram plotting helpers.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -5,11 +11,23 @@ from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
 
+FloatArray = NDArray[np.floating]
 
-def _agg_stat(arr: np.ndarray, statistic: Literal["mean", "median"]) -> np.ndarray:
+
+def _agg_stat(arr: FloatArray, statistic: Literal["mean", "median"]) -> FloatArray:
+    """Aggregate a scenario array across the first axis.
+
+    Args:
+        arr: Scenario array. Shape (N, A, T).
+        statistic: Aggregation statistic, "mean" or "median".
+
+    Returns:
+        Aggregated surface with shape (A, T).
+    """
     if statistic == "mean":
         return np.mean(arr, axis=0)
     if statistic == "median":
@@ -24,20 +42,17 @@ def plot_lexis(
     cohorts: Iterable[int] | None = None,
     ax=None,
 ):
-    """Lexis-style heatmap for mortality scenario summaries.
+    """Plot a Lexis-style heatmap for scenario summaries.
 
-    Parameters
-    ----------
-    scen_set : MortalityScenarioSet
-        Scenario container with q_paths/S_paths/m_paths and grids.
-    value : {'m','q','S'}
-        Which surface to display. If 'm' and m_paths is None, falls back to q.
-    statistic : {'mean','median'}
-        Aggregation across scenarios.
-    cohorts : iterable of int, optional
-        Calendar years of birth to highlight as diagonal lines.
-    ax : matplotlib axis, optional
-        Axis to draw on; creates a new one if None.
+    Args:
+        scen_set: Scenario container with q_paths/S_paths/m_paths and grids.
+        value: Which surface to display ("m", "q", or "S").
+        statistic: Aggregation across scenarios ("mean" or "median").
+        cohorts: Optional calendar years of birth to highlight.
+        ax: Optional matplotlib axes.
+
+    Returns:
+        Matplotlib axes with the plot.
     """
     q = np.asarray(scen_set.q_paths, dtype=float)
     S = np.asarray(scen_set.S_paths, dtype=float)
@@ -71,12 +86,18 @@ def plot_lexis(
     if cohorts:
         for coh in cohorts:
             ax.plot(
-                years, years - coh, ls="--", lw=1.0, color="cyan", alpha=0.8, label=f"cohort {coh}"
+                years,
+                years - coh,
+                ls="--",
+                lw=1.0,
+                color="cyan",
+                alpha=0.8,
+                label=f"cohort {coh}",
             )
         # Avoid duplicate legend entries
         handles, labels = ax.get_legend_handles_labels()
         if handles:
-            uniq = dict(zip(labels, handles))
+            uniq = dict(zip(labels, handles, strict=True))
             ax.legend(uniq.values(), uniq.keys(), loc="upper right")
 
     ax.set_xlabel("Calendar year")

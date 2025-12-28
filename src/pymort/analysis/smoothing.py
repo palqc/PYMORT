@@ -1,3 +1,11 @@
+"""Mortality surface smoothing utilities.
+
+This module provides CPsplines-based smoothing for log-mortality surfaces.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -19,7 +27,31 @@ def smooth_mortality_with_cpsplines(
     horizon: int = 50,
     verbose: bool = False,
 ) -> dict[str, object]:
-    """Smooth log(m_x,t) with CPsplines on a 2D surface (Age * Year)."""
+    """Smooth log-mortality with CPsplines on a 2D age-year grid.
+
+    Args:
+        m: Central death rates m_{x,t}, shape (A, T).
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        deg: B-spline degrees for (age, year).
+        ord_d: Difference-penalty orders for (age, year).
+        k: Number of knots for (age, year). If None, choose a safe default.
+        sp_method: Smoothing-parameter selection method.
+        sp_args: Extra arguments for the smoothing-parameter search.
+        horizon: Forecast horizon in years for extrapolation.
+        verbose: If True, print progress messages.
+
+    Returns:
+        Dictionary with keys:
+            - "m_fitted": Smoothed in-sample surface, shape (A, T).
+            - "m_forecast": Smoothed forecast surface, shape (A, horizon).
+            - "years_forecast": Forecast year grid, shape (horizon,).
+            - "model": Fitted CPsplines model object.
+
+    Raises:
+        ModuleNotFoundError: If `cpsplines` is not installed.
+        ValueError: If inputs are invalid or dimensions are inconsistent.
+    """
     try:
         from cpsplines.fittings.fit_cpsplines import CPsplines
         from cpsplines.utils.rearrange_data import grid_to_scatter

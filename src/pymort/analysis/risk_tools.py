@@ -1,3 +1,12 @@
+"""Risk summary utilities for scenario outputs.
+
+This module provides simple summary statistics for mortality scenarios
+and present-value paths.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -10,34 +19,22 @@ from pymort.analysis import MortalityScenarioSet
 
 @dataclass
 class SurvivalScenarioSummary:
-    """Summary statistics of survival / mortality scenarios.
+    """Summary statistics of survival and mortality scenarios.
 
-    This is mainly for diagnostic and reporting purposes: it condenses the
-    large 3D arrays (N_scenarios, A_ages, H_horizon) into a few
+    This condenses large 3D arrays (N scenarios, A ages, H years) into
     interpretable statistics by age and year.
 
     Attributes:
-    ----------
-    ages : np.ndarray
-        Vector of ages used in the scenario set (A,).
-    years : np.ndarray
-        Vector of calendar / projection years (H,).
-    S_mean : np.ndarray
-        Mean survival probabilities E[S_{x,t}] across scenarios,
-        shape (A, H).
-    S_std : np.ndarray
-        Standard deviation of survival probabilities across scenarios,
-        shape (A, H).
-    S_quantiles : dict[int, np.ndarray]
-        Mapping from percentile (e.g. 5, 50, 95) to the corresponding
-        survival quantile surface of shape (A, H).
-    q_mean : np.ndarray
-        Mean one-year death probabilities E[q_{x,t}] across scenarios,
-        shape (A, H).
-    q_std : np.ndarray
-        Standard deviation of q_{x,t} across scenarios, shape (A, H).
-    q_quantiles : dict[int, np.ndarray]
-        Mapping from percentile to quantile surface of q, shape (A, H).
+        ages (np.ndarray): Age grid, shape (A,).
+        years (np.ndarray): Year grid, shape (H,).
+        S_mean (np.ndarray): Mean survival probabilities, shape (A, H).
+        S_std (np.ndarray): Std. dev. of survival probabilities, shape (A, H).
+        S_quantiles (dict[int, np.ndarray]): Percentile-to-surface mapping for
+            survival, each surface shape (A, H).
+        q_mean (np.ndarray): Mean death probabilities, shape (A, H).
+        q_std (np.ndarray): Std. dev. of death probabilities, shape (A, H).
+        q_quantiles (dict[int, np.ndarray]): Percentile-to-surface mapping for
+            death probabilities, each surface shape (A, H).
     """
 
     ages: np.ndarray
@@ -52,26 +49,17 @@ class SurvivalScenarioSummary:
 
 @dataclass
 class PVSummary:
-    """Summary statistics of present-value paths (any product).
+    """Summary statistics of present-value paths.
 
     Attributes:
-    ----------
-    mean : float
-        Mean PV over scenarios.
-    std : float
-        Standard deviation of PV over scenarios.
-    p5 : float
-        5th percentile of the PV distribution.
-    p50 : float
-        Median PV.
-    p95 : float
-        95th percentile.
-    min : float
-        Minimum PV.
-    max : float
-        Maximum PV.
-    n_scenarios : int
-        Number of scenarios.
+        mean (float): Mean PV over scenarios.
+        std (float): Std. dev. of PV over scenarios.
+        p5 (float): 5th percentile of the PV distribution.
+        p50 (float): Median PV.
+        p95 (float): 95th percentile.
+        min (float): Minimum PV.
+        max (float): Maximum PV.
+        n_scenarios (int): Number of scenarios.
     """
 
     mean: float
@@ -89,20 +77,14 @@ def summarize_survival_scenarios(
     *,
     percentiles: Iterable[int] = (5, 50, 95),
 ) -> SurvivalScenarioSummary:
-    """Compute basic summary statistics of a mortality scenario set.
+    """Compute summary statistics for a mortality scenario set.
 
-    Parameters
-    ----------
-    scen_set : MortalityScenarioSet
-        Container with q_paths, S_paths, ages, years, etc.
-    percentiles : iterable of int, optional
-        Percentiles to compute along the scenario dimension, e.g. (5, 50, 95).
+    Args:
+        scen_set: Scenario container with q_paths, S_paths, ages, years.
+        percentiles: Percentiles to compute across scenarios.
 
     Returns:
-    -------
-    SurvivalScenarioSummary
-        Dataclass with mean / std / quantiles for survival S and death
-        probability q by age and year.
+        SurvivalScenarioSummary with mean/std and quantiles for S and q.
     """
     q_paths = np.asarray(scen_set.q_paths, dtype=float)
     S_paths = np.asarray(scen_set.S_paths, dtype=float)
@@ -145,23 +127,15 @@ def summarize_survival_scenarios(
 
 
 def summarize_pv_paths(pv_paths: np.ndarray) -> PVSummary:
-    """Summarise a vector of PV paths (any priced instrument).
+    """Summarize a vector of PV paths.
 
-    This is a generic helper that can be used for:
-        - longevity bond PVs,
-        - survivor swaps,
-        - q-/s-forwards,
-        - liabilities (life annuities), etc.
+    This helper works for longevity bonds, swaps, forwards, and liabilities.
 
-    Parameters
-    ----------
-    pv_paths : np.ndarray
-        Array of shape (N,) or (N,1) with PV in each scenario.
+    Args:
+        pv_paths: PVs per scenario, shape (N,) or (N, 1).
 
     Returns:
-    -------
-    PVSummary
-        Dataclass containing mean/std and a few quantiles.
+        PVSummary with mean/std and a few quantiles.
     """
     x = np.asarray(pv_paths, dtype=float).reshape(-1)
     if x.ndim != 1:

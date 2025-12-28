@@ -1,3 +1,12 @@
+"""Lee-Carter M1 mortality model (baseline).
+
+This module implements the classic Lee-Carter decomposition and basic
+random-walk dynamics for the time factor.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,13 +26,19 @@ class LCM1Params:
 
 
 def fit_lee_carter(m: np.ndarray) -> LCM1Params:
-    """Fit the Lee–Carter model to a mortality surface m[age, year].
+    """Fit the Lee-Carter model to a mortality surface.
+
     Steps:
-      1) Compute a_x = mean_t log(m_x,t),
-      2) Apply SVD to the centered log-mortality matrix,
-      3) Extract the first singular vector pair (rank-1 LC),
-      4) Enforce identifiability: sum(b_x)=1 and mean(k_t)=0.
-    Returns LCParams(a, b, k).
+        1) Compute a_x = mean_t log(m_x,t)
+        2) Apply SVD to the centered log-mortality matrix
+        3) Extract the first singular vector pair (rank-1 LC)
+        4) Enforce identifiability: sum(b_x)=1 and mean(k_t)=0
+
+    Args:
+        m: Mortality surface m_{x,t}, shape (A, T).
+
+    Returns:
+        LCM1Params with a, b, k fitted on the input surface.
     """
     # input validation
     if m.ndim != 2:
@@ -61,9 +76,13 @@ def fit_lee_carter(m: np.ndarray) -> LCM1Params:
 
 
 def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
-    """Reconstruct the fitted log-mortality surface via:
-        log m_x,t = a_x + b_x * k_t
-    Returns a matrix with shape (A, T).
+    """Reconstruct the fitted log-mortality surface.
+
+    Args:
+        params: Fitted Lee-Carter parameters.
+
+    Returns:
+        Log-mortality surface log m_{x,t}, shape (A, T).
     """
     return params.a[:, None] + np.outer(params.b, params.k)
 
@@ -73,8 +92,13 @@ class LCM1:
         self.params: LCM1Params | None = None
 
     def fit(self, m: np.ndarray) -> LCM1:
-        """Fit the Lee–Carter model on a mortality surface m[age, year]
-        and store the resulting LC parameters.
+        """Fit the Lee-Carter model and store parameters.
+
+        Args:
+            m: Mortality surface m_{x,t}, shape (A, T).
+
+        Returns:
+            Self, with fitted parameters stored in `self.params`.
         """
         self.params = fit_lee_carter(m)
         return self
@@ -87,7 +111,7 @@ class LCM1:
         return mu, sigma
 
     def predict_log_m(self) -> np.ndarray:
-        """Reconstruct the log-mortality surface implied by the fitted LC parameters."""
+        """Reconstruct the log-mortality surface implied by fitted parameters."""
         if self.params is None:
             raise ValueError("Fit first.")
         return reconstruct_log_m(self.params)
@@ -99,13 +123,16 @@ class LCM1:
         seed: int | None = None,
         include_last: bool = False,
     ) -> np.ndarray:
-        """Simulate RW paths for k_t using vectorized engine.
-        This method is kept for backward compatibility and diagnostics.
+        """Simulate random-walk paths for k_t.
+
+        Args:
+            horizon: Number of future steps.
+            n_sims: Number of simulated paths.
+            seed: RNG seed.
+            include_last: If True, prepend the last observed k_t.
 
         Returns:
-        -------
-        np.ndarray
-            Shape (n_sims, horizon) or (n_sims, horizon+1).
+            Array of shape (n_sims, horizon) or (n_sims, horizon + 1).
         """
         if self.params is None or self.params.mu is None or self.params.sigma is None:
             raise ValueError("Fit & estimate_rw first.")

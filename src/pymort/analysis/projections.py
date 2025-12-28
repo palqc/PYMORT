@@ -1,40 +1,29 @@
-"""projections.py — Stochastic mortality projections with param + process uncertainty
-===============================================================================
+"""Stochastic mortality projections with parameter and process uncertainty.
 
-This module produces forward mortality scenarios by combining:
+This module builds forward mortality scenarios by combining:
+    1) Parameter uncertainty via residual bootstrap (BootstrapResult with
+       `params_list` and `mu_sigma`).
+    2) Process uncertainty via random-walk-with-drift factors:
+       - LC/APC models: k_t or kappa_t
+       - CBD models: kappa1_t, kappa2_t, and optionally kappa3_t
 
-1) **Parameter uncertainty** via residual bootstrap:
-   - user supplies a BootstrapResult with params_list and mu_sigma.
+The engine is vectorized: for each bootstrap replicate b, we simulate
+`n_process` paths in one shot. Total scenarios N = B * n_process.
 
-2) **Process uncertainty** via random-walk-with-drift dynamics on period factors:
-   - for LC/APC models: k_t or kappa_t
-   - for CBD models: kappa1_t, kappa2_t, and optionally kappa3_t
+Expected bootstrap contract:
+    params_list: List of fitted parameter objects (length B).
+    mu_sigma: Array of shape (B, d) with drift/vol estimates, where
+        d=2 (LCM1/LCM2/APCM3), d=4 (CBDM5/CBDM6), d=6 (CBDM7).
 
-The engine is fully vectorized:
-- For each bootstrap replicate b, we simulate n_process RW paths in one shot.
-- Total scenarios N = B * n_process.
+CRN (common random numbers):
+    Pass eps arrays to reuse the same shocks across runs and reduce
+    Monte Carlo noise in finite differences.
+    - LC/APC: eps_rw shape (B, n_process, H)
+    - CBD: eps1/eps2 shape (B, n_process, H)
+    - CBDM7: eps3 shape (B, n_process, H)
 
-Outputs are suitable for pricing longevity-linked cashflows.
-
-Expected bootstrap contract
----------------------------
-bootstrap_result must expose:
-- params_list : list of fitted params objects (length B)
-- mu_sigma    : np.ndarray of shape (B, d)
-    d = 2  for LCM1/LCM2/APCM3  -> (mu, sigma)
-    d = 4  for CBDM5/CBDM6      -> (mu1, sig1, mu2, sig2)
-    d = 6  for CBDM7           -> (mu1, sig1, mu2, sig2, mu3, sig3)
-
-CRN (Common Random Numbers)
----------------------------
-To reduce Monte-Carlo noise in finite differences (e.g. vega wrt sigma scaling),
-you can pass pre-generated innovations eps to reuse the SAME shocks across runs.
-
-- LC/APC: eps_rw shape (B, n_process, H)
-- CBD:    eps1, eps2 shape (B, n_process, H)
-- CBDM7:  eps3 also shape (B, n_process, H)
-
-If eps are None, innovations are drawn internally as before.
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
 """
 
 from __future__ import annotations
@@ -48,6 +37,17 @@ from pymort.lifetables import m_to_q, validate_q
 
 @dataclass
 class ProjectionResult:
+    """Container for projection outputs.
+
+    Attributes:
+        years (np.ndarray): Projection years, shape (H_out,).
+        q_paths (np.ndarray): Death probabilities, shape (N, A, H_out).
+        m_paths (np.ndarray | None): Central death rates for log-m models,
+            shape (N, A, H_out), or None for logit-q models.
+        k_paths (np.ndarray | None): Factor paths, shape (N, H_out) for LC/APC
+            or (N, d_factors, H_out) for CBD, or None if not stored.
+    """
+
     years: np.ndarray  # (H_out,)
     q_paths: np.ndarray  # (N, A, H_out)
     m_paths: np.ndarray | None  # (N, A, H_out) for log-m models, else None
@@ -63,9 +63,25 @@ def simulate_random_walk_paths(
     rng: np.random.Generator,
     include_last: bool = False,
 ) -> np.ndarray:
-    """Vectorized RW+drift simulation:
+    """Simulate random-walk-with-drift paths (vectorized).
 
-    k_t = k_{t-1} + mu + sigma * eps_t
+    The model is:
+        k_t = k_{t-1} + mu + sigma * eps_t
+
+    Args:
+        k_last: Last observed factor value.
+        mu: Drift of the random walk.
+        sigma: Volatility of the random walk.
+        horizon: Number of future steps (H).
+        n_sims: Number of simulated paths (N).
+        rng: NumPy random generator.
+        include_last: If True, prepend k_last to each path.
+
+    Returns:
+        Array of shape (N, H) or (N, H+1) if include_last is True.
+
+    Raises:
+        ValueError: If horizon or n_sims are non-positive, or parameters are invalid.
     """
     H = int(horizon)
     n_sims = int(n_sims)
@@ -97,7 +113,21 @@ def simulate_random_walk_paths_with_eps(
     eps: np.ndarray,
     include_last: bool = False,
 ) -> np.ndarray:
-    """Same as simulate_random_walk_paths, but takes eps explicitly (CRN-friendly)."""
+    """Simulate random-walk paths using pre-drawn eps (CRN-friendly).
+
+    Args:
+        k_last: Last observed factor value.
+        mu: Drift of the random walk.
+        sigma: Volatility of the random walk.
+        eps: Pre-drawn innovations, shape (N, H).
+        include_last: If True, prepend k_last to each path.
+
+    Returns:
+        Array of shape (N, H) or (N, H+1) if include_last is True.
+
+    Raises:
+        ValueError: If eps is not 2D or contains non-finite values.
+    """
     mu = float(mu)
     sigma = float(sigma)
     if sigma < 0:
@@ -121,7 +151,6 @@ def project_mortality_from_bootstrap(
     model_cls: type,
     ages: np.ndarray,
     years: np.ndarray,
-    m: np.ndarray,
     bootstrap_result,
     horizon: int = 50,
     n_process: int = 200,
@@ -136,7 +165,31 @@ def project_mortality_from_bootstrap(
     eps2: np.ndarray | None = None,  # (B, n_process, H) for CBD
     eps3: np.ndarray | None = None,  # (B, n_process, H) for CBDM7 only
 ) -> ProjectionResult:
-    """Forecast mortality by combining bootstrap parameter uncertainty and RW process risk."""
+    """Project mortality by combining bootstrap and process uncertainty.
+
+    Args:
+        model_cls: Model class used to generate projections.
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        m: Central death rates, shape (A, T).
+        bootstrap_result: BootstrapResult with params_list and mu_sigma.
+        horizon: Projection horizon in years.
+        n_process: Number of process simulations per bootstrap replicate.
+        seed: RNG seed.
+        include_last: If True, include the last observed year in output.
+        drift_overrides: Optional drift overrides (length 1 for LC/APC, or
+            length d_factors for CBD).
+        scale_sigma: Scale factor(s) for sigma (scalar or length d_factors).
+        sigma_overrides: Optional sigma overrides (length 1 for LC/APC, or
+            length d_factors for CBD).
+        eps_rw: Pre-drawn innovations for LC/APC, shape (B, n_process, H).
+        eps1: Pre-drawn innovations for CBD factor 1, shape (B, n_process, H).
+        eps2: Pre-drawn innovations for CBD factor 2, shape (B, n_process, H).
+        eps3: Pre-drawn innovations for CBD factor 3, shape (B, n_process, H).
+
+    Returns:
+        ProjectionResult with q_paths, optional m_paths, and factor paths.
+    """
     rng_master = np.random.default_rng(seed)
 
     params_list = bootstrap_result.params_list

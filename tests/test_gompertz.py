@@ -105,15 +105,11 @@ def test_fit_gompertz_per_year_errors_on_invalid_fit_window():
 
     # min >= max
     with pytest.raises(ValueError, match="age_fit_min must be < age_fit_max"):
-        fit_gompertz_per_year(
-            ages=ages, years=years, m=m, age_fit_min=80, age_fit_max=80
-        )
+        fit_gompertz_per_year(ages=ages, years=years, m=m, age_fit_min=80, age_fit_max=80)
 
     # window outside available ages
     with pytest.raises(ValueError, match="No ages in fit window"):
-        fit_gompertz_per_year(
-            ages=ages, years=years, m=m, age_fit_min=80, age_fit_max=100
-        )
+        fit_gompertz_per_year(ages=ages, years=years, m=m, age_fit_min=80, age_fit_max=100)
 
 
 def test_extrapolate_gompertz_surface_happy_path_and_errors():

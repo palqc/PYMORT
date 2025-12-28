@@ -20,14 +20,13 @@ def _simple_scenario():
         dtype=float,
     )
     S = survival_from_q(q)
-    scen = MortalityScenarioSet(
+    return MortalityScenarioSet(
         years=years,
         ages=ages,
         q_paths=q[None, :, :],
         S_paths=S[None, :, :],
         metadata={"source": "test"},
     )
-    return scen
 
 
 def test_pricing_utils_discount_factors_priority_and_errors():
@@ -98,14 +97,13 @@ def _simple_scenario_N(N: int = 3, H: int = 3):
     )[:, :H]
     S = survival_from_q(q)
 
-    scen = MortalityScenarioSet(
+    return MortalityScenarioSet(
         years=years,
         ages=ages,
         q_paths=np.repeat(q[None, :, :], N, axis=0),
         S_paths=np.repeat(S[None, :, :], N, axis=0),
         metadata={"source": "test"},
     )
-    return scen
 
 
 def test_life_annuity_raises_on_q_S_shape_mismatch():
@@ -221,7 +219,6 @@ def test_life_annuity_discount_factors_bad_shapes_raise():
 
 
 def test_life_annuity_non_monotonic_survival_raises():
-    scen = _simple_scenario_N(N=2, H=3)
     spec = CohortLifeAnnuitySpec(issue_age=60.0, maturity_years=3)
 
     # Make survival INCREASING over time for the selected age => violates monotonicity check

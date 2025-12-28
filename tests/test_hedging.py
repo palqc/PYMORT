@@ -24,9 +24,7 @@ def test_min_variance_exact_replication_single_hedge():
     L = rng.normal(loc=10.0, scale=1.0, size=N)
     H = L.copy().reshape(-1, 1)  # perfect hedge
 
-    res = hedging_pipeline(
-        liability_pv_paths=L, hedge_pv_paths=H, method="min_variance"
-    )
+    res = hedging_pipeline(liability_pv_paths=L, hedge_pv_paths=H, method="min_variance")
 
     assert res.weights.shape == (1,)
     assert np.isfinite(res.weights[0])
@@ -43,9 +41,7 @@ def test_min_variance_two_hedges_known_solution():
     L = 2.0 * H1 - 0.5 * H2 + noise
     H = np.stack([H1, H2], axis=1)
 
-    res = hedging_pipeline(
-        liability_pv_paths=L, hedge_pv_paths=H, method="min_variance"
-    )
+    res = hedging_pipeline(liability_pv_paths=L, hedge_pv_paths=H, method="min_variance")
 
     assert res.weights.shape == (2,)
     assert np.allclose(res.weights, np.array([-2.0, 0.5]), rtol=0.05, atol=0.05)
@@ -58,18 +54,14 @@ def test_min_variance_scaling_invariance():
     L = rng.normal(1.0, 0.2, size=N)
     H = rng.normal(0.5, 0.1, size=(N, 2))
 
-    res_base = hedging_pipeline(
-        liability_pv_paths=L, hedge_pv_paths=H, method="min_variance"
-    )
+    res_base = hedging_pipeline(liability_pv_paths=L, hedge_pv_paths=H, method="min_variance")
 
     scale = 3.5
     res_scaled = hedging_pipeline(
         liability_pv_paths=L * scale, hedge_pv_paths=H, method="min_variance"
     )
 
-    assert np.allclose(
-        res_scaled.weights, res_base.weights * scale, rtol=1e-2, atol=1e-3
-    )
+    assert np.allclose(res_scaled.weights, res_base.weights * scale, rtol=1e-2, atol=1e-3)
 
 
 def test_min_variance_accepts_transposed_H_and_custom_names():
@@ -216,19 +208,13 @@ def test_multihorizon_discount_factors_invalid_raise():
     H_cf = rng.normal(size=(N, M, T))
 
     with pytest.raises(ValueError):
-        compute_multihorizon_hedge(
-            L_cf, H_cf, discount_factors=np.array([0.9, 0.8])
-        )  # wrong len
+        compute_multihorizon_hedge(L_cf, H_cf, discount_factors=np.array([0.9, 0.8]))  # wrong len
 
     with pytest.raises(ValueError):
-        compute_multihorizon_hedge(
-            L_cf, H_cf, discount_factors=np.zeros(T)
-        )  # non-positive
+        compute_multihorizon_hedge(L_cf, H_cf, discount_factors=np.zeros(T))  # non-positive
 
     with pytest.raises(ValueError):
-        compute_multihorizon_hedge(
-            L_cf, H_cf, discount_factors=np.ones((N, T + 1))
-        )  # wrong shape
+        compute_multihorizon_hedge(L_cf, H_cf, discount_factors=np.ones((N, T + 1)))  # wrong shape
 
 
 # ======================================================================================
@@ -269,15 +255,11 @@ def test_greek_matching_invalid_method_raises():
 
 def test_greek_matching_instrument_names_mismatch_raises():
     with pytest.raises(ValueError):
-        compute_greek_matching_hedge(
-            [1.0, 2.0], np.eye(2), instrument_names=["only_one"]
-        )
+        compute_greek_matching_hedge([1.0, 2.0], np.eye(2), instrument_names=["only_one"])
 
 
 def test_duration_and_duration_convexity_hedges_shapes():
-    res_dur = compute_duration_matching_hedge(
-        liability_dPdr=-5.0, instruments_dPdr=[-2.0, -1.0]
-    )
+    res_dur = compute_duration_matching_hedge(liability_dPdr=-5.0, instruments_dPdr=[-2.0, -1.0])
     assert res_dur.weights.shape == (2,)
     assert np.isfinite(res_dur.weights).all()
 
@@ -362,15 +344,11 @@ def test_hedging_raises_on_bad_shapes():
     L_cf = rng.normal(size=(10, 3))
     H_cf_bad = rng.normal(size=(10, 2))  # not 3D
     with pytest.raises(ValueError):
-        compute_multihorizon_hedge(
-            liability_cf_paths=L_cf, instruments_cf_paths=H_cf_bad
-        )
+        compute_multihorizon_hedge(liability_cf_paths=L_cf, instruments_cf_paths=H_cf_bad)
 
     H_cf_bad2 = rng.normal(size=(5, 2, 4))  # wrong N
     with pytest.raises(ValueError):
-        compute_multihorizon_hedge(
-            liability_cf_paths=L_cf, instruments_cf_paths=H_cf_bad2
-        )
+        compute_multihorizon_hedge(liability_cf_paths=L_cf, instruments_cf_paths=H_cf_bad2)
 
     df_bad = np.array([0.9, 0.8])  # length mismatch T=3
     H_cf = rng.normal(size=(10, 2, 3))

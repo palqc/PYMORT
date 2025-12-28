@@ -81,7 +81,7 @@ def test_mortality_delta_by_age_sign():
 
         return float(price_cohort_life_annuity(scen_set=s, spec=spec, short_rate=0.02)["price"])
 
-    # ✅ On ne calcule la delta que pour l’âge pertinent (issue_age)
+    # ✅ On ne calcule la delta que pour l âge pertinent (issue_age)
     delta = mortality_delta_by_age(price_annuity, scen, ages=[60.0], rel_bump=0.01)
 
     assert delta.deltas.shape == (1,)

@@ -1,9 +1,16 @@
+"""Survivor swap pricing helpers.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
 from pymort.pricing.utils import (
@@ -13,53 +20,40 @@ from pymort.pricing.utils import (
     pv_from_cf_paths,
 )
 
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
+
+
+class SurvivorSwapPricingResult(TypedDict, total=False):
+    """Typed payload for survivor swap pricing."""
+
+    price: float
+    pv_paths: FloatArray
+    age_index: int
+    discount_factors: FloatArray
+    discount_factors_input: FloatArray
+    strike: float
+    expected_cashflows: FloatArray
+    metadata: dict[str, object]
+    cf_paths: FloatArray
+    times: IntArray
+
 
 @dataclass
 class SurvivorSwapSpec:
-    """Specification of a simple survivor swap on a single cohort.
+    """Specification for a simple survivor swap on a single cohort.
 
-    At each payment date t = 1, ..., T (years from start):
-
-        Floating leg:  notional * S_{x}(t)
-        Fixed leg:     notional * K
-
-    Net cashflow from the perspective of the payer:
-
-        - if payer == "fixed":
-            CF_t = notional * (S_x(t) - K)
-        - if payer == "floating":
-            CF_t = notional * (K - S_x(t))
-
-    where S_x(t) is read from scen_set.S_paths at the chosen age.
+    The net cashflow (from the payer's perspective) at payment date t is:
+    - payer == "fixed": notional * (S_x(t) - K)
+    - payer == "floating": notional * (K - S_x(t))
 
     Attributes:
-    ----------
-    age : float
-        Age of the cohort at valuation date (e.g. 65). The closest age
-        in `scen_set.ages` is used internally.
-    maturity_years : int
-        Number of years from the first projection year to the swap maturity.
-        Payments are assumed annual and aligned with the mortality grid.
-    notional : float
-        Notional of the swap (per unit of survival index).
-    strike : float | None
-        Fixed survival level K. If None, K is chosen so that the swap is
-        at-the-money (zero value) at t=0 under the scenario measure:
-            K = sum_t D_t * E[S_x(t)] / sum_t D_t
-    payer : {"fixed", "floating"}
-        Which leg the holder pays:
-            - "fixed"    : pays fixed, receives floating
-            - "floating" : pays floating, receives fixed
-    Optional payment schedule in years from valuation date.
-
-    - If None: default annual payments at t = 1, 2, ..., maturity_years.
-    - If provided: must be a 1D array of strictly positive integers (aligned with
-      the mortality grid yearly steps), each <= maturity_years.
-
-    Examples:
-    --------
-    Annual: None  -> [1,2,...,T]
-    Custom: np.array([1,3,5,10])  (pays only at these maturities)
+        age: Cohort age at valuation.
+        maturity_years: Swap maturity in years.
+        notional: Swap notional (per unit of survival index).
+        strike: Fixed survival level K. If None, an ATM strike is used.
+        payer: "fixed" or "floating".
+        payment_times: Optional payment schedule as year offsets (1..T).
     """
 
     age: float
@@ -75,9 +69,9 @@ def price_survivor_swap(
     spec: SurvivorSwapSpec,
     *,
     short_rate: float | None = None,
-    discount_factors: np.ndarray | None = None,
+    discount_factors: FloatArray | None = None,
     return_cf_paths: bool = False,
-) -> dict[str, Any]:
+) -> SurvivorSwapPricingResult:
     """Price a survivor swap using mortality scenarios.
 
     Net cashflow at each payment date t = 1, ..., T:
@@ -88,13 +82,23 @@ def price_survivor_swap(
             CF_t = notional * (K - S_x(t))
 
     Present value is the discounted expectation over scenarios.
+
+    Args:
+        scen_set: Scenario set with S_paths of shape (N, A, H).
+        spec: Survivor swap specification.
+        short_rate: Flat continuous rate used when no discount factors are provided.
+        discount_factors: Discount factors of shape (H,) or (N, H).
+        return_cf_paths: Whether to include cashflow paths in the output.
+
+    Returns:
+        Pricing payload with price, PV paths, and metadata.
     """
     # Basic checks on scenario set
     S_paths = np.asarray(scen_set.S_paths, dtype=float)
     if S_paths.ndim != 3:
         raise ValueError(f"Expected S_paths with shape (N, A, H), got {S_paths.shape}.")
 
-    N, A, H_full = S_paths.shape
+    N, _A, H_full = S_paths.shape
 
     # Maturity (max horizon we may need)
     T = int(spec.maturity_years)
@@ -189,12 +193,10 @@ def price_survivor_swap(
     if spec.payer not in ("fixed", "floating"):
         raise ValueError("spec.payer must be 'fixed' or 'floating'.")
 
-    if spec.payer == "fixed":
-        # Pays fixed, receives floating: CF_t = N(S - K)
-        cf = spec.notional * (S_age - K)  # (N, P)
-    else:
-        # Pays floating, receives fixed: CF_t = N(K - S)
-        cf = spec.notional * (K - S_age)  # (N, P)
+    # Pays fixed, receives floating: CF_t = N(S - K)
+    cf = (
+        spec.notional * (S_age - K) if spec.payer == "fixed" else spec.notional * (K - S_age)
+    )  # (N, P)
 
     # Build full-grid cashflow paths on annual grid (N,T), with zeros off-schedule
     cf_paths_full = np.zeros((N, T), dtype=float)  # (N,T)
@@ -214,7 +216,7 @@ def price_survivor_swap(
     float_leg_expected = float(np.sum(spec.notional * S_age.mean(axis=0) * df_pay_mean))
     fixed_leg_expected = float(np.sum(spec.notional * K * df_pay_mean))
 
-    metadata: dict[str, Any] = {
+    metadata: dict[str, object] = {
         "N_scenarios": int(N),
         "age": float(spec.age),
         "age_index": int(age_idx),
@@ -228,7 +230,7 @@ def price_survivor_swap(
         "fixed_leg_pv_expected": float(fixed_leg_expected),
     }
 
-    payload: dict[str, Any] = {
+    payload: SurvivorSwapPricingResult = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,

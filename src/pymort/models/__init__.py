@@ -1,14 +1,16 @@
-"""Lightweight import shim for mortality models.
+"""Lazy import shim for mortality models.
 
-This module intentionally avoids importing model implementations at import
-time to prevent circular imports between ``pymort.models`` and analysis
-modules. All symbols are loaded lazily via ``__getattr__`` when accessed.
+This module avoids importing model implementations at import time to prevent
+circular imports between packages. Symbols are loaded lazily via __getattr__.
+
+Note:
+    Docstrings follow Google style to align with project standards.
 """
 
 from __future__ import annotations
 
 import importlib
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 __all__ = [
     "APCM3",
@@ -39,7 +41,7 @@ __all__ = [
 ]
 
 _ATTR_MAP: dict[str, tuple[str, str]] = {
-    # Lee–Carter family
+    # Lee-Carter family
     "LCM1Params": ("pymort.models.lc_m1", "LCM1Params"),
     "LCM1": ("pymort.models.lc_m1", "LCM1"),
     "fit_lee_carter": ("pymort.models.lc_m1", "fit_lee_carter"),

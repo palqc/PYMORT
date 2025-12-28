@@ -1,38 +1,38 @@
+"""Hedging utilities for longevity risk.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.optimize import lsq_linear
 from sklearn.linear_model import Lasso, Ridge
 
 from pymort.pricing.utils import pv_matrix_from_cf_paths
 
+FloatArray = NDArray[np.floating]
+
 
 @dataclass
 class HedgeResult:
-    """Result of a scenario-based variance-minimising hedge.
+    """Result of a scenario-based variance-minimizing hedge.
 
-    We consider:
-        - L_n : liability PV in scenario n
-        - H_{n,j} : PV of hedging instrument j in scenario n
-
-    We choose weights w_j to minimise the dispersion of:
-
-        Net_n = L_n + sum_j w_j * H_{n,j}
-
-    (sign convention: liabilities are taken "as-is"; if liabilities are
-    positive PVs, hedge weights are typically negative).
+    We choose weights w_j to minimize the dispersion of:
+        Net_n = L_n + sum_j w_j * H_{n,j}.
     """
 
-    weights: np.ndarray  # (M,)
+    weights: FloatArray  # (M,)
     instrument_names: list[str]  # length M
-    liability_pv_paths: np.ndarray  # (N,)
-    hedge_pv_paths: np.ndarray  # (N,)
-    net_pv_paths: np.ndarray  # (N,)
-    summary: dict[str, Any]
+    liability_pv_paths: FloatArray  # (N,)
+    hedge_pv_paths: FloatArray  # (N,)
+    net_pv_paths: FloatArray  # (N,)
+    summary: dict[str, object]
 
 
 def _default_instrument_names(m: int) -> list[str]:
@@ -40,12 +40,19 @@ def _default_instrument_names(m: int) -> list[str]:
 
 
 def compute_min_variance_hedge(
-    liability_pv_paths: np.ndarray,
-    instruments_pv_paths: np.ndarray,
+    liability_pv_paths: FloatArray,
+    instruments_pv_paths: FloatArray,
     instrument_names: list[str] | None = None,
 ) -> HedgeResult:
-    """Solve:  min_w || L + H w ||^2   (OLS, no intercept),
-    i.e.      H w ≈ -L
+    """Compute a minimum-variance hedge using OLS.
+
+    Args:
+        liability_pv_paths: Liability PV paths. Shape (N,).
+        instruments_pv_paths: Instrument PV paths. Shape (N, M) or (M, N).
+        instrument_names: Optional instrument names.
+
+    Returns:
+        HedgeResult with optimal weights and summary statistics.
     """
     L = np.asarray(liability_pv_paths, dtype=float).reshape(-1)
     if L.ndim != 1:
@@ -92,7 +99,7 @@ def compute_min_variance_hedge(
     var_net = std_net**2
     var_reduction = 1.0 - (var_net / var_L) if var_L > 0.0 else np.nan
 
-    summary: dict[str, Any] = {
+    summary: dict[str, object] = {
         "mean_liability": mean_L,
         "std_liability": std_L,
         "mean_net": mean_net,
@@ -115,16 +122,29 @@ def compute_min_variance_hedge(
 
 
 def compute_multihorizon_hedge(
-    liability_cf_paths: np.ndarray,
-    instruments_cf_paths: np.ndarray,
-    discount_factors: np.ndarray | None = None,
-    time_weights: np.ndarray | None = None,
+    liability_cf_paths: FloatArray,
+    instruments_cf_paths: FloatArray,
+    discount_factors: FloatArray | None = None,
+    time_weights: FloatArray | None = None,
     instrument_names: list[str] | None = None,
     mode: str = "pv_by_horizon",
 ) -> HedgeResult:
-    """Multi-horizon hedge based on cashflows by scenario and maturity:
-        min_w || L_flat + H_flat w ||^2
-    where we flatten (scenario, time) pairs.
+    """Compute a multi-horizon hedge based on cashflows.
+
+    The optimization solves:
+        min_w || L_flat + H_flat w ||^2,
+    where (scenario, time) pairs are flattened.
+
+    Args:
+        liability_cf_paths: Liability cashflows. Shape (N, T).
+        instruments_cf_paths: Instrument cashflows. Shape (N, M, T) or (M, N, T).
+        discount_factors: Discount factors for PV calculations, shape (T,) or (N, T).
+        time_weights: Optional time weights, shape (T,).
+        instrument_names: Optional instrument names.
+        mode: "pv_by_horizon" or "pv_cashflows".
+
+    Returns:
+        HedgeResult with optimal weights and summary statistics.
     """
     L_cf = np.asarray(liability_cf_paths, dtype=float)
     if L_cf.ndim != 2:
@@ -256,7 +276,7 @@ def compute_multihorizon_hedge(
     elif len(instrument_names) != m:
         raise ValueError(f"len(instrument_names)={len(instrument_names)} != M={m}.")
 
-    summary: dict[str, Any] = {
+    summary: dict[str, object] = {
         "mean_liability": mean_L,
         "std_liability": std_L,
         "mean_net": mean_net,
@@ -280,23 +300,37 @@ def compute_multihorizon_hedge(
 
 @dataclass
 class GreekHedgeResult:
-    weights: np.ndarray  # (M,)
+    """Result of a greek-matching hedge."""
+
+    weights: FloatArray  # (M,)
     instrument_names: list[str]  # length M
-    liability_greeks: np.ndarray  # (K,)
-    instruments_greeks: np.ndarray  # (K, M)
-    residuals: np.ndarray  # (K,)
+    liability_greeks: FloatArray  # (K,)
+    instruments_greeks: FloatArray  # (K, M)
+    residuals: FloatArray  # (K,)
     method: str  # "ols", "ridge", "lasso"
     alpha: float
 
 
 def compute_greek_matching_hedge(
     liability_greeks: Iterable[float],
-    instruments_greeks: np.ndarray,
+    instruments_greeks: FloatArray,
     instrument_names: list[str] | None = None,
     *,
     method: str = "ols",
     alpha: float = 1.0,
 ) -> GreekHedgeResult:
+    """Match multiple greeks using OLS, ridge, or lasso.
+
+    Args:
+        liability_greeks: Liability greek targets. Length K.
+        instruments_greeks: Instrument greek matrix. Shape (K, M) or (M, K).
+        instrument_names: Optional instrument names.
+        method: Solver method ("ols", "ridge", "lasso").
+        alpha: Regularization strength for ridge/lasso.
+
+    Returns:
+        GreekHedgeResult with optimal weights and residuals.
+    """
     g = np.asarray(list(liability_greeks), dtype=float).reshape(-1)
     if g.size == 0 or not np.all(np.isfinite(g)):
         raise ValueError("liability_greeks must be non-empty and finite.")
@@ -355,6 +389,18 @@ def compute_duration_matching_hedge(
     method: str = "ols",
     alpha: float = 1.0,
 ) -> GreekHedgeResult:
+    """Match duration only using a greek-matching hedge.
+
+    Args:
+        liability_dPdr: Liability duration (dP/dr).
+        instruments_dPdr: Instrument durations.
+        instrument_names: Optional instrument names.
+        method: Solver method ("ols", "ridge", "lasso").
+        alpha: Regularization strength for ridge/lasso.
+
+    Returns:
+        GreekHedgeResult with optimal weights.
+    """
     g = np.array([float(liability_dPdr)], dtype=float)
     d1 = np.asarray(list(instruments_dPdr), dtype=float).reshape(-1)
     if d1.size == 0:
@@ -382,6 +428,20 @@ def compute_duration_convexity_matching_hedge(
     method: str = "ols",
     alpha: float = 1.0,
 ) -> GreekHedgeResult:
+    """Match duration and convexity using a greek-matching hedge.
+
+    Args:
+        liability_dPdr: Liability duration (dP/dr).
+        liability_d2Pdr2: Liability convexity (d2P/dr2).
+        instruments_dPdr: Instrument durations.
+        instruments_d2Pdr2: Instrument convexities.
+        instrument_names: Optional instrument names.
+        method: Solver method ("ols", "ridge", "lasso").
+        alpha: Regularization strength for ridge/lasso.
+
+    Returns:
+        GreekHedgeResult with optimal weights.
+    """
     d1 = np.asarray(list(instruments_dPdr), dtype=float).reshape(-1)
     d2 = np.asarray(list(instruments_d2Pdr2), dtype=float).reshape(-1)
 
@@ -407,15 +467,24 @@ def compute_duration_convexity_matching_hedge(
 
 
 def compute_min_variance_hedge_constrained(
-    liability_pv_paths: np.ndarray,
-    instruments_pv_paths: np.ndarray,
+    liability_pv_paths: FloatArray,
+    instruments_pv_paths: FloatArray,
     instrument_names: list[str] | None = None,
     *,
     lb: float = 0.0,
     ub: float = np.inf,
 ) -> HedgeResult:
-    """Same as compute_min_variance_hedge but with bounds:
-    lb <= w_j <= ub
+    """Compute a minimum-variance hedge with bounds.
+
+    Args:
+        liability_pv_paths: Liability PV paths. Shape (N,).
+        instruments_pv_paths: Instrument PV paths. Shape (N, M) or (M, N).
+        instrument_names: Optional instrument names.
+        lb: Lower bound on weights.
+        ub: Upper bound on weights.
+
+    Returns:
+        HedgeResult with optimal bounded weights and summary statistics.
     """
     L = np.asarray(liability_pv_paths, dtype=float).reshape(-1)
 
@@ -454,7 +523,7 @@ def compute_min_variance_hedge_constrained(
     var_net = std_net**2
     var_reduction = 1.0 - (var_net / var_L) if var_L > 0.0 else np.nan
 
-    summary: dict[str, Any] = {
+    summary: dict[str, object] = {
         "mean_liability": mean_L,
         "std_liability": std_L,
         "mean_net": mean_net,

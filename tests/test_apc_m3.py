@@ -23,7 +23,7 @@ def _toy_surface():
     unique_cohorts = np.unique(cohorts)
     gamma_true = 0.015 * (unique_cohorts - unique_cohorts.mean())
     gamma_true -= np.average(gamma_true, weights=np.ones_like(gamma_true))
-    gamma_lookup = {c: g for c, g in zip(unique_cohorts, gamma_true)}
+    gamma_lookup = dict(zip(unique_cohorts, gamma_true, strict=True))
     gamma_matrix = np.vectorize(gamma_lookup.get)(cohorts)
     ln_m = _BETA_TRUE[:, None] + _KAPPA_TRUE[None, :] + gamma_matrix
     m = np.exp(ln_m)

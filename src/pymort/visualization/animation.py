@@ -1,3 +1,9 @@
+"""Animation helpers for mortality surfaces and survival curves.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -6,8 +12,11 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation
+from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
+
+FloatArray = NDArray[np.floating]
 
 
 def animate_mortality_surface(
@@ -19,18 +28,18 @@ def animate_mortality_surface(
     save_path: str | None = None,
     dpi: int = 100,
 ) -> animation.FuncAnimation:
-    """Animate age×time mortality/survival surface over projection horizon.
+    """Animate an age-by-time mortality or survival surface.
 
-    Parameters
-    ----------
-    value : {'q','S'}
-        Surface to animate.
-    statistic : {'mean','median'}
-        Aggregation across scenarios per frame.
-    interval : int
-        Delay between frames (ms).
-    save_path : str, optional
-        If provided, save animation to this path (mp4/gif depending on extension).
+    Args:
+        scen_set: Scenario set with q_paths or S_paths of shape (N, A, H).
+        value: Surface to animate ("q" or "S").
+        statistic: Aggregation across scenarios ("mean" or "median").
+        interval: Delay between frames in milliseconds.
+        save_path: Optional output path to save the animation.
+        dpi: Output DPI when saving.
+
+    Returns:
+        Matplotlib animation object.
     """
     if value == "q":
         data = np.asarray(scen_set.q_paths, dtype=float)
@@ -78,7 +87,19 @@ def animate_survival_curves(
     save_path: str | None = None,
     dpi: int = 100,
 ) -> animation.FuncAnimation:
-    """Animate survival curves over calendar time for selected ages."""
+    """Animate survival curves over calendar time for selected ages.
+
+    Args:
+        scen_set: Scenario set with S_paths of shape (N, A, H).
+        ages: Optional ages to include in the animation.
+        statistic: Aggregation across scenarios ("mean" or "median").
+        interval: Delay between frames in milliseconds.
+        save_path: Optional output path to save the animation.
+        dpi: Output DPI when saving.
+
+    Returns:
+        Matplotlib animation object.
+    """
     ages_grid = np.asarray(scen_set.ages, dtype=float)
     years = np.asarray(scen_set.years, dtype=int)
     if ages is None:
@@ -107,7 +128,7 @@ def animate_survival_curves(
     ax.legend()
 
     def update(frame: int):
-        for ln, i in zip(lines, idx):
+        for ln, i in zip(lines, idx, strict=True):
             ln.set_data(years[: frame + 1], S_agg[i, : frame + 1])
         ax.set_title(f"Survival curves up to year={years[frame]}")
         return lines

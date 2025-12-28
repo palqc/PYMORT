@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 
 from pymort.analysis.bootstrap import (
+    _resample_residuals,
+    bootstrap_from_m,
     bootstrap_logitq_model,
     bootstrap_logm_model,
-    bootstrap_from_m,
-    _resample_residuals,
 )
 from pymort.analysis.projections import (
     project_mortality_from_bootstrap,
@@ -53,9 +53,7 @@ def test_project_mortality_from_bootstrap_cbd_shapes_and_finiteness():
     years = np.array([2000, 2001, 2002], dtype=int)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params = fit_cbd(q, ages)
-    bs = SimpleNamespace(
-        params_list=[params], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
-    )
+    bs = SimpleNamespace(params_list=[params], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
     eps1 = np.zeros((1, 1, 2))
     eps2 = np.zeros((1, 1, 2))
 
@@ -156,17 +154,11 @@ def test_simulate_random_walk_paths_basic_and_include_last_and_errors():
 
     # errors
     with pytest.raises(ValueError):
-        simulate_random_walk_paths(
-            k_last=1.0, mu=0.0, sigma=0.1, horizon=0, n_sims=1, rng=rng
-        )
+        simulate_random_walk_paths(k_last=1.0, mu=0.0, sigma=0.1, horizon=0, n_sims=1, rng=rng)
     with pytest.raises(ValueError):
-        simulate_random_walk_paths(
-            k_last=1.0, mu=0.0, sigma=0.1, horizon=1, n_sims=0, rng=rng
-        )
+        simulate_random_walk_paths(k_last=1.0, mu=0.0, sigma=0.1, horizon=1, n_sims=0, rng=rng)
     with pytest.raises(ValueError):
-        simulate_random_walk_paths(
-            k_last=1.0, mu=np.nan, sigma=0.1, horizon=1, n_sims=1, rng=rng
-        )
+        simulate_random_walk_paths(k_last=1.0, mu=np.nan, sigma=0.1, horizon=1, n_sims=1, rng=rng)
 
 
 def test_simulate_random_walk_paths_with_eps_basic_and_validation():
@@ -187,9 +179,7 @@ def test_simulate_random_walk_paths_with_eps_basic_and_validation():
     assert np.allclose(paths2[:, 0], 1.0)
 
     # sigma < 0 abs'ed
-    paths3 = simulate_random_walk_paths_with_eps(
-        k_last=1.0, mu=0.1, sigma=-0.2, eps=eps
-    )
+    paths3 = simulate_random_walk_paths_with_eps(k_last=1.0, mu=0.1, sigma=-0.2, eps=eps)
     assert paths3.shape == (2, 3)
 
     # validation errors
@@ -217,9 +207,7 @@ def test_project_mortality_mu_sigma_length_mismatch_raises():
     params = fit_lee_carter(m)
 
     # params_list length 1 but mu_sigma has 2 rows
-    bs = SimpleNamespace(
-        params_list=[params], mu_sigma=np.array([[0.0, 0.05], [0.0, 0.05]])
-    )
+    bs = SimpleNamespace(params_list=[params], mu_sigma=np.array([[0.0, 0.05], [0.0, 0.05]]))
     with pytest.raises(ValueError):
         project_mortality_from_bootstrap(
             model_cls=LCM1,
@@ -241,13 +229,9 @@ def test_project_mortality_horizon_and_n_process_must_be_positive():
     bs = SimpleNamespace(params_list=[params], mu_sigma=np.array([[0.0, 0.05]]))
 
     with pytest.raises(ValueError):
-        project_mortality_from_bootstrap(
-            LCM1, ages, years, m, bs, horizon=0, n_process=1
-        )
+        project_mortality_from_bootstrap(LCM1, ages, years, m, bs, horizon=0, n_process=1)
     with pytest.raises(ValueError):
-        project_mortality_from_bootstrap(
-            LCM1, ages, years, m, bs, horizon=2, n_process=0
-        )
+        project_mortality_from_bootstrap(LCM1, ages, years, m, bs, horizon=2, n_process=0)
 
 
 def test_project_mortality_params_none_in_bootstrap_raises_runtimeerror():
@@ -307,9 +291,7 @@ def test_project_mortality_drift_overrides_validation_lc_and_cbd():
     ages2 = np.array([68.0, 70.0], dtype=float)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params_cbd = fit_cbd(q, ages2)
-    bs_cbd = SimpleNamespace(
-        params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
-    )
+    bs_cbd = SimpleNamespace(params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
     eps1 = np.zeros((1, 1, 2))
     eps2 = np.zeros((1, 1, 2))
 
@@ -379,9 +361,7 @@ def test_project_mortality_scale_sigma_validation_lc_and_cbd():
     ages2 = np.array([68.0, 70.0], dtype=float)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params_cbd = fit_cbd(q, ages2)
-    bs_cbd = SimpleNamespace(
-        params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
-    )
+    bs_cbd = SimpleNamespace(params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
     eps1 = np.zeros((1, 1, 2))
     eps2 = np.zeros((1, 1, 2))
 
@@ -451,9 +431,7 @@ def test_project_mortality_sigma_overrides_validation_lc_and_cbd():
     ages2 = np.array([68.0, 70.0], dtype=float)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params_cbd = fit_cbd(q, ages2)
-    bs_cbd = SimpleNamespace(
-        params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
-    )
+    bs_cbd = SimpleNamespace(params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
     eps1 = np.zeros((1, 1, 2))
     eps2 = np.zeros((1, 1, 2))
 
@@ -508,9 +486,7 @@ def test_project_mortality_crn_validation_errors_lc_and_cbd():
     ages2 = np.array([68.0, 70.0], dtype=float)
     q = np.array([[0.1, 0.11, 0.12], [0.15, 0.16, 0.17]], dtype=float)
     params_cbd = fit_cbd(q, ages2)
-    bs_cbd = SimpleNamespace(
-        params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]])
-    )
+    bs_cbd = SimpleNamespace(params_list=[params_cbd], mu_sigma=np.array([[0.0, 0.02, 0.0, 0.03]]))
 
     with pytest.raises(ValueError):
         project_mortality_from_bootstrap(

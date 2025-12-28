@@ -1,9 +1,17 @@
+"""Hull-White interest-rate scenario generation.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
+
+FloatArray = NDArray[np.floating]
 
 
 @dataclass
@@ -11,21 +19,16 @@ class InterestRateScenarioSet:
     """Container for simulated short-rate and discount factor paths.
 
     Attributes:
-    ----------
-    r_paths : np.ndarray
-        Short-rate paths, shape (N, T).
-    discount_factors : np.ndarray
-        Discount factors along each path, shape (N, T).
-    times : np.ndarray
-        Time grid in years, shape (T,).
-    metadata : dict
-        Optional metadata (parameters, curve info, seed, etc.).
+        r_paths: Short-rate paths, shape (N, T).
+        discount_factors: Discount factors, shape (N, T).
+        times: Time grid in years, shape (T,).
+        metadata: Optional metadata (parameters, curve info, seed).
     """
 
-    r_paths: np.ndarray
-    discount_factors: np.ndarray
-    times: np.ndarray
-    metadata: dict[str, Any]
+    r_paths: FloatArray
+    discount_factors: FloatArray
+    times: FloatArray
+    metadata: dict[str, object]
 
     def n_scenarios(self) -> int:
         return int(self.r_paths.shape[0])
@@ -34,9 +37,15 @@ class InterestRateScenarioSet:
         return int(self.times.shape[0])
 
 
-def _fwd_from_zero(times: np.ndarray, zero_rates: np.ndarray) -> np.ndarray:
-    """Approximate instantaneous forward f(0,t) from zero curve z(t).
-    z(t) assumed continuous-compounded: P(0,t)=exp(-z(t)*t).
+def _fwd_from_zero(times: FloatArray, zero_rates: FloatArray) -> FloatArray:
+    """Approximate the instantaneous forward rate from a zero curve.
+
+    Args:
+        times: Time grid in years. Shape (T,).
+        zero_rates: Zero rates z(t), continuous-compounded. Shape (T,).
+
+    Returns:
+        Forward rates f(0, t) with shape (T,).
     """
     times = np.asarray(times, dtype=float)
     z = np.asarray(zero_rates, dtype=float)
@@ -48,16 +57,26 @@ def _fwd_from_zero(times: np.ndarray, zero_rates: np.ndarray) -> np.ndarray:
     tz = times * z
     dt = np.diff(times, prepend=times[0] - (times[1] - times[0]))
     dt[dt == 0] = 1e-8
-    deriv = np.gradient(tz, times)
-    return deriv
+    return np.gradient(tz, times)
 
 
 def calibrate_theta_from_zero_curve(
-    times: np.ndarray, zero_rates: np.ndarray, a: float, sigma: float
-) -> np.ndarray:
-    """Calibrate deterministic theta(t) to fit the initial zero curve under Hull–White.
-    Formula: theta(t) = f(0,t) + (1/a) * df/dt + (sigma^2/(2a^2)) * (1 - e^{-2 a t})
-    using finite differences for df/dt.
+    times: FloatArray, zero_rates: FloatArray, a: float, sigma: float
+) -> FloatArray:
+    """Calibrate deterministic theta(t) to fit the initial zero curve.
+
+    Uses:
+        theta(t) = f(0,t) + (1/a) * df/dt + (sigma^2/(2a^2)) * (1 - e^{-2 a t})
+    with finite differences for df/dt.
+
+    Args:
+        times: Time grid in years. Shape (T,).
+        zero_rates: Zero rates z(t). Shape (T,).
+        a: Mean-reversion parameter.
+        sigma: Volatility parameter.
+
+    Returns:
+        Theta values with shape (T,).
     """
     times = np.asarray(times, dtype=float)
     z = np.asarray(zero_rates, dtype=float)
@@ -69,27 +88,32 @@ def calibrate_theta_from_zero_curve(
     sigma = float(sigma)
     if a <= 0.0 or sigma < 0.0:
         raise ValueError("a must be >0 and sigma >=0.")
-    theta = f0 + df_dt / a + (sigma**2) / (2 * a**2) * (1.0 - np.exp(-2 * a * times))
-    return theta
+    return f0 + df_dt / a + (sigma**2) / (2 * a**2) * (1.0 - np.exp(-2 * a * times))
 
 
 def simulate_hull_white_paths(
     *,
     a: float,
-    theta: np.ndarray,
+    theta: FloatArray,
     sigma: float,
     r0: float,
-    times: np.ndarray,
+    times: FloatArray,
     n_scenarios: int,
     seed: int | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Simulate short-rate paths and discount factors under Hull–White (1-factor).
-    Exact discretization (Gaussian).
+) -> tuple[FloatArray, FloatArray]:
+    """Simulate short-rate paths and discount factors under Hull-White (1-factor).
+
+    Args:
+        a: Mean-reversion parameter.
+        theta: Deterministic drift term. Shape (T,).
+        sigma: Volatility parameter.
+        r0: Initial short rate.
+        times: Time grid in years. Shape (T,).
+        n_scenarios: Number of scenarios.
+        seed: Random seed for reproducibility.
 
     Returns:
-    -------
-    r_paths : (N, T)
-    discount_factors : (N, T)
+        Tuple (r_paths, discount_factors), both with shape (N, T).
     """
     a = float(a)
     sigma = float(sigma)
@@ -136,16 +160,27 @@ def simulate_hull_white_paths(
 
 def build_interest_rate_scenarios(
     *,
-    times: np.ndarray,
-    zero_rates: np.ndarray,
+    times: FloatArray,
+    zero_rates: FloatArray,
     a: float,
     sigma: float,
     n_scenarios: int,
     r0: float | None = None,
     seed: int | None = None,
 ) -> InterestRateScenarioSet:
-    """Convenience wrapper: calibrate theta to zero curve, simulate HW paths,
-    and return an InterestRateScenarioSet.
+    """Build interest-rate scenarios from a zero curve.
+
+    Args:
+        times: Time grid in years. Shape (T,).
+        zero_rates: Zero rates z(t). Shape (T,).
+        a: Mean-reversion parameter.
+        sigma: Volatility parameter.
+        n_scenarios: Number of scenarios.
+        r0: Initial short rate. Defaults to zero_rates[0].
+        seed: Random seed for reproducibility.
+
+    Returns:
+        InterestRateScenarioSet with short-rate paths and discount factors.
     """
     times = np.asarray(times, dtype=float)
     zero_rates = np.asarray(zero_rates, dtype=float)
@@ -163,7 +198,7 @@ def build_interest_rate_scenarios(
         seed=seed,
     )
 
-    metadata: dict[str, Any] = {
+    metadata: dict[str, object] = {
         "model": "Hull-White 1F",
         "a": float(a),
         "sigma": float(sigma),
@@ -179,6 +214,12 @@ def build_interest_rate_scenarios(
 
 
 def save_ir_scenarios_npz(ir_set: InterestRateScenarioSet, path: str) -> None:
+    """Save interest-rate scenarios to a compressed .npz file.
+
+    Args:
+        ir_set: Scenario set to save.
+        path: Output path.
+    """
     np.savez_compressed(
         path,
         r_paths=ir_set.r_paths,
@@ -189,6 +230,14 @@ def save_ir_scenarios_npz(ir_set: InterestRateScenarioSet, path: str) -> None:
 
 
 def load_ir_scenarios_npz(path: str) -> InterestRateScenarioSet:
+    """Load interest-rate scenarios from a compressed .npz file.
+
+    Args:
+        path: Path to the .npz file.
+
+    Returns:
+        InterestRateScenarioSet loaded from disk.
+    """
     data = np.load(path, allow_pickle=True)
     metadata = data["metadata"].item() if "metadata" in data else {}
     return InterestRateScenarioSet(

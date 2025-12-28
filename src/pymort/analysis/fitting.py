@@ -1,3 +1,12 @@
+"""Model fitting and selection helpers for mortality models.
+
+This module fits LC/CBD/APC models, computes diagnostics, and helps select
+models for projection or pricing workflows.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -30,53 +39,32 @@ ModelName = Literal["LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"]
 
 @dataclass
 class FittedModel:
-    """Container for a single fitted mortality model and its diagnostics.
+    """Container for a fitted mortality model and its diagnostics.
 
-    This object is designed as the bridge between:
-
-    - the modelling layer (LC/CBD/APC fitted on raw or smoothed data), and
-    - the projection / pricing layers.
+    This object bridges the modeling layer (LC/CBD/APC fitted on raw or
+    smoothed data) and the projection/pricing layers.
 
     Attributes:
-    ----------
-    name : str
-        Model name, e.g. 'LCM2', 'CBDM7'.
-    ages : np.ndarray
-        Age grid (A,).
-    years : np.ndarray
-        Time grid (T,) corresponding to the calibration window.
-    model : Any
-        The underlying fitted model instance (LCM2, CBDM7, ...).
-
-    m_fit_surface : np.ndarray | None
-        Surface m_{x,t} actually used for fitting, shape (A, T). For CBD
-        models (which work natively on q/logit q), this is the m-surface
-        associated to the fitting q via m_to_q.
-
-    m_eval_surface : np.ndarray | None
-        "Truth" surface m_{x,t} on which in-sample diagnostics are computed.
-        Typically the *observed raw* m, even when the fit is performed on a
-        smoothed version. This avoids favouring models that overfit noise.
-
-    rmse_logm : float | None
-        In-sample RMSE on log m_{x,t}, when defined (LC/APC family).
-    rmse_logitq : float | None
-        In-sample RMSE on logit(q_{x,t}) for all models (LC/APC via m->q).
-    aic : float | None
-        Akaike Information Criterion under Gaussian errors on logit(q).
-    bic : float | None
-        Bayesian Information Criterion under Gaussian errors on logit(q).
-
-    metadata : dict
-        Extra information, e.g.:
-        - 'data_source': 'raw' or 'cpsplines_fit_eval_on_raw'
-        - 'notes': explanatory string.
+        name (str): Model name, e.g. "LCM2" or "CBDM7".
+        ages (np.ndarray): Age grid, shape (A,).
+        years (np.ndarray): Year grid for the calibration window, shape (T,).
+        model (object): Fitted model instance (LCM2, CBDM7, ...).
+        m_fit_surface (np.ndarray | None): Surface used for fitting, shape (A, T).
+            For CBD models (logit-q), this is the m-surface associated with the
+            fitted q via `m_to_q`.
+        m_eval_surface (np.ndarray | None): "Truth" surface used for diagnostics,
+            typically the raw m surface, shape (A, T).
+        rmse_logm (float | None): In-sample RMSE on log m for LC/APC models.
+        rmse_logitq (float | None): In-sample RMSE on logit(q) for all models.
+        aic (float | None): Akaike Information Criterion on logit(q) errors.
+        bic (float | None): Bayesian Information Criterion on logit(q) errors.
+        metadata (dict[str, Any]): Extra info such as data source and notes.
     """
 
     name: str
     ages: np.ndarray
     years: np.ndarray
-    model: Any
+    model: object
 
     m_fit_surface: np.ndarray | None = None
     m_eval_surface: np.ndarray | None = None
@@ -96,7 +84,18 @@ def _fit_single_model(
     m_fit: np.ndarray,
     m_eval: np.ndarray,
 ) -> FittedModel:
-    """Internal helper: fit one model on m_fit, evaluate diagnostics on m_eval."""
+    """Fit one model on m_fit and evaluate diagnostics on m_eval.
+
+    Args:
+        model_name: Model identifier (LCM1, LCM2, APCM3, CBDM5/6/7).
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        m_fit: Fitting surface m_{x,t}, shape (A, T).
+        m_eval: Evaluation surface m_{x,t}, shape (A, T).
+
+    Returns:
+        FittedModel with diagnostics computed on m_eval.
+    """
     ages = np.asarray(ages, dtype=float)
     years = np.asarray(years, dtype=int)
     m_fit = np.asarray(m_fit, dtype=float)
@@ -234,41 +233,28 @@ def fit_mortality_model(
     cpsplines_kwargs: dict[str, Any] | None = None,
     eval_on_raw: bool = True,
 ) -> FittedModel:
-    """High-level entry point: fit a single mortality model, with optional CPsplines.
+    """Fit a single mortality model with optional CPsplines smoothing.
 
-    Parameters
-    ----------
-    model_name : {'LCM1','LCM2','APCM3','CBDM5','CBDM6','CBDM7'}
-        Which model to fit.
-    ages, years : np.ndarray
-        Age and time grids, consistent with m (A, T).
-    m : np.ndarray
-        Observed central death rates m_{x,t}. This is typically the
-        *raw* surface.
-    smoothing : {'none', 'cpsplines'}, default 'none'
-        If 'cpsplines', the model is fitted on a CPsplines-smoothed version
-        of m, but by default the diagnostics (RMSE/AIC/BIC) are still
-        computed against the *raw* m (eval_on_raw=True).
-    cpsplines_kwargs : dict or None
-        Extra keyword arguments forwarded to ``smooth_mortality_with_cpsplines``,
-        e.g. {'k': None, 'horizon': 0, 'verbose': False}.
-    eval_on_raw : bool, default True
-        If True (recommended), RMSE/AIC/BIC are computed on the raw m.
-        If False, diagnostics are computed on the same smoothed surface
-        used for fitting.
-
-    Note:
-        ----
-        Comparing models fitted on raw vs smoothed data using RMSE/AIC/BIC
-        can be misleading: models fitted on raw data usually achieve smaller
-        in-sample errors because they partly fit noise. Using eval_on_raw=True
-        keeps the evaluation surface fixed (raw) and isolates the impact of
-        smoothing on the *systematic* component rather than the noise.
+    Args:
+        model_name: One of {"LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"}.
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        m: Observed central death rates m_{x,t}, shape (A, T).
+        smoothing: "none" or "cpsplines".
+        cpsplines_kwargs: Extra options forwarded to
+            `smooth_mortality_with_cpsplines`.
+        eval_on_raw: If True, compute diagnostics against the raw m surface.
+            If False, use the same smoothed surface as the fit.
 
     Returns:
-    -------
-    FittedModel
-        Fitted model and associated diagnostics.
+        FittedModel with diagnostics and metadata.
+
+    Notes:
+        Comparing models fitted on raw vs. smoothed data using RMSE/AIC/BIC can
+        be misleading. Models fitted on raw data often achieve smaller in-sample
+        errors because they partly fit noise. Using `eval_on_raw=True` keeps the
+        evaluation surface fixed (raw) and isolates the impact of smoothing on
+        the systematic component.
     """
     ages = np.asarray(ages, dtype=float)
     years = np.asarray(years, dtype=int)
@@ -284,7 +270,7 @@ def fit_mortality_model(
         m_eval = m
         data_source = "raw"
     elif smoothing == "cpsplines":
-        kw = dict(k=None, horizon=0, verbose=False)
+        kw = {"k": None, "horizon": 0, "verbose": False}
         if cpsplines_kwargs is not None:
             kw.update(cpsplines_kwargs)
 
@@ -351,8 +337,20 @@ def model_selection_by_forecast_rmse(
     metric: Literal["log_m", "logit_q"] = "logit_q",
 ) -> tuple[pd.DataFrame, ModelName]:
     """Select a mortality model based on out-of-sample forecast RMSE.
-    Robust: if a candidate model fails to fit/backtest on the dataset,
-    it is recorded as failed and skipped from selection.
+
+    If a candidate model fails to fit or backtest, it is recorded as failed
+    and skipped from selection.
+
+    Args:
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        m: Mortality surface m_{x,t}, shape (A, T).
+        train_end: Last year in the training window.
+        model_names: Candidate model names.
+        metric: Selection metric ("log_m" or "logit_q").
+
+    Returns:
+        Tuple of (selection table, best model name).
     """
     ages = np.asarray(ages, dtype=float)
     years = np.asarray(years, dtype=int)
@@ -544,43 +542,26 @@ def select_and_fit_best_model_for_pricing(
     metric: Literal["log_m", "logit_q"] = "logit_q",
     cpsplines_kwargs: dict[str, Any] | None = None,
 ) -> tuple[pd.DataFrame, FittedModel]:
-    """High-level helper for the pricing pipeline.
+    """Select the best model and refit it on the full dataset.
 
-    1) Use out-of-sample forecast RMSE (via model_selection_by_forecast_rmse)
-       on *raw* data to choose the structural model (LCM1, LCM2, APCM3, CBDM5-7).
-    2) Smooth the whole mortality surface m_{x,t} with CPsplines.
-    3) Fit the selected model on the smoothed surface (full window),
-       while evaluating diagnostics against raw m.
-    4) Return:
-         - the model selection table (forecast RMSEs),
-         - the final FittedModel calibrated on CPsplines,
-           ready to be used for bootstrap + projections + pricing.
+    Workflow:
+        1) Use forecast RMSE on raw data to choose the structural model.
+        2) Smooth the full mortality surface with CPsplines.
+        3) Fit the selected model on the smoothed surface (full window),
+           while evaluating diagnostics against raw m.
 
-    This is the “official PYMORT” entry point for:
-        raw data -> model choice -> smoothed final fit -> pricing input.
-
-    Parameters
-    ----------
-    ages, years, m : np.ndarray
-        Raw central death rates surface (A, T) and grids.
-    train_end : int
-        Last year in training set used for forecast backtests.
-    model_names : iterable of ModelName
-        Candidate models for selection.
-    metric : {'log_m', 'logit_q'}
-        Which forecast error metric is used to choose the best model.
-        Recommended: 'logit_q' (works for LC/APC/CBD).
-    cpsplines_kwargs : dict or None
-        Extra arguments forwarded to smooth_mortality_with_cpsplines for
-        the final smoothing step (e.g. {'k': None, 'horizon': 0, 'verbose': False}).
+    Args:
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        m: Raw central death rates surface, shape (A, T).
+        train_end: Last year in training set used for forecast backtests.
+        model_names: Candidate models for selection.
+        metric: Selection metric ("log_m" or "logit_q").
+        cpsplines_kwargs: Optional CPsplines settings for the final smoothing
+            step (e.g., {"k": None, "horizon": 0, "verbose": False}).
 
     Returns:
-    -------
-    selection_df : pandas.DataFrame
-        Forecast RMSE comparison across candidate models.
-    fitted_best : FittedModel
-        Final fitted model on CPsplines-smoothed data (full window),
-        ready to feed into bootstrap/projection/pricing.
+        Tuple of (selection table, fitted best model).
     """
     # 1) Model selection on raw data via forecast RMSE
     selection_df, best_model_name = model_selection_by_forecast_rmse(
@@ -595,7 +576,7 @@ def select_and_fit_best_model_for_pricing(
     # 2) Fit best model on CPsplines-smoothed data (full window)
     #    horizon=0 ici: on ne se sert pas du forecast CPsplines, seulement
     #    de la surface lissée historique pour le fit structurel.
-    default_cp = dict(k=None, horizon=0, verbose=False)
+    default_cp = {"k": None, "horizon": 0, "verbose": False}
     if cpsplines_kwargs is not None:
         default_cp.update(cpsplines_kwargs)
 

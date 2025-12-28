@@ -1,7 +1,15 @@
+"""Bootstrap utilities for mortality model uncertainty.
+
+This module provides residual bootstrap helpers for log-m and logit-q models.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 
@@ -21,19 +29,15 @@ class BootstrapResult:
     """Container for bootstrap outputs.
 
     Attributes:
-    ----------
-    params_list : list
-        List of fitted params objects, one per bootstrap replication.
-    mu_sigma : np.ndarray
-        Array of shape (B, d) with drift/vol estimates.
-        d=2 for LC/APC (mu, sigma),
-        d=4 for CBD M5/M6 (mu1,sig1, mu2,sig2),
-        d=6 for CBD M7 (mu1,sig1, mu2,sig2, mu3,sig3).
-    seed : int | None
-        RNG seed used.
+        params_list (list[object]): Fitted parameter objects, one per bootstrap
+            replication.
+        mu_sigma (np.ndarray): Drift/volatility estimates with shape (B, d), where
+            d=2 for LC/APC (mu, sigma), d=4 for CBD M5/M6 (mu1, sig1, mu2, sig2),
+            and d=6 for CBD M7 (mu1, sig1, mu2, sig2, mu3, sig3).
+        seed (int | None): RNG seed used for bootstrap sampling.
     """
 
-    params_list: list[Any]
+    params_list: list[object]
     mu_sigma: np.ndarray
     seed: int | None = None
 
@@ -43,10 +47,18 @@ def _resample_residuals(
     mode: ResampleMode,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    """Resample residual matrix resid[A,T] into resid_star[A,T].
+    """Resample a residual surface.
 
-    - cell: iid resampling of all A*T residuals
-    - year_block: resampling whole years (columns) with replacement
+    Args:
+        resid: Residual matrix with shape (A, T).
+        mode: Resampling mode, either "cell" (iid) or "year_block" (block by year).
+        rng: NumPy random generator.
+
+    Returns:
+        Resampled residual matrix with shape (A, T).
+
+    Raises:
+        ValueError: If the resampling mode is unsupported.
     """
     A, T = resid.shape
     if mode == "cell":
@@ -71,33 +83,27 @@ def bootstrap_logm_model(
     resample: ResampleMode = "year_block",
     fit_kwargs: dict | None = None,
 ) -> BootstrapResult:
-    """Residual bootstrap for models fitted on log m (LCM1/LCM2/APCM3).
+    """Run a residual bootstrap for models fitted on log-mortality.
 
-    Parameters
-    ----------
-    model_cls : Type
-        Class to bootstrap (LCM1, LCM2, APCM3).
-        Must implement:
-            - fit(m, ages?, years?)
-            - predict_log_m() -> (A,T)
-            - estimate_rw() returning (mu, sigma)
-            - params attribute
-    m : np.ndarray
-        Mortality surface (A,T), central death rates.
-    ages, years : np.ndarray
-        Grids used in fit.
-    B : int
-        Number of bootstrap replications.
-    seed : int | None
-        RNG seed.
-    resample : {"cell","year_block"}
-        Residual resampling scheme.
-    fit_kwargs : dict | None
-        Extra kwargs for fit, if any.
+    This applies to log-m models such as LCM1, LCM2, and APCM3. The workflow
+    is:
+      1) fit the model once,
+      2) resample residuals,
+      3) refit on each bootstrap sample.
+
+    Args:
+        model_cls: Model class (LCM1, LCM2, APCM3). Must implement `fit`,
+            `predict_log_m`, `estimate_rw`, and expose `params`.
+        m: Mortality surface (A, T) of central death rates.
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        B: Number of bootstrap replications.
+        seed: RNG seed for reproducibility.
+        resample: Residual resampling scheme ("cell" or "year_block").
+        fit_kwargs: Optional kwargs forwarded to the model `fit` method.
 
     Returns:
-    -------
-    BootstrapResult
+        BootstrapResult with parameter draws and drift/volatility estimates.
     """
     if B <= 0:
         raise ValueError("B must be strictly positive.")
@@ -166,13 +172,23 @@ def bootstrap_logitq_model(
     resample: ResampleMode = "year_block",
     fit_kwargs: dict | None = None,
 ) -> BootstrapResult:
-    """Residual bootstrap for models fitted on logit(q) (CBDM5/M6/M7).
+    """Run a residual bootstrap for models fitted on logit(q).
 
-    model_cls must implement:
-        - fit(q, ages, years?)
-        - predict_logit_q() -> (A,T)
-        - estimate_rw() returning d params
-        - params attribute
+    This applies to CBD variants (M5/M6/M7). The model class must implement
+    `fit`, `predict_logit_q`, `estimate_rw`, and expose `params`.
+
+    Args:
+        model_cls: Model class (CBDM5, CBDM6, CBDM7).
+        q: Mortality probabilities, shape (A, T).
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        B: Number of bootstrap replications.
+        seed: RNG seed for reproducibility.
+        resample: Residual resampling scheme ("cell" or "year_block").
+        fit_kwargs: Optional kwargs forwarded to the model `fit` method.
+
+    Returns:
+        BootstrapResult with parameter draws and drift/volatility estimates.
     """
     if B <= 0:
         raise ValueError("B must be strictly positive.")
@@ -243,9 +259,19 @@ def bootstrap_from_m(
     seed: int | None = None,
     resample: ResampleMode = "year_block",
 ) -> BootstrapResult:
-    """Convenience wrapper.
-    - If model is CBD family, converts to q and bootstraps on logit(q).
-    - Else bootstraps on log m.
+    """Convenience wrapper that chooses the right bootstrap for a model.
+
+    Args:
+        model_cls: Model class (LC or CBD family).
+        m: Mortality surface (A, T) of central death rates.
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        B: Number of bootstrap replications.
+        seed: RNG seed for reproducibility.
+        resample: Residual resampling scheme ("cell" or "year_block").
+
+    Returns:
+        BootstrapResult for the selected model family.
     """
     name = model_cls.__name__.lower()
     if "cbd" in name:

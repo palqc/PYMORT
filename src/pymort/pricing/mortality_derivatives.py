@@ -1,9 +1,16 @@
+"""Mortality derivative pricing helpers (q-forwards and s-forwards).
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
 from pymort.pricing.utils import (
@@ -13,14 +20,32 @@ from pymort.pricing.utils import (
     pv_from_cf_paths,
 )
 
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
+
+
+class ForwardPricingResult(TypedDict, total=False):
+    """Typed payload for forward pricing."""
+
+    price: float
+    pv_paths: FloatArray
+    age_index: int
+    measurement_index: int
+    settlement_index: int
+    strike: float
+    discount_factors: FloatArray
+    expected_cashflows: FloatArray
+    metadata: dict[str, object]
+    cf_paths: FloatArray
+    times: IntArray
+
 
 @dataclass
 class QForwardSpec:
-    """q-forward with (optional) separate measurement vs settlement.
+    """Specification for a q-forward.
 
-    We measure q at Tm, but settle/pay at Ts (Ts >= Tm).
-    Payoff at settlement:
-        payoff_Ts = notional * (q_realised(Tm) - strike)
+    The contract measures q at Tm but settles at Ts (Ts >= Tm). Payoff:
+        payoff_Ts = notional * (q_realised(Tm) - strike).
     """
 
     age: float
@@ -32,11 +57,10 @@ class QForwardSpec:
 
 @dataclass
 class SForwardSpec:
-    """s-forward with (optional) separate measurement vs settlement.
+    """Specification for an s-forward (survival forward).
 
-    Measure S at Tm, settle at Ts (Ts >= Tm).
-    Payoff at settlement:
-        payoff_Ts = notional * (S_realised(Tm) - strike)
+    The contract measures S at Tm but settles at Ts (Ts >= Tm). Payoff:
+        payoff_Ts = notional * (S_realised(Tm) - strike).
     """
 
     age: float
@@ -51,25 +75,34 @@ def price_q_forward(
     spec: QForwardSpec,
     *,
     short_rate: float | None = None,
-    discount_factors: np.ndarray | None = None,
+    discount_factors: FloatArray | None = None,
     return_cf_paths: bool = False,
-) -> dict[str, Any]:
-    """Price a q-forward using mortality scenarios, with optional separate
-    measurement vs settlement.
+) -> ForwardPricingResult:
+    """Price a q-forward using mortality scenarios.
 
     Measurement at Tm:
-        q_Tm = q_{x, Tm}
+        q_Tm = q_{x, Tm}.
 
     Payoff settled at Ts (Ts >= Tm):
-        payoff_Ts = notional * (q_Tm - K)
+        payoff_Ts = notional * (q_Tm - K).
 
     PV uses discount factor D(Ts).
+
+    Args:
+        scen_set: Scenario set with q_paths of shape (N, A, H).
+        spec: Q-forward specification.
+        short_rate: Flat continuous rate used when no discount factors are provided.
+        discount_factors: Discount factors of shape (H,) or (N, H).
+        return_cf_paths: Whether to include cashflow paths in the output.
+
+    Returns:
+        Pricing payload with price, PV paths, and metadata.
     """
     q_paths = np.asarray(scen_set.q_paths, dtype=float)
     if q_paths.ndim != 3:
         raise ValueError(f"Expected q_paths with shape (N, A, H), got {q_paths.shape}.")
 
-    N, A, H_full = q_paths.shape
+    N, _A, H_full = q_paths.shape
 
     # Measurement date (Tm): maturity_years = 1 -> index 0, etc.
     Tm = int(spec.maturity_years)
@@ -124,7 +157,7 @@ def price_q_forward(
     df_arr = np.asarray(df_full, dtype=float)
     df_settle = float(df_arr[ts_idx]) if df_arr.ndim == 1 else float(df_arr[:, ts_idx].mean())
 
-    metadata: dict[str, Any] = {
+    metadata: dict[str, object] = {
         "N_scenarios": int(N),
         "age": float(spec.age),
         "age_index": int(age_idx),
@@ -137,7 +170,7 @@ def price_q_forward(
         "discount_factor_settlement": float(df_settle),
     }
 
-    payload: dict[str, Any] = {
+    payload: ForwardPricingResult = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,
@@ -161,25 +194,34 @@ def price_s_forward(
     spec: SForwardSpec,
     *,
     short_rate: float | None = None,
-    discount_factors: np.ndarray | None = None,
+    discount_factors: FloatArray | None = None,
     return_cf_paths: bool = False,
-) -> dict[str, Any]:
-    """Price an s-forward (survival forward) using mortality scenarios, with optional
-    separate measurement vs settlement.
+) -> ForwardPricingResult:
+    """Price an s-forward (survival forward) using mortality scenarios.
 
     Measurement at Tm:
-        S_Tm = S_{x, Tm}
+        S_Tm = S_{x, Tm}.
 
     Payoff settled at Ts (Ts >= Tm):
-        payoff_Ts = notional * (S_Tm - K)
+        payoff_Ts = notional * (S_Tm - K).
 
     PV uses discount factor D(Ts).
+
+    Args:
+        scen_set: Scenario set with S_paths of shape (N, A, H).
+        spec: S-forward specification.
+        short_rate: Flat continuous rate used when no discount factors are provided.
+        discount_factors: Discount factors of shape (H,) or (N, H).
+        return_cf_paths: Whether to include cashflow paths in the output.
+
+    Returns:
+        Pricing payload with price, PV paths, and metadata.
     """
     S_paths = np.asarray(scen_set.S_paths, dtype=float)
     if S_paths.ndim != 3:
         raise ValueError(f"Expected S_paths with shape (N, A, H), got {S_paths.shape}.")
 
-    N, A, H_full = S_paths.shape
+    N, _A, H_full = S_paths.shape
 
     q_paths = np.asarray(scen_set.q_paths, dtype=float)
 
@@ -245,7 +287,7 @@ def price_s_forward(
     df_arr = np.asarray(df_full, dtype=float)
     df_settle = float(df_arr[ts_idx]) if df_arr.ndim == 1 else float(df_arr[:, ts_idx].mean())
 
-    metadata: dict[str, Any] = {
+    metadata: dict[str, object] = {
         "N_scenarios": int(N),
         "age": float(spec.age),
         "age_index": int(age_idx),
@@ -258,7 +300,7 @@ def price_s_forward(
         "discount_factor_settlement": float(df_settle),
     }
 
-    payload: dict[str, Any] = {
+    payload: ForwardPricingResult = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,

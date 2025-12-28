@@ -94,7 +94,14 @@ class _DummyCBD:
         return np.clip(np.full((self._A, self._T), 0.02), 1e-6, 0.5)
 
 
-def _patch_models(monkeypatch, *, lcm2_params_none=False, apc_params_none=False, cbd6_params_none=False, cbd7_params_none=False):
+def _patch_models(
+    monkeypatch,
+    *,
+    lcm2_params_none=False,
+    apc_params_none=False,
+    cbd6_params_none=False,
+    cbd7_params_none=False,
+):
     monkeypatch.setattr(fitmod, "LCM1", lambda: _DummyLCM1())
     monkeypatch.setattr(fitmod, "LCM2", lambda: _DummyLCM2(params_none=lcm2_params_none))
     monkeypatch.setattr(fitmod, "APCM3", lambda: _DummyAPCM3(params_none=apc_params_none))
@@ -150,7 +157,7 @@ def test_fit_single_model_lcm2_params_none_raises(monkeypatch):
     _patch_rmse(monkeypatch)
     _patch_models(monkeypatch, lcm2_params_none=True)
     ages, years, m = _toy_m()
-    with pytest.raises(RuntimeError, match="LCM2.fit\\(\\) returned None params"):
+    with pytest.raises(RuntimeError, match=r"LCM2.fit\\(\\) returned None params"):
         fitmod._fit_single_model("LCM2", ages, years, m_fit=m, m_eval=m)
 
 
@@ -158,7 +165,7 @@ def test_fit_single_model_apcm3_params_none_raises(monkeypatch):
     _patch_rmse(monkeypatch)
     _patch_models(monkeypatch, apc_params_none=True)
     ages, years, m = _toy_m()
-    with pytest.raises(RuntimeError, match="APCM3.fit\\(\\) returned None params"):
+    with pytest.raises(RuntimeError, match=r"APCM3.fit\\(\\) returned None params"):
         fitmod._fit_single_model("APCM3", ages, years, m_fit=m, m_eval=m)
 
 
@@ -166,7 +173,7 @@ def test_fit_single_model_cbdm6_params_none_raises(monkeypatch):
     _patch_rmse(monkeypatch)
     _patch_models(monkeypatch, cbd6_params_none=True)
     ages, years, m = _toy_m()
-    with pytest.raises(RuntimeError, match="CBDM6.fit\\(\\) returned None params"):
+    with pytest.raises(RuntimeError, match=r"CBDM6.fit\\(\\) returned None params"):
         fitmod._fit_single_model("CBDM6", ages, years, m_fit=m, m_eval=m)
 
 
@@ -174,7 +181,7 @@ def test_fit_single_model_cbdm7_params_none_raises(monkeypatch):
     _patch_rmse(monkeypatch)
     _patch_models(monkeypatch, cbd7_params_none=True)
     ages, years, m = _toy_m()
-    with pytest.raises(RuntimeError, match="CBDM7.fit\\(\\) returned None params"):
+    with pytest.raises(RuntimeError, match=r"CBDM7.fit\\(\\) returned None params"):
         fitmod._fit_single_model("CBDM7", ages, years, m_fit=m, m_eval=m)
 
 
@@ -205,7 +212,9 @@ def test_fit_mortality_model_cpsplines_success_eval_on_raw(monkeypatch):
     ages, years, m = _toy_m()
     fm = fitmod.fit_mortality_model(
         "LCM1",
-        ages, years, m,
+        ages,
+        years,
+        m,
         smoothing="cpsplines",
         cpsplines_kwargs={"k": None, "horizon": 0, "verbose": False},
         eval_on_raw=True,
@@ -214,7 +223,7 @@ def test_fit_mortality_model_cpsplines_success_eval_on_raw(monkeypatch):
     assert fm.metadata["data_source"] == "cpsplines_fit_eval_on_raw"
     assert fm.m_fit_surface is not None
     assert np.allclose(fm.m_fit_surface, 0.02)  # fitted on smooth
-    assert np.allclose(fm.m_eval_surface, m)     # eval on raw
+    assert np.allclose(fm.m_eval_surface, m)  # eval on raw
 
 
 def test_fit_mortality_model_cpsplines_success_eval_on_smooth(monkeypatch):
@@ -229,7 +238,9 @@ def test_fit_mortality_model_cpsplines_success_eval_on_smooth(monkeypatch):
     ages, years, m = _toy_m()
     fm = fitmod.fit_mortality_model(
         "LCM1",
-        ages, years, m,
+        ages,
+        years,
+        m,
         smoothing="cpsplines",
         cpsplines_kwargs={"k": None, "horizon": 0, "verbose": False},
         eval_on_raw=False,
@@ -251,7 +262,9 @@ def test_fit_mortality_model_cpsplines_fallback_on_exception(monkeypatch):
     ages, years, m = _toy_m()
     fm = fitmod.fit_mortality_model(
         "LCM1",
-        ages, years, m,
+        ages,
+        years,
+        m,
         smoothing="cpsplines",
         cpsplines_kwargs={"verbose": False},
         eval_on_raw=True,
@@ -311,16 +324,17 @@ def test_model_selection_validation_years_unique_increasing():
     years_dup = years.copy()
     years_dup[1] = years_dup[0]
     with pytest.raises(ValueError, match=r"years must not contain duplicates"):
-        fitmod.model_selection_by_forecast_rmse(
-            ages, years_dup, m, train_end=int(years_dup[0])
-        )
+        fitmod.model_selection_by_forecast_rmse(ages, years_dup, m, train_end=int(years_dup[0]))
 
     # not strictly increasing (NO duplicates, and years[0] < years[-1])
     years_bad = years.copy()
     years_bad[1], years_bad[2] = years_bad[2], years_bad[1]  # e.g. 2000,2002,2001,2003
     with pytest.raises(ValueError, match=r"years must be strictly increasing"):
         fitmod.model_selection_by_forecast_rmse(
-            ages, years_bad, m, train_end=int(years_bad[2])  # 2001, in years_bad
+            ages,
+            years_bad,
+            m,
+            train_end=int(years_bad[2]),  # 2001, in years_bad
         )
 
 
@@ -363,14 +377,16 @@ def test_model_selection_records_failed_models_and_selects_best(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(fitmod, "time_split_backtest_lc_m1", ok_backtest)
-    monkeypatch.setattr(fitmod, "time_split_backtest_lc_m2", boom)      # fails
+    monkeypatch.setattr(fitmod, "time_split_backtest_lc_m2", boom)  # fails
     monkeypatch.setattr(fitmod, "time_split_backtest_apc_m3", ok_backtest)
     monkeypatch.setattr(fitmod, "time_split_backtest_cbd_m5", ok_cbd)
-    monkeypatch.setattr(fitmod, "time_split_backtest_cbd_m6", boom)     # fails
+    monkeypatch.setattr(fitmod, "time_split_backtest_cbd_m6", boom)  # fails
     monkeypatch.setattr(fitmod, "time_split_backtest_cbd_m7", ok_cbd)
 
     df, best = fitmod.model_selection_by_forecast_rmse(
-        ages, years, m,
+        ages,
+        years,
+        m,
         train_end=train_end,
         model_names=("LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"),
         metric="logit_q",
@@ -401,15 +417,23 @@ def test_model_selection_metric_log_m_requires_finite(monkeypatch):
     monkeypatch.setattr(fitmod, "time_split_backtest_cbd_m5", cbd_like)
     monkeypatch.setattr(fitmod, "time_split_backtest_cbd_m6", cbd_like)
     monkeypatch.setattr(fitmod, "time_split_backtest_cbd_m7", cbd_like)
-    monkeypatch.setattr(fitmod, "time_split_backtest_lc_m1", lambda **k: (_ for _ in ()).throw(RuntimeError("x")))
-    monkeypatch.setattr(fitmod, "time_split_backtest_lc_m2", lambda **k: (_ for _ in ()).throw(RuntimeError("x")))
-    monkeypatch.setattr(fitmod, "time_split_backtest_apc_m3", lambda **k: (_ for _ in ()).throw(RuntimeError("x")))
+    monkeypatch.setattr(
+        fitmod, "time_split_backtest_lc_m1", lambda **k: (_ for _ in ()).throw(RuntimeError("x"))
+    )
+    monkeypatch.setattr(
+        fitmod, "time_split_backtest_lc_m2", lambda **k: (_ for _ in ()).throw(RuntimeError("x"))
+    )
+    monkeypatch.setattr(
+        fitmod, "time_split_backtest_apc_m3", lambda **k: (_ for _ in ()).throw(RuntimeError("x"))
+    )
 
     with pytest.raises(ValueError, match="No model has a defined forecast RMSE on log m"):
         fitmod.model_selection_by_forecast_rmse(
-            ages, years, m,
+            ages,
+            years,
+            m,
             train_end=train_end,
-            model_names=("LCM1","LCM2","APCM3","CBDM5","CBDM6","CBDM7"),
+            model_names=("LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"),
             metric="log_m",
         )
 
@@ -430,9 +454,11 @@ def test_model_selection_metric_logit_q_all_failed_has_details(monkeypatch):
 
     with pytest.raises(ValueError, match="Details:"):
         fitmod.model_selection_by_forecast_rmse(
-            ages, years, m,
+            ages,
+            years,
+            m,
             train_end=train_end,
-            model_names=("LCM1","LCM2","APCM3","CBDM5","CBDM6","CBDM7"),
+            model_names=("LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"),
             metric="logit_q",
         )
 
@@ -442,15 +468,21 @@ def test_model_selection_rejects_unknown_metric(monkeypatch):
     train_end = int(years[1])
 
     # minimal stubs so it reaches metric check
-    monkeypatch.setattr(fitmod, "time_split_backtest_cbd_m5", lambda **k: {
-        "rmse_logit_forecast": 0.5,
-        "train_years": np.array([years[0], train_end]),
-        "test_years": np.array([train_end + 1, years[-1]]),
-    })
+    monkeypatch.setattr(
+        fitmod,
+        "time_split_backtest_cbd_m5",
+        lambda **k: {
+            "rmse_logit_forecast": 0.5,
+            "train_years": np.array([years[0], train_end]),
+            "test_years": np.array([train_end + 1, years[-1]]),
+        },
+    )
 
     with pytest.raises(ValueError, match="Unknown metric"):
         fitmod.model_selection_by_forecast_rmse(
-            ages, years, m,
+            ages,
+            years,
+            m,
             train_end=train_end,
             model_names=("CBDM5",),
             metric="nope",  # type: ignore[arg-type]
@@ -470,7 +502,7 @@ def test_select_and_fit_best_model_for_pricing_wires_calls(monkeypatch):
         return fake_df, "LCM1"
 
     def fake_fit(**kwargs):
-        fm = fitmod.FittedModel(
+        return fitmod.FittedModel(
             name="LCM1",
             ages=np.asarray(kwargs["ages"], dtype=float),
             years=np.asarray(kwargs["years"], dtype=int),
@@ -483,15 +515,16 @@ def test_select_and_fit_best_model_for_pricing_wires_calls(monkeypatch):
             bic=0.0,
             metadata={},
         )
-        return fm
 
     monkeypatch.setattr(fitmod, "model_selection_by_forecast_rmse", fake_selection)
     monkeypatch.setattr(fitmod, "fit_mortality_model", fake_fit)
 
     out_df, fitted = fitmod.select_and_fit_best_model_for_pricing(
-        ages=ages, years=years, m=m,
+        ages=ages,
+        years=years,
+        m=m,
         train_end=train_end,
-        model_names=("LCM1","LCM2"),
+        model_names=("LCM1", "LCM2"),
         metric="logit_q",
         cpsplines_kwargs={"k": None, "horizon": 0, "verbose": False},
     )

@@ -1,64 +1,83 @@
+"""Gompertz tail fitting helpers for mortality surfaces.
+
+This module fits a per-year Gompertz curve to central death rates and can
+extrapolate mortality beyond the observed age range.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
+
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
 
 
 @dataclass
 class GompertzFitResult:
-    """Per-year Gompertz fit on central death rates m_x,t:
+    """Result of a per-year Gompertz fit on central death rates.
 
-        m_x,t = exp(a_t + b_t * x)
-
-    Stored as arrays over time (years):
-        a_t, b_t shape (T,)
-
-    Also stores the fitted surface on the full (ages, years) grid if requested.
+    The model is:
+        m_{x,t} = exp(a_t + b_t * x).
     """
 
-    ages: np.ndarray  # (A,)
-    years: np.ndarray  # (T,)
-    a_t: np.ndarray  # (T,)
-    b_t: np.ndarray  # (T,)
+    ages: FloatArray  # (A,)
+    years: IntArray  # (T,)
+    a_t: FloatArray  # (T,)
+    b_t: FloatArray  # (T,)
     age_fit_min: int
     age_fit_max: int
     m_floor: float
-    m_fitted: np.ndarray | None = None  # (A,T) if computed
-    meta: dict = None
+    m_fitted: FloatArray | None = None  # (A, T) if computed
+    meta: dict[str, object] | None = None
 
 
-def _safe_log_m(m: np.ndarray, m_floor: float) -> np.ndarray:
+def _safe_log_m(m: FloatArray, m_floor: float) -> FloatArray:
+    """Compute log(m) after clipping to a positive floor.
+
+    Args:
+        m: Central death rates. Shape (...,).
+        m_floor: Minimum allowed value before taking the log.
+
+    Returns:
+        Log of m with values clipped at m_floor.
+    """
     m = np.asarray(m, dtype=float)
     m = np.clip(m, float(m_floor), None)
     return np.log(m)
 
 
 def fit_gompertz_per_year(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: FloatArray,
+    years: IntArray,
+    m: FloatArray,
     *,
     age_fit_min: int = 80,
     age_fit_max: int = 100,
     m_floor: float = 1e-12,
     compute_fitted_surface: bool = True,
 ) -> GompertzFitResult:
-    """Fit Gompertz per calendar year using OLS on log(m):
-        log(m_x,t) = a_t + b_t * x
+    """Fit a Gompertz model per calendar year using OLS on log(m).
 
-    Parameters
-    ----------
-    ages : (A,)
-    years : (T,)
-    m : (A,T) central death rates
-    age_fit_min, age_fit_max : fit window (inclusive)
-    m_floor : clip floor before log
-    compute_fitted_surface : if True, returns m_fitted on full age grid
+    Args:
+        ages: Age grid. Shape (A,).
+        years: Year grid. Shape (T,).
+        m: Central death rates. Shape (A, T).
+        age_fit_min: Minimum age for the fit window (inclusive).
+        age_fit_max: Maximum age for the fit window (inclusive).
+        m_floor: Floor applied to m before taking logs.
+        compute_fitted_surface: Whether to return the fitted surface on the full grid.
 
     Returns:
-    -------
-    GompertzFitResult
+        GompertzFitResult with per-year parameters and optional fitted surface.
+
+    Raises:
+        ValueError: If inputs are invalid or fit window is empty.
     """
     ages = np.asarray(ages, dtype=float).reshape(-1)
     years = np.asarray(years, dtype=int).reshape(-1)
@@ -132,10 +151,16 @@ def extrapolate_gompertz_surface(
     *,
     age_max: int,
     age_min: int | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Extrapolate/extend the fitted Gompertz surface to a new age grid.
+) -> tuple[FloatArray, IntArray, FloatArray]:
+    """Extrapolate the fitted Gompertz surface to a new age grid.
 
-    Returns (ages_ext, years, m_ext) where m_ext is Gompertz-implied.
+    Args:
+        fit: Fitted Gompertz parameters.
+        age_max: Maximum age for the extended grid.
+        age_min: Minimum age for the extended grid. Defaults to fit.ages.min().
+
+    Returns:
+        Tuple (ages_ext, years, m_ext) where m_ext is Gompertz-implied.
     """
     years = np.asarray(fit.years, dtype=int)
     a_t = np.asarray(fit.a_t, dtype=float)

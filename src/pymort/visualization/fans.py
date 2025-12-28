@@ -1,18 +1,26 @@
+"""Fan chart plotting utilities for mortality scenarios.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
 
 _DEFAULT_QUANTILES: tuple[int, ...] = (5, 25, 50, 75, 95)
+FloatArray = NDArray[np.floating]
 
 
 def _fan(
-    paths: np.ndarray,
-    grid: np.ndarray,
+    paths: FloatArray,
+    grid: FloatArray,
     *,
     quantiles: Iterable[int] = _DEFAULT_QUANTILES,
     ax=None,
@@ -41,7 +49,14 @@ def plot_survival_fan(
     quantiles: Iterable[int] = _DEFAULT_QUANTILES,
     ax=None,
 ) -> None:
-    """Plot a fan chart of survival probabilities for a given age over projection years."""
+    """Plot a survival fan chart for a given cohort age.
+
+    Args:
+        scen_set: Scenario set with S_paths of shape (N, A, H).
+        age: Cohort age at valuation.
+        quantiles: Percentiles to plot.
+        ax: Optional matplotlib axes.
+    """
     ages = np.asarray(scen_set.ages, dtype=float)
     years = np.asarray(scen_set.years, dtype=int)
     idx = int(np.argmin(np.abs(ages - age)))
@@ -59,7 +74,14 @@ def plot_mortality_fan(
     quantiles: Iterable[int] = _DEFAULT_QUANTILES,
     ax=None,
 ) -> None:
-    """Plot a fan chart of mortality rates q for a given age over projection years."""
+    """Plot a mortality fan chart for a given cohort age.
+
+    Args:
+        scen_set: Scenario set with q_paths of shape (N, A, H).
+        age: Cohort age at valuation.
+        quantiles: Percentiles to plot.
+        ax: Optional matplotlib axes.
+    """
     ages = np.asarray(scen_set.ages, dtype=float)
     years = np.asarray(scen_set.years, dtype=int)
     idx = int(np.argmin(np.abs(ages - age)))

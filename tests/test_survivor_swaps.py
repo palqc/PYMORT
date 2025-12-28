@@ -19,10 +19,9 @@ def _toy_scenarios():
         dtype=float,
     )
     S_paths = survival_from_q(q_paths)
-    scen = MortalityScenarioSet(
+    return MortalityScenarioSet(
         years=years, ages=ages, q_paths=q_paths, S_paths=S_paths, metadata={}
     )
-    return scen
 
 
 def test_survivor_swap_price_finite_and_payment_times():

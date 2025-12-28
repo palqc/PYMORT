@@ -1,13 +1,17 @@
-"""Lightweight analysis namespace.
+"""Lazy analysis namespace with lightweight imports.
 
-Avoids importing heavy submodules (and model code) at package import time.
-All symbols are loaded lazily via ``__getattr__`` to prevent circular imports.
+This module avoids importing heavy submodules at import time. Public symbols
+are loaded on demand via ``__getattr__`` to reduce startup cost and prevent
+circular imports.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
 """
 
 from __future__ import annotations
 
 import importlib
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 __all__ = [
     "BootstrapResult",

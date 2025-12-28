@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
-from types import SimpleNamespace
-
+from pymort.analysis.scenario import (
+    MortalityScenarioSet,
+    build_scenario_set_from_projection,
+    load_scenario_set_npz,
+    save_scenario_set_npz,
+    validate_scenario_set,
+)
 from pymort.analysis.validation import (
     _check_surface_time_inputs,
     _freeze_gamma_last_per_age,
@@ -18,26 +26,12 @@ from pymort.analysis.validation import (
 from pymort.lifetables import survival_from_q
 
 
-from pathlib import Path
-
-
-from pymort.analysis.scenario import (
-    MortalityScenarioSet,
-    load_scenario_set_npz,
-    save_scenario_set_npz,
-    validate_scenario_set,
-    build_scenario_set_from_projection,
-)
-
-
 def test_validate_scenario_set_and_metadata():
     years = np.array([2020, 2021], dtype=int)
     ages = np.array([60.0, 61.0], dtype=float)
     q = np.array([[[0.01, 0.011], [0.012, 0.013]]], dtype=float)
     S = survival_from_q(q)
-    scen = MortalityScenarioSet(
-        years=years, ages=ages, q_paths=q, S_paths=S, metadata={"k": "v"}
-    )
+    scen = MortalityScenarioSet(years=years, ages=ages, q_paths=q, S_paths=S, metadata={"k": "v"})
     validate_scenario_set(scen)
     assert scen.metadata["k"] == "v"
 
@@ -51,16 +45,14 @@ def test_validate_scenario_set_and_metadata():
     # non-monotone survival
     S_bad = S.copy()
     S_bad[0, 0, 1] = S_bad[0, 0, 0] + 0.1
-    scen_bad2 = MortalityScenarioSet(
-        years=years, ages=ages, q_paths=q, S_paths=S_bad, metadata={}
-    )
+    scen_bad2 = MortalityScenarioSet(years=years, ages=ages, q_paths=q, S_paths=S_bad, metadata={})
     with pytest.raises(ValueError):
         validate_scenario_set(scen_bad2)
 
 
 def test_validation_helpers_time_split_and_rmse():
     years = np.array([2000, 2001, 2002], dtype=int)
-    tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end=2001)
+    tr_mask, te_mask, _yrs_tr, _yrs_te = _time_split(years, train_end=2001)
     assert tr_mask.sum() == 2 and te_mask.sum() == 1
     with pytest.raises(ValueError):
         _time_split(years, train_end=1999)
@@ -149,9 +141,7 @@ def test_time_split_backtest_cbd_m5_smoke_small_surface():
     assert out["rmse_logit_forecast"] >= 0.0
 
 
-def _build_scenarios(
-    N: int = 3, T: int = 5, discount_factors=None, with_m: bool = False
-):
+def _build_scenarios(N: int = 3, T: int = 5, discount_factors=None, with_m: bool = False):
     ages = np.array([60.0, 61.0], dtype=float)
     years = np.arange(2020, 2020 + T, dtype=int)
     q_paths = np.full((N, ages.size, T), 0.01, dtype=float)
@@ -213,9 +203,7 @@ def test_save_load_round_trip_preserves_arrays_and_metadata(tmp_path: Path):
 
 def test_save_load_round_trip_with_2d_discount_factors(tmp_path: Path):
     scen = _build_scenarios()
-    df2d = np.tile(
-        np.exp(-0.01 * np.arange(1, scen.horizon() + 1)), (scen.n_scenarios(), 1)
-    )
+    df2d = np.tile(np.exp(-0.01 * np.arange(1, scen.horizon() + 1)), (scen.n_scenarios(), 1))
     scen = MortalityScenarioSet(
         years=scen.years,
         ages=scen.ages,
@@ -278,8 +266,6 @@ def _toy_scen(N=2, A=3, T=4, df=None):
 
 
 def test_validate_scenario_set_rejects_S_nonfinite_and_out_of_bounds():
-    scen = _toy_scen()
-
     scen_nan = _toy_scen()
     scen_nan.S_paths[0, 0, 0] = np.nan
     with pytest.raises(ValueError, match="S_paths must lie in \\[0,1\\] and be finite"):
@@ -390,10 +376,8 @@ def test_build_scenario_set_from_projection_discount_factors_validation():
     proj = SimpleNamespace(years=years, q_paths=q_paths, m_paths=None)
 
     # 1D length mismatch
-    with pytest.raises(ValueError, match="same length as proj.years"):
-        build_scenario_set_from_projection(
-            proj, ages, discount_factors=np.array([0.99, 0.98])
-        )
+    with pytest.raises(ValueError, match=r"same length as proj.years"):
+        build_scenario_set_from_projection(proj, ages, discount_factors=np.array([0.99, 0.98]))
 
     # 2D shape mismatch
     with pytest.raises(ValueError, match="shape \\(N,H\\)"):
@@ -401,15 +385,11 @@ def test_build_scenario_set_from_projection_discount_factors_validation():
 
     # bad ndim
     with pytest.raises(ValueError, match="must be 1D or 2D"):
-        build_scenario_set_from_projection(
-            proj, ages, discount_factors=np.ones((1, 1, 3))
-        )
+        build_scenario_set_from_projection(proj, ages, discount_factors=np.ones((1, 1, 3)))
 
     # nonpositive / nonfinite
     with pytest.raises(ValueError, match="positive and finite"):
-        build_scenario_set_from_projection(
-            proj, ages, discount_factors=np.array([1.0, 0.0, 0.9])
-        )
+        build_scenario_set_from_projection(proj, ages, discount_factors=np.array([1.0, 0.0, 0.9]))
 
     with pytest.raises(ValueError, match="positive and finite"):
         build_scenario_set_from_projection(

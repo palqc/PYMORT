@@ -1,9 +1,16 @@
+"""Liability pricing helpers for cohort life annuities.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
 from pymort.lifetables import validate_survival_monotonic
@@ -14,61 +21,40 @@ from pymort.pricing.utils import (
     pv_from_cf_paths,
 )
 
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
+
+
+class CohortLifeAnnuityResult(TypedDict, total=False):
+    """Typed payload for cohort life annuity pricing."""
+
+    price: float
+    pv_paths: FloatArray
+    age_index: int
+    discount_factors: FloatArray
+    expected_cashflows: FloatArray
+    metadata: dict[str, object]
+    cf_paths: FloatArray
+    times: IntArray
+
 
 @dataclass
 class CohortLifeAnnuitySpec:
-    """Specification of a cohort-based life annuity.
+    """Specification for a cohort-based life annuity.
 
-    Structure (discrete yearly times):
-
-        For a given cohort age x at issue:
-
-            Payment_t = exposure_at_issue
-                        * payment_per_survivor
-                        * S_x(t)
-
-        for t = defer_years, ..., T (or up to maturity_years), where:
-            - S_x(t) is the cohort survival probability at time t,
-              read from scen_set.S_paths for the chosen age.
-            - Payments are annual, on the same grid as scen_set.years.
-
-    This is the liability side of a pension fund paying
-    `payment_per_survivor` per surviving member each year, scaled
-    by `exposure_at_issue`.
+    Annual payments are proportional to cohort survival S_x(t), starting after
+    an optional deferral period and possibly including a terminal benefit.
 
     Attributes:
-    ----------
-    issue_age : float
-        Age of the cohort at the valuation / issue date, e.g. 65.
-        The closest age in `scen_set.ages` is used internally.
-
-    payment_per_survivor : float, default 1.0
-        Annual payment amount per surviving member of the cohort.
-        If the cohort has been normalised to 1 at issue, this is the
-        annual payment per unit of initial exposure.
-
-    maturity_years : int | None, default None
-        Number of years from the first projection year to maturity.
-        If None, the whole projection horizon in `scen_set.years` is used.
-
-    defer_years : int, default 0
-        Number of initial years during which no annuity payments are made
-        (deferred annuity). For example, defer_years=5 means that payments
-        start at year index 5 of the projection grid.
-
-    exposure_at_issue : float, default 1.0
-        Size of the cohort at issue (or scaling factor). All cashflows are
-        multiplied by this exposure. For example, exposure_at_issue=1e6
-        means "1 million lives" if the model is per-life.
-
-    include_terminal : bool, default False
-        If True, a terminal benefit is paid at maturity equal to:
-            exposure_at_issue * terminal_notional * S_x(T).
-
-    terminal_notional : float, default 0.0
-        Notional used for the terminal benefit if include_terminal=True.
-        Often used to mimic a lump-sum payment at maturity contingent on
-        survival of the cohort.
+        issue_age: Age of the cohort at valuation. The nearest age in the
+            scenario grid is used.
+        payment_per_survivor: Annual payment per surviving member.
+        maturity_years: Number of projection years to price. If None, uses
+            the full scenario horizon.
+        defer_years: Number of years with zero payments at the start.
+        exposure_at_issue: Cohort size (scaling factor).
+        include_terminal: Whether to include a terminal survival benefit.
+        terminal_notional: Notional for the terminal benefit.
     """
 
     issue_age: float
@@ -86,9 +72,9 @@ def price_cohort_life_annuity(
     spec: CohortLifeAnnuitySpec,
     *,
     short_rate: float | None = None,
-    discount_factors: np.ndarray | None = None,
+    discount_factors: FloatArray | None = None,
     return_cf_paths: bool = False,
-) -> dict[str, Any]:
+) -> CohortLifeAnnuityResult:
     """Price a cohort-based life annuity from mortality scenarios.
 
     Expected cashflow at year t (on the projection grid):
@@ -102,35 +88,19 @@ def price_cohort_life_annuity(
         Terminal_T = exposure_at_issue * terminal_notional * S_x(T)
         (if spec.include_terminal is True).
 
-    Present value in each scenario n:
+    Present value per scenario:
+        PV_n = sum_{t=0..H-1} CF_{n,t} * D_t,
+    where D_t is the discount factor at time t.
 
-        PV_n = sum_{t=0..H-1} CF_{n,t} * D_t
-
-    with D_t the discount factor at time index t.
-
-    Parameters
-    ----------
-    scen_set : MortalityScenarioSet
-        Stochastic mortality scenarios (output of the PYMORT pipeline).
-    spec : CohortLifeAnnuitySpec
-        Product specification (cohort age, payment, maturity, deferral, etc.).
-    short_rate : float | None
-        If provided and no discount_factors are given, a flat continuous
-        short rate used to build discount factors exp(-r * (year - year0)).
-    discount_factors : np.ndarray | None
-        Optional explicit discount factors D_t of shape (H,). If provided,
-        these override scen_set.discount_factors and short_rate.
+    Args:
+        scen_set: Scenario set with q_paths and S_paths of shape (N, A, H).
+        spec: Product specification.
+        short_rate: Flat continuous rate used when no discount factors are provided.
+        discount_factors: Discount factors of shape (H,) or (N, H).
+        return_cf_paths: Whether to include cashflow paths in the output.
 
     Returns:
-    -------
-    dict
-        A dictionary with keys:
-            - "price": float, Monte-Carlo estimate of present value
-            - "pv_paths": np.ndarray, shape (N,) present value per scenario
-            - "age_index": int, index of the cohort in scen_set.ages
-            - "discount_factors": np.ndarray, shape (H,)
-            - "expected_cashflows": np.ndarray, shape (H,), E[CF_t] per year
-            - "metadata": dict with extra info (spec, N, horizon, etc.)
+        Pricing payload with price, PV paths, discount factors, and metadata.
     """
     # Basic shape checks
     q_paths = np.asarray(scen_set.q_paths, dtype=float)
@@ -141,7 +111,7 @@ def price_cohort_life_annuity(
             f"q_paths and S_paths must have the same shape; got {q_paths.shape} vs {S_paths.shape}."
         )
 
-    N, A, H_full = S_paths.shape
+    N, _A, H_full = S_paths.shape
 
     # Determine maturity horizon in time steps
     if spec.maturity_years is None:
@@ -226,7 +196,7 @@ def price_cohort_life_annuity(
     expected_cashflows = cashflows.mean(axis=0)  # (H,)
     times = np.arange(1, H + 1, dtype=int)
 
-    metadata: dict[str, Any] = {
+    metadata: dict[str, object] = {
         "N_scenarios": int(N),
         "horizon_used": int(H),
         "issue_age": float(spec.issue_age),
@@ -239,7 +209,7 @@ def price_cohort_life_annuity(
         "terminal_notional": float(spec.terminal_notional),
     }
 
-    payload: dict[str, Any] = {
+    payload: CohortLifeAnnuityResult = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,

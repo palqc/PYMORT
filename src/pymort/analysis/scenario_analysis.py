@@ -1,3 +1,12 @@
+"""Scenario shocks and stress-testing helpers.
+
+This module applies deterministic mortality shocks to scenario sets and
+builds bundles of stressed scenarios for analysis.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,8 +30,17 @@ def clone_scen_set_with(
     discount_factors: np.ndarray | None = None,
     metadata: dict[str, object] | None = None,
 ) -> MortalityScenarioSet:
-    """Clone MortalityScenarioSet, en remplaçant éventuellement q_paths / S_paths /
-    discount_factors / metadata (si ces champs existent dans la dataclass).
+    """Clone a MortalityScenarioSet with optional replacements.
+
+    Args:
+        scen_set: Base scenario set to clone.
+        q_paths: Optional replacement q_paths, shape (N, A, T).
+        S_paths: Optional replacement S_paths, shape (N, A, T).
+        discount_factors: Optional replacement discount factors.
+        metadata: Optional replacement metadata.
+
+    Returns:
+        New MortalityScenarioSet with requested fields replaced.
     """
     field_names = list(MortalityScenarioSet.__dataclass_fields__.keys())  # type: ignore[attr-defined]
     kwargs: dict[str, object] = {}
@@ -57,67 +75,33 @@ def apply_mortality_shock(
     plateau_start_year: int | None = None,
     accel_start_year: int | None = None,
 ) -> MortalityScenarioSet:
-    """Applique un choc de mortalité sur un ensemble de scénarios.
+    """Apply a mortality shock to a scenario set.
 
-    Shock types supportés
-    ---------------------
-    - "long_life" :
-        Baisse globale des mortalités :
-            q' = (1 - magnitude) * q
-        ex : magnitude=0.10 -> -10% sur tous les q (survie meilleure).
+    Supported shock types:
+        - "long_life": Uniform mortality improvement,
+          q' = (1 - magnitude) * q.
+        - "short_life": Uniform mortality deterioration,
+          q' = (1 + magnitude) * q.
+        - "pandemic": Temporary spike over a forward window,
+          q'_{t in window} = (1 + magnitude) * q_t,
+          where window = [pandemic_year, pandemic_year + pandemic_duration - 1].
+        - "plateau": Freeze improvements from a start year,
+          q'_{t >= plateau_start} = q_{t_plateau_start}.
+        - "accel_improvement": Accelerate improvements from a start year,
+          q'_{t0+h} = q_{t0+h} * (1 - magnitude)^h.
 
-    - "short_life" :
-        Hausse globale des mortalités :
-            q' = (1 + magnitude) * q
+    Args:
+        scen_set: Base scenario set (P or Q measure).
+        shock_type: One of {"long_life", "short_life", "pandemic", "plateau",
+            "accel_improvement"}.
+        magnitude: Shock intensity (interpretation depends on shock_type).
+        pandemic_year: First year of the pandemic shock window.
+        pandemic_duration: Number of years in the pandemic window.
+        plateau_start_year: Year from which to freeze mortality rates.
+        accel_start_year: Year from which to accelerate improvements.
 
-    - "pandemic" :
-        Spike temporaire de mortalité sur une fenêtre **forward** de plusieurs années :
-            q'_{t in window} = (1 + magnitude) * q_t
-
-        La fenêtre est définie comme :
-            [pandemic_year, pandemic_year + pandemic_duration - 1]
-
-        Paramètres :
-            pandemic_year : int (obligatoire)
-                Première année affectée par le choc pandémique.
-            pandemic_duration : int, default 1
-                Nombre d'années consécutives impactées par le choc.
-
-    - "plateau" :
-        Plateau des améliorations : à partir de plateau_start_year, on
-        fige les taux de mortalité dans le futur :
-            q'_{t >= plateau_start} = q_{t_plateau_start}
-
-    - "accel_improvement" :
-        Accélération des améliorations de longévité (scénario "long life ++").
-        À partir de accel_start_year (ou la 1re année si None) :
-            pour un offset h années après, on applique :
-                q'_{t0+h} = q_{t0+h} * (1 - magnitude)^h
-        ex : magnitude=0.01 -> +1% d'amélioration *supplémentaire* par an.
-
-    Paramètres
-    ----------
-    scen_set : MortalityScenarioSet
-        Scénarios de base (sous P ou Q, peu importe).
-    shock_type : str
-        "long_life", "short_life", "pandemic", "plateau", "accel_improvement".
-    magnitude : float
-        Intensité du choc, interprétation dépend du type (voir ci-dessus).
-    pandemic_year : int, optionnel
-        Première année affectée par le choc pandémique.
-    pandemic_duration : int, défaut 1
-        Nombre d'années consécutives impactées par le choc,
-        à partir de pandemic_year :
-            [pandemic_year, pandemic_year + pandemic_duration - 1].
-    plateau_start_year : int, optionnel
-        À partir de cette année, on fige les q dans le futur ("plateau").
-    accel_start_year : int, optionnel
-        Année à partir de laquelle on accélère les améliorations.
-
-    Retourne
-    --------
-    MortalityScenarioSet
-        Nouveau set de scénarios avec q_paths et S_paths modifiés.
+    Returns:
+        New MortalityScenarioSet with modified q_paths and S_paths.
     """
     q_base = np.asarray(scen_set.q_paths, dtype=float)
     S_base = np.asarray(scen_set.S_paths, dtype=float)
@@ -184,10 +168,7 @@ def apply_mortality_shock(
 
     elif shock_type == "accel_improvement":
         # Accélération des améliorations = baisse plus rapide des q dans le temps.
-        if accel_start_year is None:
-            t0_idx = 0
-        else:
-            t0_idx = int(np.searchsorted(years, accel_start_year))
+        t0_idx = 0 if accel_start_year is None else int(np.searchsorted(years, accel_start_year))
         if t0_idx >= H - 1:
             # Rien à accélérer
             return scen_set
@@ -219,22 +200,15 @@ def apply_mortality_shock(
 
 @dataclass
 class ScenarioBundle:
-    """Petit conteneur pour un ensemble cohérent de scénarios.
+    """Container for a coherent set of stressed scenarios.
 
     Attributes:
-    ----------
-    base : MortalityScenarioSet
-        Scénarios de base (souvent Q-measure calibrés).
-    optimistic : MortalityScenarioSet
-        Scénarios "long life" (améliorations plus rapides).
-    pessimistic : MortalityScenarioSet
-        Scénarios "short life" (mortalité plus élevée).
-    pandemic_stress : Optional[MortalityScenarioSet]
-        Scénarios avec choc pandémique.
-    plateau : Optional[MortalityScenarioSet]
-        Scénarios avec plateau des améliorations.
-    accel_improvement : Optional[MortalityScenarioSet]
-        Scénarios avec accélération d'amélioration (long life ++).
+        base (MortalityScenarioSet): Base scenario set (often Q-measure).
+        optimistic (MortalityScenarioSet): "Long life" scenarios (lower mortality).
+        pessimistic (MortalityScenarioSet): "Short life" scenarios (higher mortality).
+        pandemic_stress (MortalityScenarioSet | None): Pandemic shock scenarios.
+        plateau (MortalityScenarioSet | None): Improvement plateau scenarios.
+        accel_improvement (MortalityScenarioSet | None): Accelerated improvement scenarios.
     """
 
     base: MortalityScenarioSet
@@ -257,51 +231,31 @@ def generate_stressed_bundle(
     accel_improvement_rate: float = 0.01,
     accel_start_year: int | None = None,
 ) -> ScenarioBundle:
-    """Génère un bundle de scénarios stressés à partir d'un scénario de base.
+    """Generate a bundle of stressed scenarios from a base set.
 
-    Idée
-    ----
-    - base : les scénarios fournis (souvent sous Q).
-    - optimistic / "long life" :
-        q' = (1 - long_life_bump) * q  (par défaut -10% sur tous les q).
-    - pessimistic / "short life" :
-        q' = (1 + short_life_bump) * q.
-    - pandemic_stress :
-        spike de mortalité sur une fenêtre autour de `pandemic_year`.
-    - plateau :
-        à partir de `plateau_start_year`, les q sont figés (plus de progrès).
-    - accel_improvement :
-        à partir de `accel_start_year` (ou début), on accélère les
-        améliorations :
-            q_{t+h} *= (1 - accel_improvement_rate)^h
+    Stress logic:
+        - base: the input scenarios.
+        - optimistic / long life: q' = (1 - long_life_bump) * q.
+        - pessimistic / short life: q' = (1 + short_life_bump) * q.
+        - pandemic_stress: mortality spike over a window around pandemic_year.
+        - plateau: freeze improvements from plateau_start_year onward.
+        - accel_improvement: accelerate improvements from accel_start_year,
+          q_{t+h} *= (1 - accel_improvement_rate)^h.
 
-    Paramètres
-    ----------
-    base_scen_set : MortalityScenarioSet
-        Scénarios de base (issus de ton moteur P ou Q).
-    long_life_bump : float, défaut 0.10
-        Intensité du choc "long life" (baisse des q).
-    short_life_bump : float, défaut 0.10
-        Intensité du choc "short life" (hausse des q).
-    pandemic_year : int, optionnel
-        Année centrale du choc pandémique.
-    pandemic_severity : float, défaut 1.0
-        Multiplicateur additionnel sur q pendant la pandémie :
+    Args:
+        base_scen_set: Base scenario set (from P or Q engine).
+        long_life_bump: Long-life shock magnitude (lower q).
+        short_life_bump: Short-life shock magnitude (higher q).
+        pandemic_year: Start year for the pandemic shock window.
+        pandemic_severity: Additional multiplier during the pandemic window:
             q' = (1 + pandemic_severity) * q.
-    pandemic_duration : int, défaut 1
-        Durée (en années) du choc pandémique.
-    plateau_start_year : int, optionnel
-        À partir de cette année, les améliorations s'arrêtent.
-    accel_improvement_rate : float, défaut 0.01
-        Accélération annuelle des améliorations (ex: 0.01 -> +1%/an).
-    accel_start_year : int, optionnel
-        Année à partir de laquelle l'accélération s'applique.
+        pandemic_duration: Pandemic window length in years.
+        plateau_start_year: Year from which improvements stop.
+        accel_improvement_rate: Annual acceleration of improvements.
+        accel_start_year: Year from which acceleration applies.
 
-    Retourne
-    --------
-    ScenarioBundle
-        Contient base, optimistic, pessimistic, et, si spécifiés,
-        les scénarios pandemic_stress / plateau / accel_improvement.
+    Returns:
+        ScenarioBundle with base, optimistic, pessimistic, and optional stresses.
     """
     base = base_scen_set
 
@@ -365,15 +319,20 @@ def _life_expectancy_from_q(
     *,
     include_half_year: bool = True,
 ) -> float:
-    """Approximate discrete remaining life expectancy on an annual grid.
+    """Approximate remaining life expectancy on an annual grid.
 
-    - q_1d[t] : 1-year death probability during year t
-    - S[t]    : survival prob at END of year t
+    Args:
+        q_1d: One-year death probabilities by year, shape (H,).
+        include_half_year: If True, apply a half-year continuity correction.
 
-    If include_half_year=True, apply a standard continuity correction:
-        E[T] ≈ 0.5 + sum_{t=1}^{H-1} S[t]
-    Else:
-        E[T] ≈ sum_{t=0}^{H-1} S[t]
+    Returns:
+        Remaining life expectancy in years.
+
+    Notes:
+        With half-year correction:
+            E[T] ≈ 0.5 + sum_{t=1}^{H-1} S[t]
+        Without correction:
+            E[T] ≈ sum_{t=0}^{H-1} S[t]
     """
     q_1d = np.asarray(q_1d, dtype=float).reshape(-1)
     validate_q(q_1d[None, None, :])
@@ -397,12 +356,24 @@ def apply_life_expectancy_shift(
     tol: float = 1e-4,
     max_iter: int = 60,
 ) -> MortalityScenarioSet:
-    """Applique un choc de longévité calibré pour obtenir +delta_years d'espérance
-    de vie résiduelle à partir de la courbe moyenne (sur scénarios) à l'âge 'age'.
+    """Apply a longevity shift to increase remaining life expectancy.
 
-    On cherche α tel que, sur la fenêtre future (>= year_start):
-        q' = q * (1 - α)
-    et e'(age) - e(age) ≈ delta_years.
+    We solve for alpha so that, over the future window (>= year_start):
+        q' = q * (1 - alpha)
+    and the change in remaining life expectancy satisfies:
+        e'(age) - e(age) ≈ delta_years.
+
+    Args:
+        scen_set: Base scenario set.
+        age: Target age (closest grid age is used).
+        delta_years: Desired increase in remaining life expectancy.
+        year_start: First projection year to apply the shift.
+        bracket: Initial bracket for alpha root-finding.
+        tol: Root-finding tolerance.
+        max_iter: Maximum number of iterations.
+
+    Returns:
+        Scenario set with adjusted q_paths and S_paths.
     """
     if delta_years <= 0:
         raise ValueError("delta_years must be > 0.")
@@ -455,7 +426,7 @@ def apply_life_expectancy_shift(
             )
 
     left, right = float(a), float(b)
-    f_left, f_right = float(fa), float(fb)
+    f_left, _f_right = float(fa), float(fb)
 
     for _ in range(max_iter):
         mid = 0.5 * (left + right)
@@ -464,13 +435,13 @@ def apply_life_expectancy_shift(
             alpha_star = mid
             break
         if f_left * f_mid <= 0:
-            right, f_right = mid, f_mid
+            right, _f_right = mid, f_mid
         else:
             left, f_left = mid, f_mid
     else:
         alpha_star = 0.5 * (left + right)
 
-    # appliquer α* à tous les scénarios sur (âge_idx, t>=t0)
+    # appliquer alpha* à tous les scénarios sur (âge_idx, t>=t0)
     q_new = q_base.copy()
     q_new[:, age_idx, t0:] *= 1.0 - alpha_star
     validate_q(q_new)
@@ -494,34 +465,26 @@ def apply_cohort_trend_shock(
     direction: str = "favorable",
     ramp: bool = True,
 ) -> MortalityScenarioSet:
-    """Applique un choc "cohort trends" : certaines générations (cohortes)
-    ont une mortalité systématiquement plus basse/haute que prévu.
+    """Apply a cohort-trend shock to selected birth cohorts.
 
-    Définition cohorte
-    ------------------
-    cohort_year = calendar_year - age
+    Cohort definition:
+        cohort_year = calendar_year - age
 
-    Shock
-    -----
-    - direction="favorable" : amélioration => q' = q * (1 - w * magnitude)
-    - direction="adverse"   : dégradation => q' = q * (1 + w * magnitude)
+    Shock:
+        - direction="favorable": improvement, q' = q * (1 - w * magnitude)
+        - direction="adverse": deterioration, q' = q * (1 + w * magnitude)
+        where w in [0, 1] optionally ramps between cohort_start and cohort_end.
 
-    où w ∈ [0,1] est un poids optionnel (ramp) qui fait un tilt progressif
-    entre cohort_start et cohort_end.
-
-    Paramètres
-    ----------
-    cohort_start, cohort_end : int
-        Intervalle de cohortes (années de naissance) impactées.
-    magnitude : float
-        Intensité max (ex 0.05 = +/-5% sur q) au centre/plateau du choc.
-    direction : {"favorable","adverse"}
-    ramp : bool
-        Si True, poids linéaire w entre start/end. Si False, choc uniforme.
+    Args:
+        scen_set: Base scenario set.
+        cohort_start: First cohort year affected.
+        cohort_end: Last cohort year affected.
+        magnitude: Maximum intensity (e.g., 0.05 = +/-5%).
+        direction: "favorable" or "adverse".
+        ramp: If True, ramp weights linearly between start and end.
 
     Returns:
-    -------
-    MortalityScenarioSet
+        Scenario set with adjusted q_paths and S_paths.
     """
     if cohort_end < cohort_start:
         raise ValueError("cohort_end must be >= cohort_start.")
@@ -540,7 +503,7 @@ def apply_cohort_trend_shock(
 
     ages_int = np.round(scen_set.ages).astype(int)  # (A,)
     years = np.asarray(scen_set.years, dtype=int)  # (H,)
-    N, A, H = q_base.shape
+    _N, _A, H = q_base.shape
     if years.shape[0] != H:
         raise ValueError("scen_set.years length must match q_paths horizon.")
 
@@ -563,12 +526,9 @@ def apply_cohort_trend_shock(
 
     q_new = q_base.copy()
 
-    if direction == "favorable":
-        # baisse de q => longévité meilleure
-        factor = 1.0 - float(magnitude) * w  # (A,H)
-    else:
-        # hausse de q => mortalité pire
-        factor = 1.0 + float(magnitude) * w
+    factor = (
+        1.0 - float(magnitude) * w if direction == "favorable" else 1.0 + float(magnitude) * w
+    )  # (A,H)
 
     # broadcast (N,A,H) * (A,H)
     q_new *= factor[None, :, :]
@@ -608,9 +568,14 @@ def generate_stressed_scenarios(
     *,
     shock_list: list[ShockSpec] | None = None,
 ) -> dict[str, MortalityScenarioSet]:
-    """Retourne un dict {scenario_name: MortalityScenarioSet}.
-    - Si shock_list est None, retourne juste {"base": base}
-    - Sinon, applique chaque shock indépendamment à base.
+    """Return a dict of stressed scenarios by name.
+
+    Args:
+        base_scen_set: Base scenario set.
+        shock_list: List of ShockSpec definitions. If None, only "base" is returned.
+
+    Returns:
+        Mapping {scenario_name: MortalityScenarioSet}.
     """
     out: dict[str, MortalityScenarioSet] = {"base": base_scen_set}
     if not shock_list:

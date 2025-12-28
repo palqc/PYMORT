@@ -1,3 +1,12 @@
+"""Validation and backtesting helpers for mortality models.
+
+This module provides time-split backtests and information criteria used for
+model comparison and diagnostics.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from __future__ import annotations
 
 import numpy as np
@@ -75,8 +84,21 @@ def _freeze_gamma_last_per_age(
     gamma: np.ndarray,
     train_end: int,
 ) -> np.ndarray:
-    """Return gamma_last_per_age[i] = gamma_{c_last = train_end - ages[i]},
-    choosing the closest cohort index if there is no exact match.
+    """Compute gamma at the last training year for each age.
+
+    For each age i, we set:
+        gamma_last_per_age[i] = gamma_{c_last}
+    where c_last = train_end - ages[i], using the nearest cohort if no
+    exact match exists.
+
+    Args:
+        ages: Age grid, shape (A,).
+        cohorts: Cohort grid, shape (C,).
+        gamma: Cohort effect values, shape (C,).
+        train_end: Last year in the training window.
+
+    Returns:
+        Array of gamma values aligned to ages, shape (A,).
     """
     out = np.zeros_like(ages, dtype=float)
     for i, age_x in enumerate(ages):
@@ -101,13 +123,18 @@ def time_split_backtest_lc_m1(
     m: np.ndarray,
     train_end: int,
 ) -> dict[str, np.ndarray | float]:
-    """Backtest Lee–Carter M1 with an explicit time split.
+    """Backtest Lee-Carter M1 with an explicit time split.
 
-    Fits LC on years <= train_end (training set), then produces a
-    deterministic forecast of log m on years > train_end (test set)
-    and computes:
-      - out-of-sample RMSE on log m (forecast window),
-      - out-of-sample RMSE on logit(q) (forecast window).
+    The model is fitted on years <= train_end, then a drift-only forecast is
+    produced for years > train_end. RMSE is reported on log m and logit(q).
+
+    Args:
+        years: Year grid, shape (T,).
+        m: Mortality surface m_{x,t}, shape (A, T).
+        train_end: Last year in the training window.
+
+    Returns:
+        Dictionary with train/test years and forecast RMSE metrics.
     """
     _check_surface_time_inputs(years, m, "m")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
@@ -145,18 +172,25 @@ def time_split_backtest_lc_m2(
     m: np.ndarray,
     train_end: int,
 ) -> dict[str, float | np.ndarray]:
-    """Backtest for Lee–Carter with cohort effect (LC M2):
+    """Backtest Lee-Carter with cohort effect (LCM2).
 
+    Model:
         log m_{x,t} = a_x + b_x k_t + gamma_{t-x}
 
     Strategy:
-      1) Fit LC M2 on train set
-      2) RW+drift forecast for k_t
-      3) Freeze gamma_{t-x} at last train year for each age
-      4) Compute:
-             - RMSE logit(q) train
-             - RMSE logit(q) forecast
-             - RMSE log(m) forecast
+        1) Fit LCM2 on the training set.
+        2) Forecast k_t with a drift-only random walk.
+        3) Freeze gamma_{t-x} at the last training year for each age.
+        4) Compute RMSE on log m and logit(q) for train and forecast windows.
+
+    Args:
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        m: Mortality surface m_{x,t}, shape (A, T).
+        train_end: Last year in the training window.
+
+    Returns:
+        Dictionary with train/test years and RMSE metrics.
     """
     _check_surface_time_inputs(years, m, "m")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
@@ -203,14 +237,20 @@ def time_split_backtest_cbd_m5(
     q: np.ndarray,
     train_end: int,
 ) -> dict[str, np.ndarray | float]:
-    """Backtest CBD (M5) with an explicit time split on q_x,t (logit scale).
+    """Backtest CBD M5 with an explicit time split on logit(q).
 
-    - Fit CBD on years <= train_end,
-    - Use RW+drift on (kappa1_t, kappa2_t) to produce a deterministic
-      forecast on years > train_end,
-    - Compute:
-        * in-sample RMSE on train (logit q),
-        * out-of-sample RMSE on test (logit q).
+    The model is fitted on years <= train_end. A drift-only forecast for
+    kappa1_t and kappa2_t is used for years > train_end. RMSE is reported
+    on logit(q) for train and test windows.
+
+    Args:
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        q: Mortality probabilities q_{x,t}, shape (A, T).
+        train_end: Last year in the training window.
+
+    Returns:
+        Dictionary with train/test years and RMSE metrics.
     """
     _check_surface_time_inputs(years, q, "q")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
@@ -251,7 +291,17 @@ def time_split_backtest_cbd_m6(
     q: np.ndarray,
     train_end: int,
 ) -> dict[str, np.ndarray | float]:
-    """Backtest CBD+cohort (M6) with explicit time split on q_x,t (logit scale)."""
+    """Backtest CBD M6 (cohort effect) with a time split on logit(q).
+
+    Args:
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        q: Mortality probabilities q_{x,t}, shape (A, T).
+        train_end: Last year in the training window.
+
+    Returns:
+        Dictionary with train/test years and RMSE metrics.
+    """
     _check_surface_time_inputs(years, q, "q")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
     q_tr = q[:, tr_mask]
@@ -294,7 +344,17 @@ def time_split_backtest_cbd_m7(
     q: np.ndarray,
     train_end: int,
 ) -> dict[str, np.ndarray | float]:
-    """Backtest CBD M7 (quadratic + cohort) with explicit time split on q_x,t (logit scale)."""
+    """Backtest CBD M7 (quadratic + cohort) with a time split on logit(q).
+
+    Args:
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        q: Mortality probabilities q_{x,t}, shape (A, T).
+        train_end: Last year in the training window.
+
+    Returns:
+        Dictionary with train/test years and RMSE metrics.
+    """
     _check_surface_time_inputs(years, q, "q")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
     q_tr = q[:, tr_mask]
@@ -341,19 +401,26 @@ def time_split_backtest_apc_m3(
     m: np.ndarray,
     train_end: int,
 ) -> dict[str, float | np.ndarray]:
-    """Backtest for APC Model M3:
+    """Backtest APC Model M3 with a time split.
 
+    Model:
         ln m_{x,t} = beta_x + kappa_t + gamma_{t-x}
 
     Strategy:
-      1) Fit APC M3 on train set (years <= train_end)
-      2) Estimate RW+drift on kappa_t
-      3) Deterministic forecast kappa_t on test years
-      4) Freeze cohort effect gamma_{t-x} at its value for the last train year
-         for each age (conservative choice, like LC M2 backtest)
-      5) Compute:
-           - RMSE forecast on log m
-           - RMSE forecast on logit(q)
+        1) Fit APC M3 on the training set (years <= train_end).
+        2) Estimate RW+drift on kappa_t.
+        3) Deterministic forecast of kappa_t on test years.
+        4) Freeze cohort effect gamma_{t-x} at its last training value per age.
+        5) Compute RMSE on log m and logit(q).
+
+    Args:
+        ages: Age grid, shape (A,).
+        years: Year grid, shape (T,).
+        m: Mortality surface m_{x,t}, shape (A, T).
+        train_end: Last year in the training window.
+
+    Returns:
+        Dictionary with train/test years and RMSE metrics.
     """
     _check_surface_time_inputs(years, m, "m")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
@@ -399,8 +466,15 @@ def time_split_backtest_apc_m3(
 def rmse_aic_bic(
     logit_true: np.ndarray, logit_hat: np.ndarray, n_params: int
 ) -> tuple[float, float, float]:
-    """Compute RMSE, AIC and BIC under a Gaussian error assumption
-    on the logit scale.
+    """Compute RMSE, AIC, and BIC on the logit scale.
+
+    Args:
+        logit_true: Observed logit(q) values, shape (A, T) or flattened.
+        logit_hat: Fitted logit(q) values, same shape as logit_true.
+        n_params: Number of fitted parameters.
+
+    Returns:
+        Tuple of (rmse, aic, bic).
     """
     logit_true = np.asarray(logit_true).ravel()
     logit_hat = np.asarray(logit_hat).ravel()

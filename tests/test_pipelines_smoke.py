@@ -1,31 +1,30 @@
 from __future__ import annotations
 
 import numpy as np
-
 import pytest
 
 from pymort.analysis.scenario import MortalityScenarioSet
+from pymort.lifetables import survival_from_q
 from pymort.pipeline import (
+    HullWhiteConfig,
+    _build_multi_instrument_quotes,
+    _calibration_summary,
+    _derive_bootstrap_params,
+    _infer_kind,
+    _normalize_spec,
+    apply_hull_white_discounting,
     build_interest_rate_pipeline,
     build_joint_scenarios,
     build_projection_pipeline,
     build_risk_neutral_pipeline,
+    hedging_pipeline,
     pricing_pipeline,
     risk_analysis_pipeline,
     stress_testing_pipeline,
-    _derive_bootstrap_params,
-    _infer_kind,
-    _normalize_spec,
-    _build_multi_instrument_quotes,
-    _calibration_summary,
-    hedging_pipeline,
-    apply_hull_white_discounting,
-    HullWhiteConfig,
 )
+from pymort.pricing.liabilities import CohortLifeAnnuitySpec
 from pymort.pricing.longevity_bonds import LongevityBondSpec
 from pymort.pricing.survivor_swaps import SurvivorSwapSpec
-from pymort.pricing.liabilities import CohortLifeAnnuitySpec
-from pymort.lifetables import survival_from_q
 
 
 def _toy_m_surface():
@@ -236,11 +235,7 @@ def test_end_to_end_mini_run_projection_to_pricing():
     )
     scen = _assert_valid_scen(scen)
 
-    spec = {
-        "bond": LongevityBondSpec(
-            issue_age=60.0, maturity_years=3, include_principal=True
-        )
-    }
+    spec = {"bond": LongevityBondSpec(issue_age=60.0, maturity_years=3, include_principal=True)}
     out = pricing_pipeline(scen_Q=scen, specs=spec, short_rate=0.02)
 
     assert "bond" in out
@@ -295,9 +290,7 @@ def _simple_mort_scenarios(n: int = 2):
     years = np.array([2020, 2021], dtype=int)
     q = np.stack([np.array([[0.01, 0.011]]), np.array([[0.012, 0.013]])])[:n]
     S = survival_from_q(q)
-    return MortalityScenarioSet(
-        years=years, ages=ages, q_paths=q, S_paths=S, metadata={}
-    )
+    return MortalityScenarioSet(years=years, ages=ages, q_paths=q, S_paths=S, metadata={})
 
 
 def _simple_rate_scenarios(n: int = 2):
@@ -332,11 +325,7 @@ def test_build_joint_scenarios_bad_inputs():
 
 def test_pricing_pipeline_minimal_specs():
     mort = _simple_mort_scenarios()
-    specs = {
-        "bond": LongevityBondSpec(
-            issue_age=60.0, maturity_years=2, include_principal=True
-        )
-    }
+    specs = {"bond": LongevityBondSpec(issue_age=60.0, maturity_years=2, include_principal=True)}
     prices = pricing_pipeline(scen_Q=mort, specs=specs, short_rate=0.01)
     assert "bond" in prices and np.isfinite(prices["bond"])
     ann_spec = {"ann": CohortLifeAnnuitySpec(issue_age=60.0, maturity_years=2)}
@@ -349,9 +338,7 @@ def _simple_mort_scen(N=2, H=3):
     years = np.arange(2020, 2020 + H, dtype=int)
     q = np.clip(np.random.default_rng(0).random((N, ages.size, H)) * 0.05, 1e-6, 0.5)
     S = survival_from_q(q)
-    return MortalityScenarioSet(
-        years=years, ages=ages, q_paths=q, S_paths=S, metadata={}
-    )
+    return MortalityScenarioSet(years=years, ages=ages, q_paths=q, S_paths=S, metadata={})
 
 
 # -------------------------
@@ -402,9 +389,7 @@ def test_infer_kind_and_normalize_spec_dict_formats():
 
 def test_build_multi_instrument_quotes_missing_market_price_raises():
     instruments = {
-        "bond": LongevityBondSpec(
-            issue_age=60.0, maturity_years=2, include_principal=True
-        )
+        "bond": LongevityBondSpec(issue_age=60.0, maturity_years=2, include_principal=True)
     }
     with pytest.raises(ValueError, match="Missing market price"):
         _build_multi_instrument_quotes(instruments, market_prices={})
@@ -469,9 +454,7 @@ def test_build_joint_scenarios_transposes_df_if_given_as_TxN():
 
     # fake rate_scen with df shape (T,N) instead of (N,T)
     df_TN = np.full((4, 3), 0.99, dtype=float)
-    rate_scen = type(
-        "DummyRate", (), {"discount_factors": df_TN, "metadata": {"dummy": True}}
-    )()
+    rate_scen = type("DummyRate", (), {"discount_factors": df_TN, "metadata": {"dummy": True}})()
 
     joint = build_joint_scenarios(mort, rate_scen)
     assert joint.discount_factors.shape == (3, 4)
@@ -482,9 +465,7 @@ def test_build_joint_scenarios_transposes_df_if_given_as_TxN():
 # -------------------------
 def test_apply_hull_white_discounting_disabled_returns_same():
     mort = _simple_mort_scen(N=2, H=3)
-    out = apply_hull_white_discounting(
-        mort, hw=HullWhiteConfig(enabled=False), short_rate=0.02
-    )
+    out = apply_hull_white_discounting(mort, hw=HullWhiteConfig(enabled=False), short_rate=0.02)
     assert out is mort  # same object in current implementation
 
 
@@ -518,9 +499,7 @@ def test_hedging_pipeline_multihorizon_errors_and_pv_by_horizon_needs_df():
 
     # multihorizon missing cashflows
     with pytest.raises(ValueError):
-        hedging_pipeline(
-            liability_pv_paths=pv, hedge_pv_paths=hedge_pv, method="multihorizon"
-        )
+        hedging_pipeline(liability_pv_paths=pv, hedge_pv_paths=hedge_pv, method="multihorizon")
 
     # pv_by_horizon requires discount factors
     with pytest.raises(ValueError, match="requires"):
@@ -556,7 +535,7 @@ def test_build_joint_scenarios_broadcasts_single_rate_scenario():
 
 
 def test_hedging_pipeline_min_variance_constrained_and_duration_branches():
-    N, M = 5, 2
+    N, _M = 5, 2
     liab = np.linspace(1.0, 2.0, N)
     hedge = np.column_stack([liab + 0.1, 2.0 * liab + 0.2])  # (N,M)
 
@@ -581,7 +560,7 @@ def test_hedging_pipeline_min_variance_constrained_and_duration_branches():
 
 
 def test_hedging_pipeline_duration_convexity_and_greek_branches():
-    N, M = 5, 2
+    N, _M = 5, 2
     liab = np.linspace(1.0, 2.0, N)
     hedge = np.column_stack([liab + 0.1, 2.0 * liab + 0.2])  # (N,M)
 
@@ -624,13 +603,15 @@ def test_build_risk_neutral_pipeline_autofills_missing_calibration_inputs_from_s
         train_end=2004,
         horizon=3,
         n_scenarios=4,
-        model_names=("LCM2",),   # log-m => m_paths non-None en général
+        model_names=("LCM2",),  # log-m => m_paths non-None en général
         bootstrap_kwargs={"B": 2, "n_process": 2},
         seed=99,
     )
     scen_P = _assert_valid_scen(scen_P)
 
-    instruments = {"bond": LongevityBondSpec(issue_age=60.0, maturity_years=2, include_principal=True)}
+    instruments = {
+        "bond": LongevityBondSpec(issue_age=60.0, maturity_years=2, include_principal=True)
+    }
     market_prices = pricing_pipeline(scen_Q=scen_P, specs=instruments, short_rate=0.02)
 
     # calibration_kwargs volontairement "incomplet"

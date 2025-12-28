@@ -1,43 +1,53 @@
+"""Cairns-Blake-Dowd quadratic model with cohort effect (CBD M7).
+
+This module fits the CBD M7 model and provides random-walk forecasts for the
+period factors.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.lifetables import validate_q
 from pymort.models.cbd_m5 import _logit
 from pymort.models.utils import _estimate_rw_params
 
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
+
 
 @dataclass
 class CBDM7Params:
-    """Parameters of the CBD Model M7 (quadratic + cohort):
+    """Parameters for the CBD M7 model (quadratic + cohort).
 
+    The model is:
         logit(q_{x,t}) =
             kappa1_t
           + kappa2_t (x - x_bar)
           + kappa3_t ((x - x_bar)^2 - sigma_x^2)
-          + gamma_{t-x}
-
-    where:
-      - kappa1_t, kappa2_t, kappa3_t are period factors,
-      - gamma_{t-x} is the cohort effect (year-of-birth),
-      - x_bar is the mean age (centering),
-      - sigma_x^2 is the mean squared deviation of ages.
+          + gamma_{t-x},
+    where kappa1_t, kappa2_t, kappa3_t are period factors and gamma_{t-x}
+    captures the cohort effect.
     """
 
     # Period factors
-    kappa1: np.ndarray  # (T,)
-    kappa2: np.ndarray  # (T,)
-    kappa3: np.ndarray  # (T,)
+    kappa1: FloatArray  # (T,)
+    kappa2: FloatArray  # (T,)
+    kappa3: FloatArray  # (T,)
 
     # Cohort effect gamma_c and its grid of cohort indices c = t - x
-    gamma: np.ndarray  # (C,)
-    cohorts: np.ndarray  # (C,)
+    gamma: FloatArray  # (C,)
+    cohorts: FloatArray  # (C,)
 
     # Age / time grids used in the fit
-    ages: np.ndarray  # (A,)
-    years: np.ndarray  # (T,)
+    ages: FloatArray  # (A,)
+    years: IntArray  # (T,)
     x_bar: float  # mean age
     sigma2_x: float  # mean squared deviation of ages (for quadratic term)
 
@@ -51,8 +61,13 @@ class CBDM7Params:
 
     # Convenience helper
     def gamma_for_age_at_last_year(self, age: float) -> float:
-        """Return gamma_{t-x} for a given age at the last observed calendar year.
-        Useful for diagnostics / plotting.
+        """Return gamma_{t-x} for a given age at the last observed year.
+
+        Args:
+            age: Age at the last observed year.
+
+        Returns:
+            Cohort effect gamma_{t-x}.
         """
         age = float(age)
         c = float(self.years[-1] - age)
@@ -66,34 +81,41 @@ class CBDM7Params:
         return float(self.gamma[idx])
 
 
-def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
-    """Compute the cohort index c = t - x on the (age, year) grid.
+def _compute_cohort_index(ages: FloatArray, years: IntArray) -> FloatArray:
+    """Compute the cohort index c = t - x on the age/year grid.
 
-    Returns an array C with shape (A, T) where C[x,t] = years[t] - ages[x].
+    Args:
+        ages: Age grid. Shape (A,).
+        years: Calendar year grid. Shape (T,).
+
+    Returns:
+        Cohort indices with shape (A, T) where C[x, t] = years[t] - ages[x].
     """
     ages = np.asarray(ages)
     years = np.asarray(years)
     return years[None, :] - ages[:, None]
 
 
-def fit_cbd_m7(q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM7Params:
-    """Fit the full CBD Model M7 (quadratic + cohort) to q[age, year].
+def fit_cbd_m7(q: FloatArray, ages: FloatArray, years: IntArray) -> CBDM7Params:
+    """Fit the CBD M7 model (quadratic + cohort) to q[age, year].
 
-    Model:
-        logit(q_{x,t}) =
-            kappa1_t
-          + kappa2_t (x - x_bar)
-          + kappa3_t ((x - x_bar)^2 - sigma_x^2)
-          + gamma_{t-x}.
+    Estimation strategy (two-stage):
+    1) Fit the quadratic CBD part via OLS on logit(q_{x,t}) ~ [1, z, z2c]
+       with z = x - x_bar and z2c = z^2 - sigma_x^2.
+    2) Compute residuals on logit scale and average them by cohort to
+       estimate gamma_c.
+    3) Center gamma for identifiability.
 
-    Estimation strategy (two-stage, standard en pratique) :
-      1) Fit the quadratic CBD part (kappa1, kappa2, kappa3) via OLS on
-         logit(q_{x,t}) ~ [1, z, z2c], with z = x - x_bar,
-         z2c = z^2 - sigma_x^2.
-      2) Compute residuals on logit scale.
-      3) Group residuals by cohort c = t - x, average within each cohort
-         to obtain gamma_c.
-      4) Center gamma so that its weighted mean is zero (identifiability).
+    Args:
+        q: Death probabilities. Shape (A, T).
+        ages: Age grid. Shape (A,).
+        years: Year grid. Shape (T,).
+
+    Returns:
+        CBDM7Params with fitted period and cohort effects.
+
+    Raises:
+        ValueError: If inputs are invalid or shapes do not match.
     """
     if q.ndim != 2:
         raise ValueError("q must be a 2D array with shape (A, T).")
@@ -181,8 +203,15 @@ def fit_cbd_m7(q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM7Param
     )
 
 
-def reconstruct_logit_q_m7(params: CBDM7Params) -> np.ndarray:
-    """Reconstruct logit(q_{x,t}) from CBD M7 parameters on the original age/year grid."""
+def reconstruct_logit_q_m7(params: CBDM7Params) -> FloatArray:
+    """Reconstruct logit(q_{x,t}) from CBD M7 parameters.
+
+    Args:
+        params: Fitted CBDM7 parameters.
+
+    Returns:
+        Logit mortality surface with shape (A, T).
+    """
     ages = params.ages
     years = params.years
 
@@ -210,16 +239,29 @@ def reconstruct_logit_q_m7(params: CBDM7Params) -> np.ndarray:
     return base_logit + gamma_matrix
 
 
-def reconstruct_q_m7(params: CBDM7Params) -> np.ndarray:
-    """Reconstruct q_{x,t} from CBD M7 parameters."""
+def reconstruct_q_m7(params: CBDM7Params) -> FloatArray:
+    """Reconstruct q_{x,t} from CBD M7 parameters.
+
+    Args:
+        params: Fitted CBDM7 parameters.
+
+    Returns:
+        Mortality probabilities with shape (A, T).
+    """
     logit_q = reconstruct_logit_q_m7(params)
     return 1.0 / (1.0 + np.exp(-logit_q))
 
 
 def estimate_rw_params_m7(params: CBDM7Params) -> CBDM7Params:
-    """Estimate RW+drift parameters for (kappa1_t, kappa2_t, kappa3_t)
-    and store them in the CBDM7Params object.
+    """Estimate random-walk-with-drift parameters for kappa1_t, kappa2_t, kappa3_t.
+
     Gamma (cohort effect) is treated as static.
+
+    Args:
+        params: Fitted CBDM7 parameters.
+
+    Returns:
+        Updated CBDM7Params with mu/sigma values stored.
     """
     mu1, sigma1 = _estimate_rw_params(params.kappa1)
     mu2, sigma2 = _estimate_rw_params(params.kappa2)
@@ -232,25 +274,31 @@ def estimate_rw_params_m7(params: CBDM7Params) -> CBDM7Params:
 
 
 class CBDM7:
-    """CBD Model M7 (quadratic + cohort):
-
-    logit(q_{x,t}) =
-        kappa1_t
-      + kappa2_t (x - x_bar)
-      + kappa3_t ((x - x_bar)^2 - sigma_x^2)
-      + gamma_{t-x}.
-    """
+    """CBD M7 model with quadratic age term and cohort effect."""
 
     def __init__(self) -> None:
         self.params: CBDM7Params | None = None
 
-    def fit(self, q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM7:
-        """Fit the CBD M7 model on q[age, year] and store parameters."""
+    def fit(self, q: FloatArray, ages: FloatArray, years: IntArray) -> CBDM7:
+        """Fit the model and store parameters.
+
+        Args:
+            q: Death probabilities. Shape (A, T).
+            ages: Age grid. Shape (A,).
+            years: Year grid. Shape (T,).
+
+        Returns:
+            Self, with fitted parameters stored.
+        """
         self.params = fit_cbd_m7(q, ages, years)
         return self
 
     def estimate_rw(self) -> tuple[float, float, float, float, float, float]:
-        """Estimate RW+drift parameters for (kappa1_t, kappa2_t, kappa3_t)."""
+        """Estimate random-walk-with-drift parameters for kappa1_t, kappa2_t, kappa3_t.
+
+        Returns:
+            Tuple of (mu1, sigma1, mu2, sigma2, mu3, sigma3).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         self.params = estimate_rw_params_m7(self.params)
@@ -263,14 +311,22 @@ class CBDM7:
             self.params.sigma3,
         )
 
-    def predict_logit_q(self) -> np.ndarray:
-        """Reconstruct the logit-mortality surface implied by the fitted CBD M7 model."""
+    def predict_logit_q(self) -> FloatArray:
+        """Reconstruct the logit mortality surface from fitted parameters.
+
+        Returns:
+            Logit mortality surface with shape (A, T).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_logit_q_m7(self.params)
 
-    def predict_q(self) -> np.ndarray:
-        """Reconstruct q_{x,t} implied by the fitted CBD M7 model."""
+    def predict_q(self) -> FloatArray:
+        """Reconstruct mortality probabilities from fitted parameters.
+
+        Returns:
+            Mortality probabilities with shape (A, T).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_q_m7(self.params)
@@ -282,12 +338,18 @@ class CBDM7:
         n_sims: int = 1000,
         seed: int | None = None,
         include_last: bool = False,
-    ) -> np.ndarray:
-        """Vectorized simulation of kappa1_t, kappa2_t or kappa3_t under:
+    ) -> FloatArray:
+        """Simulate random-walk paths for kappa1_t, kappa2_t, or kappa3_t.
 
-            kappa_t = kappa_{t-1} + mu + sigma * eps_t.
+        Args:
+            kappa_index: "kappa1", "kappa2", or "kappa3".
+            horizon: Number of years to simulate.
+            n_sims: Number of scenarios.
+            seed: Random seed for reproducibility.
+            include_last: Whether to include the last observed kappa_t.
 
-        Uses simulate_random_walk_paths for efficiency.
+        Returns:
+            Simulated paths with shape (N, H) or (N, H + 1) if include_last.
         """
         if self.params is None:
             raise ValueError("Fit the model first.")
@@ -319,7 +381,7 @@ class CBDM7:
 
         from pymort.analysis.projections import simulate_random_walk_paths
 
-        paths = simulate_random_walk_paths(
+        return simulate_random_walk_paths(
             k_last=k_last,
             mu=float(mu),
             sigma=float(sigma),
@@ -328,5 +390,3 @@ class CBDM7:
             rng=rng,
             include_last=include_last,
         )
-
-        return paths

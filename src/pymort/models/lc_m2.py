@@ -1,34 +1,47 @@
+"""Lee-Carter model with cohort effect (LCM2).
+
+This module implements a Lee-Carter variant that adds a cohort term to capture
+year-of-birth effects.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.models.lc_m1 import fit_lee_carter
 from pymort.models.utils import estimate_rw_params
 
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
+
 
 @dataclass
 class LCM2Params:
-    """Parameters of the Lee–Carter with cohort effect (LC M2) :
+    """Parameters for the Lee-Carter model with a cohort effect.
 
-        log m_{x,t} = a_x + b_x k_t + gamma_{t-x}
-
-    where gamma_{t-x} captures the cohort effect (year of birth).
+    The model is:
+        log m_{x,t} = a_x + b_x k_t + gamma_{t-x},
+    where gamma_{t-x} captures the year-of-birth (cohort) effect.
     """
 
     # LC "classic" parameters
-    a: np.ndarray  # (A,)
-    b: np.ndarray  # (A,)
-    k: np.ndarray  # (T,)
+    a: FloatArray  # (A,)
+    b: FloatArray  # (A,)
+    k: FloatArray  # (T,)
 
     # cohort effect
-    gamma: np.ndarray  # (C,) values of gamma_c
-    cohorts: np.ndarray  # (C,) indices of cohort c = t - x
+    gamma: FloatArray  # (C,) values of gamma_c
+    cohorts: FloatArray  # (C,) indices of cohort c = t - x
 
     # grids used
-    ages: np.ndarray  # (A,)
-    years: np.ndarray  # (T,)
+    ages: FloatArray  # (A,)
+    years: IntArray  # (T,)
 
     # RW+drift on k_t
     mu: float | None = None
@@ -36,6 +49,17 @@ class LCM2Params:
 
     # convenience helper
     def gamma_for_age_at_last_year(self, age: float) -> float:
+        """Return the cohort effect for a given age at the last calendar year.
+
+        Args:
+            age: Age at the last observed year.
+
+        Returns:
+            Cohort effect gamma_{t-x} for that age.
+
+        Raises:
+            ValueError: If the implied cohort is outside the stored range.
+        """
         c = self.years[-1] - age
         # safety margin
         if c < self.cohorts[0] or c > self.cohorts[-1]:
@@ -50,10 +74,15 @@ class LCM2Params:
         return float(self.gamma[idx])
 
 
-def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
-    """Compute the cohort index c = t - x on the (age, year) grid.
+def _compute_cohort_index(ages: FloatArray, years: IntArray) -> FloatArray:
+    """Compute the cohort index c = t - x on the age/year grid.
 
-    Returns an array C with shape (A, T) where C[x,t] = years[t] - ages[x].
+    Args:
+        ages: Age grid. Shape (A,).
+        years: Calendar year grid. Shape (T,).
+
+    Returns:
+        Cohort indices with shape (A, T) where C[x, t] = years[t] - ages[x].
     """
     ages = np.asarray(ages)
     years = np.asarray(years)
@@ -61,19 +90,31 @@ def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
 
 
 def fit_lee_carter_cohort(
-    m: np.ndarray,
-    ages: np.ndarray,
-    years: np.ndarray,
+    m: FloatArray,
+    ages: FloatArray,
+    years: IntArray,
 ) -> LCM2Params:
-    """Fit the Lee–Carter model with cohort effect:
+    """Fit the Lee-Carter model with a cohort effect.
 
+    The fitted model is:
         log m_{x,t} = a_x + b_x k_t + gamma_{t-x}.
 
-    Simple strategy (analogous to your CBD+cohort):
-      1) Fit the "classic" LC (a_x, b_x, k_t) over the entire surface.
-      2) Compute residuals on log m.
-      3) Aggregate residuals by cohort c = t - x -> gamma_c = mean(residuals).
-      4) Center gamma_c so that its weighted mean is zero (identifiability).
+    Estimation strategy:
+    1) Fit the classic Lee-Carter parameters (a_x, b_x, k_t).
+    2) Compute residuals on log m.
+    3) Average residuals by cohort c = t - x to estimate gamma_c.
+    4) Center gamma_c to enforce identifiability.
+
+    Args:
+        m: Central death rates. Shape (A, T).
+        ages: Age grid. Shape (A,).
+        years: Year grid. Shape (T,).
+
+    Returns:
+        LCM2Params with fitted parameters and grids.
+
+    Raises:
+        ValueError: If inputs have incompatible shapes or invalid values.
     """
     if m.ndim != 2:
         raise ValueError("m must be a 2D array (A, T).")
@@ -128,8 +169,15 @@ def fit_lee_carter_cohort(
     )
 
 
-def reconstruct_log_m_cohort(params: LCM2Params) -> np.ndarray:
-    """Reconstruct log m_{x,t} for LC with cohort on the original grid (ages, years)."""
+def reconstruct_log_m_cohort(params: LCM2Params) -> FloatArray:
+    """Reconstruct log m_{x,t} for the LCM2 model on the original grid.
+
+    Args:
+        params: Fitted LCM2 parameters.
+
+    Returns:
+        Log mortality surface with shape (A, T).
+    """
     a = params.a
     b = params.b
     k = params.k
@@ -150,16 +198,24 @@ def reconstruct_log_m_cohort(params: LCM2Params) -> np.ndarray:
     return base_ln + gamma_matrix
 
 
-def reconstruct_m_cohort(params: LCM2Params) -> np.ndarray:
-    """Reconstruit m_{x,t} pour le modèle LC+cohorte."""
+def reconstruct_m_cohort(params: LCM2Params) -> FloatArray:
+    """Reconstruct m_{x,t} for the LCM2 model.
+
+    Args:
+        params: Fitted LCM2 parameters.
+
+    Returns:
+        Central death rates with shape (A, T).
+    """
     ln_m = reconstruct_log_m_cohort(params)
     return np.exp(ln_m)
 
 
 class LCM2:
-    """Lee–Carter with cohort effect:
+    """Lee-Carter with cohort effect.
 
-    log m_{x,t} = a_x + b_x k_t + gamma_{t-x}.
+    The model is:
+        log m_{x,t} = a_x + b_x k_t + gamma_{t-x}.
     """
 
     def __init__(self) -> None:
@@ -167,17 +223,33 @@ class LCM2:
 
     def fit(
         self,
-        m: np.ndarray,
-        ages: np.ndarray,
-        years: np.ndarray,
+        m: FloatArray,
+        ages: FloatArray,
+        years: IntArray,
     ) -> LCM2:
-        """Fit LC with cohort on a surface m[age, year] and store the parameters."""
+        """Fit the model and store parameters.
+
+        Args:
+            m: Central death rates. Shape (A, T).
+            ages: Age grid. Shape (A,).
+            years: Year grid. Shape (T,).
+
+        Returns:
+            Self, with fitted parameters stored.
+        """
         self.params = fit_lee_carter_cohort(m, ages, years)
         return self
 
     def estimate_rw(self) -> tuple[float, float]:
-        """Estimate RW+drift parameters for k_t and store them in params.
+        """Estimate random-walk-with-drift parameters for k_t.
+
         Gamma_c is treated as fixed (no dynamics).
+
+        Returns:
+            Tuple of (mu, sigma).
+
+        Raises:
+            ValueError: If the model is not fitted.
         """
         if self.params is None:
             raise ValueError("Fit the model first.")
@@ -185,14 +257,22 @@ class LCM2:
         self.params.mu, self.params.sigma = mu, sigma
         return mu, sigma
 
-    def predict_log_m(self) -> np.ndarray:
-        """Reconstruct log m_{x,t} from LC with cohort parameters."""
+    def predict_log_m(self) -> FloatArray:
+        """Reconstruct log m_{x,t} from fitted parameters.
+
+        Returns:
+            Log mortality surface with shape (A, T).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_log_m_cohort(self.params)
 
-    def predict_m(self) -> np.ndarray:
-        """Reconstruct m_{x,t} from LC with cohort parameters."""
+    def predict_m(self) -> FloatArray:
+        """Reconstruct m_{x,t} from fitted parameters.
+
+        Returns:
+            Central death rates with shape (A, T).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_m_cohort(self.params)
@@ -203,9 +283,19 @@ class LCM2:
         n_sims: int = 1000,
         seed: int | None = None,
         include_last: bool = False,
-    ) -> np.ndarray:
-        """Simulate RW-drift paths of k_t using the central vectorized function.
+    ) -> FloatArray:
+        """Simulate random-walk-with-drift paths of k_t.
+
         Gamma_c stays fixed.
+
+        Args:
+            horizon: Number of years to simulate.
+            n_sims: Number of scenarios.
+            seed: Random seed for reproducibility.
+            include_last: Whether to include the last observed k_t.
+
+        Returns:
+            Simulated k_t paths with shape (N, H) or (N, H + 1) if include_last.
         """
         if self.params is None or self.params.mu is None or self.params.sigma is None:
             raise ValueError("Fit & estimate_rw first.")
@@ -223,7 +313,7 @@ class LCM2:
 
         from pymort.analysis.projections import simulate_random_walk_paths
 
-        paths = simulate_random_walk_paths(
+        return simulate_random_walk_paths(
             k_last=k_last,
             mu=mu,
             sigma=sigma,
@@ -232,5 +322,3 @@ class LCM2:
             rng=rng,
             include_last=include_last,
         )
-
-        return paths

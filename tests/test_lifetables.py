@@ -206,9 +206,7 @@ def test_load_m_from_excel_raises_if_filtered_empty(monkeypatch, tmp_path):
         )
 
 
-def test_load_m_from_excel_fallback_rate_col_when_requested_missing(
-    monkeypatch, tmp_path
-):
+def test_load_m_from_excel_fallback_rate_col_when_requested_missing(monkeypatch, tmp_path):
     # Provide sheet with only Male column but request Female -> should fallback
     rows = [
         ["Age", "Year", "Male"],
@@ -221,19 +219,18 @@ def test_load_m_from_excel_fallback_rate_col_when_requested_missing(
 
     monkeypatch.setattr(pd, "read_excel", fake_read_excel)
 
-    out = lt.load_m_from_excel(
-        path=str(tmp_path / "x.xlsx"), sex="Female", age_min=60, age_max=61
-    )
-    ages, years, m = out["m"]
+    out = lt.load_m_from_excel(path=str(tmp_path / "x.xlsx"), sex="Female", age_min=60, age_max=61)
+    _ages, _years, m = out["m"]
     assert m.shape == (2, 1)
     assert np.isfinite(m).all()
     assert (m > 0).all()
 
 
 def test_validate_q_raises_on_bounds_and_nonfinite():
-    import pymort.lifetables as lt
     import numpy as np
     import pytest
+
+    import pymort.lifetables as lt
 
     with pytest.raises(ValueError):
         lt.validate_q(np.array([0.0, 0.2], dtype=float))
@@ -246,9 +243,10 @@ def test_validate_q_raises_on_bounds_and_nonfinite():
 
 
 def test_cohort_survival_from_q_paths_shape_and_nan_tail_and_clip():
-    import pymort.lifetables as lt
     import numpy as np
     import pytest
+
+    import pymort.lifetables as lt
 
     # wrong shape
     with pytest.raises(ValueError):
@@ -272,9 +270,10 @@ def test_cohort_survival_from_q_paths_shape_and_nan_tail_and_clip():
 
 
 def test_survival_paths_from_q_paths_clips_and_shape_validation():
-    import pymort.lifetables as lt
     import numpy as np
     import pytest
+
+    import pymort.lifetables as lt
 
     with pytest.raises(ValueError):
         lt.survival_paths_from_q_paths(np.array([0.1, 0.2], dtype=float))
@@ -291,8 +290,9 @@ def test_survival_paths_from_q_paths_clips_and_shape_validation():
 
 
 def test_find_header_and_map_keeps_first_occurrence():
-    import pymort.lifetables as lt
     import pandas as pd
+
+    import pymort.lifetables as lt
 
     # duplicate "Year" and "Age" columns; should keep the FIRST occurrence
     df = pd.DataFrame(
@@ -308,13 +308,13 @@ def test_find_header_and_map_keeps_first_occurrence():
     assert cmap["Total"] == 3
 
 
-def test_load_m_from_excel_any_accepts_bytes_and_filelike_and_uploadedfile(
-    monkeypatch, tmp_path
-):
-    import pymort.lifetables as lt
-    import pandas as pd
-    import numpy as np
+def test_load_m_from_excel_any_accepts_bytes_and_filelike_and_uploadedfile(monkeypatch, tmp_path):
     import io
+
+    import numpy as np
+    import pandas as pd
+
+    import pymort.lifetables as lt
 
     # fake sheets for pd.read_excel(excel_obj, sheet_name=None, header=None)
     rows = [
@@ -337,13 +337,13 @@ def test_load_m_from_excel_any_accepts_bytes_and_filelike_and_uploadedfile(
 
     # 1) bytes
     out1 = lt.load_m_from_excel_any(b"dummy-bytes", age_min=60, age_max=61)
-    ages, years, m = out1["m"]
+    _ages, _years, m = out1["m"]
     assert m.shape == (2, 2)
     assert np.isfinite(m).all()
 
     # 2) file-like
     out2 = lt.load_m_from_excel_any(io.BytesIO(b"dummy"), age_min=60, age_max=61)
-    ages2, years2, m2 = out2["m"]
+    _ages2, _years2, m2 = out2["m"]
     assert m2.shape == (2, 2)
 
     # 3) fake UploadedFile with getbuffer()
@@ -352,14 +352,15 @@ def test_load_m_from_excel_any_accepts_bytes_and_filelike_and_uploadedfile(
             return b"dummy"
 
     out3 = lt.load_m_from_excel_any(FakeUpload(), age_min=60, age_max=61)
-    ages3, years3, m3 = out3["m"]
+    _ages3, _years3, m3 = out3["m"]
     assert m3.shape == (2, 2)
 
 
 def test_load_m_from_excel_any_raises_if_no_valid_sheet(monkeypatch, tmp_path):
-    import pymort.lifetables as lt
     import pandas as pd
     import pytest
+
+    import pymort.lifetables as lt
 
     def fake_read_excel(*args, **kwargs):
         return {"S": pd.DataFrame([["no", "header"], [1, 2]])}

@@ -1,3 +1,9 @@
+"""Command-line interface for PYMORT.
+
+Note:
+    Docstrings follow Google style to align with project standards.
+"""
+
 from __future__ import annotations
 
 import json
@@ -14,6 +20,7 @@ import typer
 
 from pymort.analysis import MortalityScenarioSet, smooth_mortality_with_cpsplines
 from pymort.analysis.fitting import (
+    FittedModel,
     ModelName,
     fit_mortality_model,
     model_selection_by_forecast_rmse,
@@ -32,12 +39,14 @@ from pymort.analysis.sensitivities import (
 )
 from pymort.lifetables import m_to_q
 from pymort.pipeline import (
+    _derive_bootstrap_params,
     _infer_kind,
     _normalize_spec,
     build_projection_pipeline,
     build_risk_neutral_pipeline,
     hedging_pipeline,
     pricing_pipeline,
+    project_from_fitted_model,
     reporting_pipeline,
     risk_analysis_pipeline,
     stress_testing_pipeline,
@@ -165,7 +174,7 @@ def _read_numeric_series(path: Path) -> np.ndarray:
         return np.load(path)
     if ext == ".npz":
         data = np.load(path)
-        first_key = list(data.keys())[0]
+        first_key = next(iter(data.keys()))
         return np.asarray(data[first_key]).reshape(-1)
     df = pd.read_parquet(path) if ext in {".parquet", ".pq"} else pd.read_csv(path, header=None)
     arr = df.to_numpy().reshape(-1)
@@ -177,7 +186,7 @@ def _read_numeric_matrix(path: Path) -> np.ndarray:
     if ext in {".npy", ".npz"}:
         arr = np.load(path)
         if isinstance(arr, np.lib.npyio.NpzFile):
-            arr = arr[list(arr.keys())[0]]
+            arr = arr[next(iter(arr.keys()))]
         return np.asarray(arr, dtype=float)
     df = pd.read_parquet(path) if ext in {".parquet", ".pq"} else pd.read_csv(path, header=None)
     return np.asarray(df.to_numpy(), dtype=float)
@@ -209,7 +218,7 @@ def _load_m_surface(
     if ext in {".npy", ".npz"}:
         data = np.load(m_path)
         if isinstance(data, np.lib.npyio.NpzFile):
-            m = np.asarray(data[list(data.keys())[0]], dtype=float)
+            m = np.asarray(data[next(iter(data.keys()))], dtype=float)
         else:
             m = np.asarray(data, dtype=float)
         if m.ndim != 2:
@@ -226,8 +235,8 @@ def _load_m_surface(
     cols_lower = {c.lower() for c in df.columns}
     if {"age", "year"} <= cols_lower:
         # long format
-        age_col = [c for c in df.columns if c.lower() == "age"][0]
-        year_col = [c for c in df.columns if c.lower() == "year"][0]
+        age_col = next(c for c in df.columns if c.lower() == "age")
+        year_col = next(c for c in df.columns if c.lower() == "year")
         rate_candidates = [
             c for c in df.columns if c.lower() in {"m", "mx", "rate", "total", "male", "female"}
         ]
@@ -842,7 +851,24 @@ def scen_build_p_cmd(
     years_path: Path | None = typer.Option(None),
     output: Path | None = typer.Option(None, help="Output scenarios npz."),
 ) -> None:
-    """End-to-end projection pipeline (P-measure) → MortalityScenarioSet."""
+    """Run the P-measure projection pipeline.
+
+    Args:
+        ctx: Typer context.
+        m_path: Mortality surface path.
+        train_end: Last year in training set.
+        horizon: Projection horizon in years.
+        n_scenarios: Target number of scenarios.
+        models: Optional subset of models.
+        cpsplines_k: CPsplines knot count.
+        cpsplines_horizon: CPsplines horizon.
+        seed: Random seed for reproducibility.
+        ages: Optional age range.
+        years: Optional year range.
+        ages_path: Optional ages array path.
+        years_path: Optional years array path.
+        output: Output scenarios path.
+    """
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
     model_names: Sequence[str] = (
@@ -921,21 +947,76 @@ def scen_build_q_cmd(
 def scen_summarize_cmd(
     ctx: typer.Context,
     scen_path: Path = typer.Option(..., help="Scenario set npz."),
-    percentiles: str = typer.Option("5,50,95"),
     output: Path | None = typer.Option(None, help="Summary table path."),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
-    perc = [int(x) for x in percentiles.split(",") if x]
+
     summary = summarize_pv_paths(
         scen_set.q_paths.reshape(scen_set.q_paths.shape[0], -1).mean(axis=1)
     )
+
     out = output or c.outdir / "scen_summary.json"
     out.write_text(json.dumps(asdict(summary), indent=2))
     typer.echo(f"Scenario summary saved to {out}")
 
 
 app.add_typer(scen_app, name="scen")
+
+
+# ---------------------------------------------------------------------------
+# SPEC aliases: forecast
+# ---------------------------------------------------------------------------
+
+
+@app.command("forecast")
+def forecast_cmd(
+    ctx: typer.Context,
+    model_path: Path = typer.Argument(..., help="Pickled fitted model."),
+    horizon: int = typer.Option(50, help="Projection horizon."),
+    scenarios: int = typer.Option(1000, "--scenarios", help="Target number of scenarios."),
+    resample: str = typer.Option("year_block", help="Bootstrap resampling mode."),
+    include_last: bool = typer.Option(True, help="Include the last observed year."),
+    output: Path | None = typer.Option(None, help="Output scenarios npz."),
+) -> None:
+    """Generate mortality forecasts from a fitted model.
+
+    Args:
+        ctx: Typer context.
+        model_path: Pickled fitted model (or dict with key "fitted").
+        horizon: Projection horizon in years.
+        scenarios: Target number of scenarios.
+        resample: Bootstrap resampling mode.
+        include_last: Whether to include the last observed year.
+        output: Output path for scenario set (.npz).
+    """
+    c = _ctx(ctx)
+    obj = _load_pickle(model_path)
+    fitted = obj.get("fitted") if isinstance(obj, dict) else obj
+    if not isinstance(fitted, FittedModel):
+        raise typer.BadParameter(
+            "model_path must contain a FittedModel or a dict with key 'fitted'."
+        )
+
+    B_bootstrap, n_process, resample_mode = _derive_bootstrap_params(
+        n_scenarios=int(scenarios),
+        bootstrap_kwargs={"resample": resample},
+    )
+    _, scen_set, _cache = project_from_fitted_model(
+        fitted=fitted,
+        B_bootstrap=B_bootstrap,
+        horizon=int(horizon),
+        n_process=n_process,
+        seed=c.seed,
+        include_last=bool(include_last),
+        resample=resample_mode,
+    )
+    out = output or c.outdir / "scenarios_forecast.npz"
+    _save_scenarios(scen_set, out)
+    typer.echo(
+        f"Forecast scenarios saved to {out} | "
+        f"N={scen_set.n_scenarios()} horizon={scen_set.horizon()}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1045,10 +1126,6 @@ app.add_typer(stress_app, name="stress")
 # ---------------------------------------------------------------------------
 
 price_app = typer.Typer(help="Pricing of longevity instruments.")
-
-
-def _load_scen_and_age(ctx: typer.Context, scen_path: Path) -> MortalityScenarioSet:
-    return _load_scenarios(scen_path)
 
 
 @price_app.command("longevity-bond")
@@ -1209,6 +1286,92 @@ def price_life_annuity_cmd(
 
 
 app.add_typer(price_app, name="price")
+
+
+# ---------------------------------------------------------------------------
+# SPEC aliases: price-bond
+# ---------------------------------------------------------------------------
+
+
+@app.command("price-bond")
+def price_bond_cmd(
+    ctx: typer.Context,
+    model: Path = typer.Option(..., "--model", help="Fitted model pickle or scenario set npz."),
+    maturity: int = typer.Option(..., "--maturity", help="Bond maturity in years."),
+    coupon: str = typer.Option("survivor", "--coupon", help="Coupon type (only 'survivor')."),
+    issue_age: float | None = typer.Option(
+        None, "--issue-age", help="Cohort age at valuation (defaults to median age)."
+    ),
+    notional: float = typer.Option(1.0, help="Bond notional."),
+    include_principal: bool = typer.Option(
+        True,
+        "--include-principal/--no-include-principal",
+        help="Include survival-linked principal.",
+    ),
+    short_rate: float | None = typer.Option(None, help="Flat short rate for pricing."),
+    scenarios: int = typer.Option(
+        1000, "--scenarios", help="Scenario count when projecting from a fitted model."
+    ),
+    output: Path | None = typer.Option(None, help="Output JSON path."),
+) -> None:
+    """Price a survival-linked bond from a fitted model or scenario set.
+
+    Args:
+        ctx: Typer context.
+        model: Fitted model pickle or scenario set (.npz).
+        maturity: Bond maturity in years.
+        coupon: Coupon type (only "survivor" is supported).
+        issue_age: Cohort age at valuation. Defaults to median age if omitted.
+        notional: Bond notional.
+        include_principal: Whether to include survival-linked principal.
+        short_rate: Flat short rate used for pricing.
+        scenarios: Scenario count when projecting from a fitted model.
+        output: Output JSON path.
+    """
+    c = _ctx(ctx)
+    if coupon.lower() != "survivor":
+        raise typer.BadParameter("Only coupon='survivor' is supported for price-bond.")
+
+    if model.suffix.lower() == ".npz":
+        scen_set = _load_scenarios(model)
+    else:
+        obj = _load_pickle(model)
+        fitted = obj.get("fitted") if isinstance(obj, dict) else obj
+        if not isinstance(fitted, FittedModel):
+            raise typer.BadParameter(
+                "model must contain a FittedModel or a dict with key 'fitted'."
+            )
+        B_bootstrap, n_process, resample_mode = _derive_bootstrap_params(
+            n_scenarios=int(scenarios),
+            bootstrap_kwargs={"resample": "year_block"},
+        )
+        _, scen_set, _cache = project_from_fitted_model(
+            fitted=fitted,
+            B_bootstrap=B_bootstrap,
+            horizon=int(maturity),
+            n_process=n_process,
+            seed=c.seed,
+            include_last=True,
+            resample=resample_mode,
+        )
+
+    if issue_age is None:
+        issue_age = float(np.median(np.asarray(scen_set.ages, dtype=float)))
+
+    spec = LongevityBondSpec(
+        issue_age=float(issue_age),
+        notional=float(notional),
+        include_principal=bool(include_principal),
+        maturity_years=int(maturity),
+    )
+    prices = pricing_pipeline(
+        scen_Q=scen_set,
+        specs={"bond": spec},
+        short_rate=float(short_rate) if short_rate is not None else 0.0,
+    )
+    out = output or c.outdir / "price_bond.json"
+    out.write_text(json.dumps(prices, indent=2))
+    typer.echo(f"Price={prices['bond']:.6f} saved to {out}")
 
 
 # ---------------------------------------------------------------------------
@@ -1465,12 +1628,23 @@ def sens_all_cmd(
     rate_bump: float = typer.Option(1e-4),
     output: Path | None = typer.Option(None),
 ) -> None:
-    """Compute all sensitivities via pipeline.risk_analysis_pipeline."""
+    """Compute all sensitivities via pipeline.risk_analysis_pipeline.
+
+    Args:
+        ctx: Typer context.
+        scen_path: Scenario set npz (Q).
+        specs_path: JSON/YAML specs mapping.
+        short_rate: Short rate for pricing.
+        sigma_rel_bump: Relative sigma bump.
+        q_rel_bump: Relative q bump.
+        rate_bump: Rate bump size.
+        output: Output JSON path.
+    """
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
     specs_cfg = _load_config(specs_path)
     bumps = {
-        "build_scenarios_func": lambda scale_sigma: scen_set,
+        "build_scenarios_func": lambda _scale_sigma: scen_set,
         "sigma_rel_bump": sigma_rel_bump,
         "q_rel_bump": q_rel_bump,
         "rate_bump": rate_bump,
@@ -1507,6 +1681,68 @@ app.add_typer(sens_app, name="sens")
 hedge_app = typer.Typer(help="Hedging utilities.")
 
 
+@hedge_app.callback(invoke_without_command=True)
+def hedge_default_cmd(
+    ctx: typer.Context,
+    liabilities: Path | None = typer.Option(
+        None, "--liabilities", help="Liability PV paths or specs."
+    ),
+    instruments: Path | None = typer.Option(
+        None, "--instruments", help="Instrument PV paths or specs."
+    ),
+    scenarios: Path | None = typer.Option(
+        None, "--scenarios", help="Scenario set npz (required for spec files)."
+    ),
+    method: str = typer.Option("min_variance", help="Hedging method."),
+    short_rate: float | None = typer.Option(None, help="Flat short rate for spec pricing."),
+    output: Path | None = typer.Option(None, help="Output JSON."),
+) -> None:
+    """Alias for hedging with PV paths or scenario-based specs.
+
+    Args:
+        ctx: Typer context.
+        liabilities: Liability PV paths or spec file (YAML/JSON).
+        instruments: Instrument PV paths or spec file (YAML/JSON).
+        scenarios: Scenario set npz when using spec files.
+        method: Hedging method.
+        short_rate: Flat short rate for pricing specs.
+        output: Output JSON path.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+    if liabilities is None or instruments is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
+
+    spec_exts = {".json", ".yaml", ".yml"}
+    is_spec_file = (
+        liabilities.suffix.lower() in spec_exts or instruments.suffix.lower() in spec_exts
+    )
+    if scenarios is not None or is_spec_file:
+        if scenarios is None:
+            raise typer.BadParameter("Provide --scenarios when using spec files.")
+        hedge_end_to_end_cmd(
+            ctx=ctx,
+            scenarios=scenarios,
+            liabilities=liabilities,
+            instruments=instruments,
+            method=method,
+            short_rate=short_rate,
+            output=output,
+        )
+        return
+
+    if method.lower() != "min_variance":
+        raise typer.BadParameter("Only method='min_variance' is supported for PV paths.")
+    hedge_min_variance_cmd(
+        ctx=ctx,
+        liab_pv_path=liabilities,
+        instr_pv_path=instruments,
+        names=None,
+        output=output,
+    )
+
+
 @hedge_app.command("end-to-end")
 def hedge_end_to_end_cmd(
     ctx: typer.Context,
@@ -1524,16 +1760,10 @@ def hedge_end_to_end_cmd(
 
     if not isinstance(liab_cfg, dict):
         raise typer.BadParameter("Liabilities file must contain a mapping of specs.")
-    if "kind" in liab_cfg:
-        liab_specs = {"liability": liab_cfg}
-    else:
-        liab_specs = liab_cfg
+    liab_specs = {"liability": liab_cfg} if "kind" in liab_cfg else liab_cfg
     if not isinstance(instr_cfg, dict):
         raise typer.BadParameter("Instruments file must contain a mapping of specs.")
-    if "kind" in instr_cfg:
-        instr_specs = {"hedge": instr_cfg}
-    else:
-        instr_specs = instr_cfg
+    instr_specs = {"hedge": instr_cfg} if "kind" in instr_cfg else instr_cfg
 
     liab_paths: np.ndarray | None = None
     for spec in liab_specs.values():
@@ -1561,7 +1791,8 @@ def hedge_end_to_end_cmd(
         res.instrument_names = instr_names  # type: ignore[attr-defined]
 
     weights_map = {
-        name: float(w) for name, w in zip(instr_names, np.asarray(res.weights).reshape(-1))
+        name: float(w)
+        for name, w in zip(instr_names, np.asarray(res.weights).reshape(-1), strict=True)
     }
     payload = {
         "method": method,
@@ -1578,7 +1809,6 @@ def hedge_min_variance_cmd(
     ctx: typer.Context,
     liab_pv_path: Path = typer.Option(..., help="Liability PV paths npy/csv/parquet."),
     instr_pv_path: Path = typer.Option(..., help="Instrument PV paths (N,M)."),
-    names: str | None = typer.Option(None, help="Comma-separated instrument names."),
     output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
@@ -1783,7 +2013,7 @@ def plot_animate_cmd(
     statistic: str = typer.Option("median", help="mean or median"),
     interval: int = typer.Option(200, help="Frame interval ms"),
 ) -> None:
-    c = _ctx(ctx)
+    _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
     if type == "surface":
         animate_mortality_surface(
@@ -1951,7 +2181,9 @@ def run_hedge_pipeline_cmd(
         method=hedge_cfg.get("method", "min_variance"),
     )
     res.instrument_names = names  # type: ignore[attr-defined]
-    weights_map = {name: float(w) for name, w in zip(names, np.asarray(res.weights).reshape(-1))}
+    weights_map = {
+        name: float(w) for name, w in zip(names, np.asarray(res.weights).reshape(-1), strict=True)
+    }
 
     out_path = Path(hedge_cfg.get("output", c.outdir / "hedge_weights.json"))
     out_path.parent.mkdir(parents=True, exist_ok=True)

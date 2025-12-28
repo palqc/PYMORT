@@ -1,9 +1,16 @@
+"""Longevity bond pricing helpers.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
 from pymort.pricing.utils import (
@@ -13,29 +20,35 @@ from pymort.pricing.utils import (
     pv_from_cf_paths,
 )
 
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
+
+
+class LongevityBondPricingResult(TypedDict, total=False):
+    """Typed payload for longevity bond pricing."""
+
+    price: float
+    pv_paths: FloatArray
+    age_index: int
+    discount_factors: FloatArray
+    expected_cashflows: FloatArray
+    metadata: dict[str, object]
+    cf_paths: FloatArray
+    times: IntArray
+
 
 @dataclass
 class LongevityBondSpec:
-    """Specification of a simple cohort-based longevity bond.
+    """Specification for a simple cohort-based longevity bond.
 
-    This corresponds to structures similar to the EIB/BNP longevity bond:
-    - coupons proportional to the survival of a given cohort (age x at issue),
-    - principal repayment also scaled by survival at maturity.
+    Coupons are proportional to cohort survival, and the principal can also be
+    linked to survival at maturity.
 
     Attributes:
-    ----------
-    issue_age : float
-        Age of the cohort at the valuation/issue date, e.g. 65.
-        The closest age in `scenario.ages` is used internally.
-    notional : float
-        Nominal notional (face value) of the bond.
-    include_principal : bool
-        If True, a final payment at maturity equal to
-            notional * S_x(T)
-        is included in addition to the last coupon.
-    maturity_years : int | None
-        Number of years from the first projection year to maturity.
-        If None, the whole projection horizon in `scen_set.years` is used.
+        issue_age: Age of the cohort at valuation.
+        notional: Face value of the bond.
+        include_principal: Whether to include survival-linked principal at maturity.
+        maturity_years: Pricing horizon in years; defaults to full scenario horizon.
     """
 
     issue_age: float
@@ -49,9 +62,9 @@ def price_simple_longevity_bond(
     spec: LongevityBondSpec,
     *,
     short_rate: float | None = None,
-    discount_factors: np.ndarray | None = None,
+    discount_factors: FloatArray | None = None,
     return_cf_paths: bool = False,
-) -> dict[str, Any]:
+) -> LongevityBondPricingResult:
     """Price a simple cohort-based longevity bond from mortality scenarios.
 
     Structure:
@@ -62,28 +75,15 @@ def price_simple_longevity_bond(
 
         where S_x(t) is read from scen_set.S_paths for the chosen age.
 
-    Parameters
-    ----------
-    scen_set : MortalityScenarioSet
-        Stochastic mortality scenarios (output of the PYMORT pipeline).
-    spec : LongevityBondSpec
-        Product specification (cohort age, notional, maturity, etc.).
-    short_rate : float | None
-        If provided and no discount_factors are given, a flat continuous
-        short rate used to build discount factors exp(-r * t) with t=1..H in years.
-    discount_factors : np.ndarray | None
-        Optional explicit discount factors D_t of shape (H,). If provided,
-        these override scen_set.discount_factors and short_rate.
+    Args:
+        scen_set: Scenario set with q_paths and S_paths of shape (N, A, H).
+        spec: Product specification.
+        short_rate: Flat continuous rate used when no discount factors are provided.
+        discount_factors: Discount factors of shape (H,) or (N, H).
+        return_cf_paths: Whether to include cashflow paths in the output.
 
     Returns:
-    -------
-    dict
-        A dictionary with keys:
-            - "price": float, Monte-Carlo estimate of present value
-            - "pv_paths": np.ndarray, shape (N,) present value per scenario
-            - "age_index": int, index of the cohort in scen_set.ages
-            - "discount_factors": np.ndarray, shape (H,)
-            - "metadata": dict with extra info (spec, N, horizon, etc.)
+        Pricing payload with price, PV paths, discount factors, and metadata.
     """
     # Basic shape checks
     q_paths = np.asarray(scen_set.q_paths, dtype=float)
@@ -94,7 +94,7 @@ def price_simple_longevity_bond(
             f"q_paths and S_paths must have the same shape; got {q_paths.shape} vs {S_paths.shape}."
         )
 
-    N, A, H_full = S_paths.shape
+    N, _A, H_full = S_paths.shape
 
     # Determine maturity horizon in time steps
     if spec.maturity_years is None:
@@ -152,7 +152,7 @@ def price_simple_longevity_bond(
 
     # Principal at maturity: N_T = notional * S_x(T)
     if spec.include_principal:
-        # Ajoute le nominal à la dernière colonne des coupons
+        # Add principal to the final coupon payment.
         coupons[:, -1] += spec.notional * S_age[:, -1]
 
     # Present value per scenario (consistent PV <-> CF)
@@ -162,7 +162,7 @@ def price_simple_longevity_bond(
 
     times = np.asarray(scen_set.years[:H], dtype=int)
 
-    metadata: dict[str, Any] = {
+    metadata: dict[str, object] = {
         "N_scenarios": int(N),
         "horizon_used": int(H),
         "issue_age": float(spec.issue_age),
@@ -172,7 +172,7 @@ def price_simple_longevity_bond(
         "maturity_years": (None if spec.maturity_years is None else int(spec.maturity_years)),
     }
 
-    payload: dict[str, Any] = {
+    payload: LongevityBondPricingResult = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,

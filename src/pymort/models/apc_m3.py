@@ -1,56 +1,74 @@
+"""Age-Period-Cohort mortality model (APC M3).
+
+This module fits and simulates a simple age-period-cohort model on log mortality.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.models.utils import estimate_rw_params
+
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
 
 
 @dataclass
 class APCM3Params:
-    """Parameters of the Age–Period–Cohort model M3:
+    """Parameters for the Age-Period-Cohort model M3.
 
-        log m_{x,t} = beta_x + kappa_t + gamma_{t-x}
+    The model is:
+        log m_{x,t} = beta_x + kappa_t + gamma_{t-x}.
 
-    In the original Cairns–Blake–Dowd notation this is often written as:
-
-        log m_{x,t} = β_x^(1) + n_a^{-1} κ_t^(2) + n_a^{-1} gamma_{t-x}^(3)
-
-    The factor 1 / n_a is only a normalization; here we absorb it into
-    kappa_t and gamma_c for a simpler implementation. The fitted
-    log-mortality surface is unchanged.
+    In some CBD/APC notation, kappa_t and gamma_c can be normalized by a factor
+    1 / n_a. Here we absorb that normalization into the parameters to keep the
+    fitted surface unchanged.
     """
 
-    beta_age: np.ndarray  # (A,)  age effect β_x
-    kappa: np.ndarray  # (T,)  period effect κ_t
-    gamma: np.ndarray  # (C,)  cohort effect gamma_c
-    cohorts: np.ndarray  # (C,)  sorted cohort indices c = t - x
+    beta_age: FloatArray  # (A,)  age effect beta_x
+    kappa: FloatArray  # (T,)  period effect kappa_t
+    gamma: FloatArray  # (C,)  cohort effect gamma_c
+    cohorts: FloatArray  # (C,)  sorted cohort indices c = t - x
 
-    ages: np.ndarray  # (A,)
-    years: np.ndarray  # (T,)
+    ages: FloatArray  # (A,)
+    years: IntArray  # (T,)
 
     # RW + drift parameters for kappa_t (used for forecasting)
     mu: float | None = None
     sigma: float | None = None
 
     def gamma_for_age_at_last_year(self, age: float) -> float:
-        """Return gamma_{t-x} for a given age at the LAST observed calendar year.
+        """Return the cohort effect for a given age at the last calendar year.
 
-        This is mainly a convenience helper for diagnostics / plotting.
+        Args:
+            age: Age at the last observed year.
+
+        Returns:
+            Cohort effect gamma_{t-x} for that age.
         """
         c = self.years[-1] - age
-        c_rounded = int(round(c))
+        c_rounded = round(c)
         idx = np.searchsorted(self.cohorts, c_rounded)
         if idx >= len(self.cohorts):
             idx = len(self.cohorts) - 1
         return float(self.gamma[idx])
 
 
-def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
-    """Compute the cohort index c = t - x on the (age, year) grid.
+def _compute_cohort_index(ages: FloatArray, years: IntArray) -> FloatArray:
+    """Compute the cohort index c = t - x on the age/year grid.
 
-    Returns an array C with shape (A, T) where C[x, t] = years[t] - ages[x].
+    Args:
+        ages: Age grid. Shape (A,).
+        years: Calendar year grid. Shape (T,).
+
+    Returns:
+        Cohort indices with shape (A, T) where C[x, t] = years[t] - ages[x].
     """
     ages = np.asarray(ages)
     years = np.asarray(years)
@@ -58,31 +76,31 @@ def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
 
 
 def fit_apc_m3(
-    m: np.ndarray,
-    ages: np.ndarray,
-    years: np.ndarray,
+    m: FloatArray,
+    ages: FloatArray,
+    years: IntArray,
 ) -> APCM3Params:
-    """Fit the Age–Period–Cohort model M3 on a mortality surface m[age, year]:
+    """Fit the APC M3 model on a mortality surface.
 
+    The model is:
         log m_{x,t} = beta_x + kappa_t + gamma_{t-x} + eps_{x,t}.
 
-    Estimation strategy (simple least squares / "constrained GLM"-style):
+    Estimation strategy (simple least squares):
+    1) beta_x = mean_t log m_{x,t}
+    2) Residuals R_{x,t} = log m_{x,t} - beta_x
+    3) Regress R_{x,t} on period and cohort dummies (first levels as reference)
+    4) Rebuild kappa_t and gamma_c with zero references
 
-      1) Age effect:
-         beta_x = mean_t log m_{x,t}.
+    Args:
+        m: Central death rates. Shape (A, T).
+        ages: Age grid. Shape (A,).
+        years: Year grid. Shape (T,).
 
-      2) Subtract beta_x from log m to obtain residuals R_{x,t}.
+    Returns:
+        APCM3Params with fitted effects and grids.
 
-      3) Fit R_{x,t} ≈ kappa_t + gamma_{t-x} by linear regression:
-           - period dummies for t = 1..T-1 (t = 0 is reference),
-           - cohort dummies for c = 1..C-1 (c = 0 is reference),
-           - no intercept (age effect already captured by beta_x).
-
-         We solve by least squares using np.linalg.lstsq on the flattened
-         residuals.
-
-      4) Rebuild full vectors kappa_t and gamma_c by setting the first
-         period and the first cohort to zero (reference levels).
+    Raises:
+        ValueError: If inputs are invalid or shapes do not match.
     """
     m = np.asarray(m, dtype=float)
     ages = np.asarray(ages)
@@ -124,7 +142,7 @@ def fit_apc_m3(
     cohorts, cohort_idx = np.unique(C_flat, return_inverse=True)
     C = cohorts.size
 
-    # Design matrix X : N × P   (P = (T-1) + (C-1))
+    # Design matrix X : N x P   (P = (T-1) + (C-1))
     # Columns:
     #   0 .. T-2             → period dummies for t = 1..T-1 (t = 0 is ref)
     #   T-1 .. T+C-3         → cohort dummies for c = 1..C-1 (c = 0 is ref)
@@ -164,10 +182,14 @@ def fit_apc_m3(
     )
 
 
-def reconstruct_log_m_apc(params: APCM3Params) -> np.ndarray:
-    """Reconstruct the fitted log-mortality surface:
+def reconstruct_log_m_apc(params: APCM3Params) -> FloatArray:
+    """Reconstruct the fitted log-mortality surface.
 
-    log m_{x,t} = beta_x + kappa_t + gamma_{t-x}
+    Args:
+        params: Fitted APCM3 parameters.
+
+    Returns:
+        Log mortality surface with shape (A, T).
     """
     beta = params.beta_age
     kappa = params.kappa
@@ -189,20 +211,24 @@ def reconstruct_log_m_apc(params: APCM3Params) -> np.ndarray:
     return ln_m_age + ln_m_period + gamma_matrix
 
 
-def reconstruct_m_apc(params: APCM3Params) -> np.ndarray:
-    """Reconstruct m_{x,t} from APC M3 parameters."""
+def reconstruct_m_apc(params: APCM3Params) -> FloatArray:
+    """Reconstruct m_{x,t} from APC M3 parameters.
+
+    Args:
+        params: Fitted APCM3 parameters.
+
+    Returns:
+        Central death rates with shape (A, T).
+    """
     ln_m = reconstruct_log_m_apc(params)
     return np.exp(ln_m)
 
 
 class APCM3:
-    """Age–Period–Cohort model M3:
+    """Age-Period-Cohort model M3.
 
+    The model is:
         log m_{x,t} = beta_x + kappa_t + gamma_{t-x}.
-
-    - beta_x  : age effect
-    - kappa_t : period effect (calendar time)
-    - gamma_c : cohort effect (year of birth, c = t - x)
     """
 
     def __init__(self) -> None:
@@ -210,20 +236,30 @@ class APCM3:
 
     def fit(
         self,
-        m: np.ndarray,
-        ages: np.ndarray,
-        years: np.ndarray,
+        m: FloatArray,
+        ages: FloatArray,
+        years: IntArray,
     ) -> APCM3:
-        """Fit APC M3 and store the resulting parameters."""
+        """Fit the model and store parameters.
+
+        Args:
+            m: Central death rates. Shape (A, T).
+            ages: Age grid. Shape (A,).
+            years: Year grid. Shape (T,).
+
+        Returns:
+            Self, with fitted parameters stored.
+        """
         self.params = fit_apc_m3(m, ages, years)
         return self
 
     def estimate_rw(self) -> tuple[float, float]:
-        """Estimate RW+drift parameters for the period index kappa_t:
-
-            kappa_t = kappa_{t-1} + mu + eps_t.
+        """Estimate random-walk-with-drift parameters for kappa_t.
 
         The cohort effect gamma_c is treated as static.
+
+        Returns:
+            Tuple of (mu, sigma).
         """
         if self.params is None:
             raise ValueError("Fit the model first.")
@@ -231,14 +267,22 @@ class APCM3:
         self.params.mu, self.params.sigma = mu, sigma
         return mu, sigma
 
-    def predict_log_m(self) -> np.ndarray:
-        """Reconstruct log m_{x,t} from fitted APC M3 parameters."""
+    def predict_log_m(self) -> FloatArray:
+        """Reconstruct log m_{x,t} from fitted parameters.
+
+        Returns:
+            Log mortality surface with shape (A, T).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_log_m_apc(self.params)
 
-    def predict_m(self) -> np.ndarray:
-        """Reconstruct m_{x,t} from fitted APC M3 parameters."""
+    def predict_m(self) -> FloatArray:
+        """Reconstruct m_{x,t} from fitted parameters.
+
+        Returns:
+            Central death rates with shape (A, T).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_m_apc(self.params)
@@ -249,13 +293,19 @@ class APCM3:
         n_sims: int = 1000,
         seed: int | None = None,
         include_last: bool = False,
-    ) -> np.ndarray:
-        """Simulate future trajectories of the period index kappa_t under
+    ) -> FloatArray:
+        """Simulate random-walk-with-drift paths of kappa_t.
 
-            kappa_t = kappa_{t-1} + mu + eps_t
-
-        using the central vectorized RW simulator.
         Gamma_c remains fixed (cohort effect not simulated).
+
+        Args:
+            horizon: Number of years to simulate.
+            n_sims: Number of scenarios.
+            seed: Random seed for reproducibility.
+            include_last: Whether to include the last observed kappa_t.
+
+        Returns:
+            Simulated kappa_t paths with shape (N, H) or (N, H + 1) if include_last.
         """
         if self.params is None or self.params.mu is None or self.params.sigma is None:
             raise ValueError("Fit & estimate_rw first.")
@@ -273,7 +323,7 @@ class APCM3:
 
         from pymort.analysis.projections import simulate_random_walk_paths
 
-        paths = simulate_random_walk_paths(
+        return simulate_random_walk_paths(
             k_last=k_last,
             mu=mu,
             sigma=sigma,
@@ -282,5 +332,3 @@ class APCM3:
             rng=rng,
             include_last=include_last,
         )
-
-        return paths

@@ -43,8 +43,7 @@ def _read_stmomo_surface_csv(path: Path) -> pd.DataFrame:
     out = out.dropna(subset=["Age", "Year", val_col])
     out["Age"] = out["Age"].astype(int)
     out["Year"] = out["Year"].astype(int)
-    out = out.rename(columns={val_col: "Value"})
-    return out
+    return out.rename(columns={val_col: "Value"})
 
 
 def _read_stmomo_series_csv(path: Path) -> pd.DataFrame:
@@ -52,8 +51,7 @@ def _read_stmomo_series_csv(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce")
-    df = df.dropna()
-    return df
+    return df.dropna()
 
 
 def _read_stmomo_params_csv(path: Path) -> pd.DataFrame:
@@ -61,8 +59,7 @@ def _read_stmomo_params_csv(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce")
-    df = df.dropna()
-    return df
+    return df.dropna()
 
 
 def _long_to_matrix(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -162,7 +159,7 @@ def _normalize_lc(
     return ax, bx, kt
 
 
-def _align_sign(bx_py, kt_py, bx_r, kt_r):
+def _align_sign(bx_py, kt_py, kt_r):
     """Fix sign indeterminacy: if kt correlation is negative, flip Python (bx, kt)."""
     corr = np.corrcoef(np.asarray(kt_py).ravel(), np.asarray(kt_r).ravel())[0, 1]
     if np.isfinite(corr) and corr < 0:
@@ -290,8 +287,6 @@ def main() -> None:
     print(f"- RMSE(logitq)   = {cbd_check.rmse:.6g} (tol {0.10})")
     print(f"- max_abs(logitq)= {cbd_check.max_abs:.6g} (tol {0.30})")
     print(f"- surface OK     = {cbd_check.ok}")
-
-    ok_all = lc_ok and cbd_check.ok
 
     if not lc_ok:
         raise SystemExit("❌ LC validation failed: (corr or kt RMSE rel) beyond tolerance.")

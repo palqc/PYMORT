@@ -1,3 +1,12 @@
+"""Scenario containers and serialization helpers.
+
+This module defines the standard mortality scenario container used by pricing
+and provides helpers to validate and serialize scenarios.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from __future__ import annotations
 
 import json
@@ -19,45 +28,23 @@ from pymort.lifetables import (
 class MortalityScenarioSet:
     """Container for stochastic mortality scenarios, ready for pricing.
 
-    This is the standard interface between the mortality modeling
-    layer (fit + projections) and the pricing layer (longevity bonds,
-    survivor swaps, q-forwards, etc.).
+    This is the standard interface between the modeling layer (fit + projections)
+    and the pricing layer (longevity bonds, swaps, forwards, etc.).
 
     Attributes:
-    ----------
-    years : np.ndarray
-        Future calendar years of shape (H_out,).
-        Typically starts at last_observed_year (+ optional t=0 anchor).
-    ages : np.ndarray
-        Ages grid of shape (A,).
-
-    q_paths : np.ndarray
-        Death probabilities q_{x,t} under the chosen measure (P or Q),
-        with shape (N, A, H_out), where
-        - N : number of scenarios (bootstrap * process risk),
-        - A : number of ages,
-        - H_out : number of future time points.
-
-    S_paths : np.ndarray
-        Survival probabilities S_{x,t} corresponding to q_paths,
-        shape (N, A, H_out). Usually S_paths is obtained from q_paths
-        via ``survival_paths_from_q_paths``.
-
-    m_paths : Optional[np.ndarray]
-        Optional central death rates m_{x,t} (N, A, H_out).
-        Only populated for log-m models (e.g., LC/APC). For CBD
-        models (logit q), this may be None.
-
-    discount_factors : Optional[np.ndarray]
-        Optional discount factors D_t of shape (H_out,). If None,
-        pricing routines may assume deterministic or external
-        discount curves.
-
-    metadata : dict
-        Optional dictionary for extra context, e.g.:
-        - "measure": "P" or "Q"
-        - "model": "LCM2", "CBDM7", ...
-        - "source": "bootstrap_from_m + project_mortality_from_bootstrap"
+        years (np.ndarray): Future calendar years, shape (H_out,). Typically
+            starts at the last observed year (+ optional t=0 anchor).
+        ages (np.ndarray): Age grid, shape (A,).
+        q_paths (np.ndarray): Death probabilities q_{x,t} under the chosen
+            measure (P or Q), shape (N, A, H_out).
+        S_paths (np.ndarray): Survival probabilities S_{x,t}, shape (N, A, H_out),
+            usually computed from q_paths.
+        m_paths (np.ndarray | None): Central death rates m_{x,t}, shape
+            (N, A, H_out) for log-m models; None for logit-q models.
+        discount_factors (np.ndarray | None): Discount factors D_t, shape (H_out,)
+            or scenario-specific factors (N, H_out). If None, pricing routines
+            may assume deterministic or external discount curves.
+        metadata (dict[str, Any]): Extra context such as measure and model name.
     """
 
     years: np.ndarray
@@ -82,8 +69,13 @@ class MortalityScenarioSet:
 
 
 def validate_scenario_set(scen_set: MortalityScenarioSet) -> None:
-    """Lightweight validation of a MortalityScenarioSet.
-    Raises ValueError on any detected inconsistency.
+    """Validate a MortalityScenarioSet for basic consistency.
+
+    Args:
+        scen_set: Scenario set to validate.
+
+    Raises:
+        ValueError: If any shape, finiteness, or monotonicity checks fail.
     """
     years = np.asarray(scen_set.years)
     ages = np.asarray(scen_set.ages)
@@ -134,7 +126,12 @@ def validate_scenario_set(scen_set: MortalityScenarioSet) -> None:
 
 
 def save_scenario_set_npz(scen_set: MortalityScenarioSet, path: Path | str) -> None:
-    """Persist a MortalityScenarioSet to disk as compressed NPZ."""
+    """Persist a MortalityScenarioSet to disk as compressed NPZ.
+
+    Args:
+        scen_set: Scenario set to serialize.
+        path: Output path for the NPZ file.
+    """
     target = Path(path)
     payload: dict[str, Any] = {
         "q_paths": scen_set.q_paths,
@@ -152,23 +149,29 @@ def save_scenario_set_npz(scen_set: MortalityScenarioSet, path: Path | str) -> N
 
 
 def load_scenario_set_npz(path: Path | str) -> MortalityScenarioSet:
-    """Load a MortalityScenarioSet saved by ``save_scenario_set_npz``."""
+    """Load a MortalityScenarioSet saved by `save_scenario_set_npz`.
+
+    Args:
+        path: NPZ file path.
+
+    Returns:
+        Deserialized MortalityScenarioSet.
+    """
     data = np.load(Path(path), allow_pickle=True)
     metadata_raw = data.get("metadata", "{}")
     try:
         metadata = json.loads(str(metadata_raw))
     except Exception:
         metadata = {}
-    scen_set = MortalityScenarioSet(
+    return MortalityScenarioSet(
         years=np.asarray(data["years"]),
         ages=np.asarray(data["ages"]),
         q_paths=np.asarray(data["q_paths"]),
         S_paths=np.asarray(data["S_paths"]),
-        m_paths=data["m_paths"] if "m_paths" in data else None,
-        discount_factors=(data["discount_factors"] if "discount_factors" in data else None),
+        m_paths=data.get("m_paths", None),
+        discount_factors=(data.get("discount_factors", None)),
         metadata=metadata,
     )
-    return scen_set
 
 
 def build_scenario_set_from_projection(
@@ -179,24 +182,14 @@ def build_scenario_set_from_projection(
 ) -> MortalityScenarioSet:
     """Build a MortalityScenarioSet from a ProjectionResult.
 
-    Parameters
-    ----------
-    proj : ProjectionResult
-        Output of project_mortality_from_bootstrap, containing
-        years, q_paths, m_paths, k_paths.
-    ages : np.ndarray
-        Ages grid of shape (A,).
-    discount_factors : np.ndarray | None
-        Optional discount factors D_t for the same timeline as proj.years.
-        If None, pricing routines can use an external yield curve or
-        assume deterministic rates.
-    metadata : dict | None
-        Optional metadata (e.g. {"model": "LCM2", "measure": "P"}).
+    Args:
+        proj: Output of `project_mortality_from_bootstrap` with years and paths.
+        ages: Age grid, shape (A,).
+        discount_factors: Optional discount factors aligned with proj.years.
+        metadata: Optional metadata (e.g., {"model": "LCM2", "measure": "P"}).
 
     Returns:
-    -------
-    MortalityScenarioSet
-        Ready-to-use mortality scenario container for pricing.
+        MortalityScenarioSet ready for pricing.
     """
     q_paths = np.asarray(proj.q_paths, dtype=float)
     validate_q(q_paths)
@@ -204,7 +197,7 @@ def build_scenario_set_from_projection(
     if q_paths.ndim != 3:
         raise ValueError(f"proj.q_paths must have shape (N, A, H), got {q_paths.shape}.")
 
-    N, A, H = q_paths.shape
+    _N, A, H = q_paths.shape
     if ages.shape[0] != A:
         raise ValueError(f"Age dimension mismatch: q_paths has A={A}, ages has {ages.shape[0]}.")
     if proj.years.shape[0] != H:
@@ -233,10 +226,7 @@ def build_scenario_set_from_projection(
             raise ValueError("discount_factors must be positive and finite.")
         discount_factors = df
 
-    if metadata is None:
-        metadata = {}
-    else:
-        metadata = dict(metadata)
+    metadata = {} if metadata is None else dict(metadata)
 
     return MortalityScenarioSet(
         years=proj.years,

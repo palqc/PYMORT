@@ -1,10 +1,27 @@
+"""Pricing utilities for cashflow and survival calculations.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
 
+FloatArray = NDArray[np.floating]
 
-def find_nearest_age_index(ages: np.ndarray, target_age: float) -> int:
-    """Return the index of the age in `ages` closest to `target_age`."""
+
+def find_nearest_age_index(ages: FloatArray, target_age: float) -> int:
+    """Return the index of the age closest to target_age.
+
+    Args:
+        ages: Age grid. Shape (A,).
+        target_age: Target age to match.
+
+    Returns:
+        Index of the closest age in the grid.
+    """
     ages = np.asarray(ages, dtype=float)
     return int(np.argmin(np.abs(ages - float(target_age))))
 
@@ -12,9 +29,9 @@ def find_nearest_age_index(ages: np.ndarray, target_age: float) -> int:
 def build_discount_factors(
     scen_set: MortalityScenarioSet,
     short_rate: float | None,
-    discount_factors: np.ndarray | None,
+    discount_factors: FloatArray | None,
     H: int,
-) -> np.ndarray:
+) -> FloatArray:
     """Determine discount factors for the pricing horizon.
 
     Priority:
@@ -22,7 +39,14 @@ def build_discount_factors(
         2) scen_set.discount_factors (if present),
         3) flat short_rate (if provided).
 
-    Returns 1D (H,) or 2D (N,H) array when scenario-specific discounting is provided.
+    Args:
+        scen_set: Scenario set with optional discount factors.
+        short_rate: Flat short rate used if no discount factors are provided.
+        discount_factors: Explicit discount factors, shape (H,) or (N, H).
+        H: Pricing horizon (number of time steps).
+
+    Returns:
+        Discount factors with shape (H,) or (N, H).
     """
     # 1) Explicit discount factors
     if discount_factors is not None:
@@ -76,24 +100,18 @@ def build_discount_factors(
         raise ValueError("short_rate must be finite.")
 
     t = np.arange(1, H + 1, dtype=float)
-    df = np.exp(-r * t)
-    return df
+    return np.exp(-r * t)
 
 
-def pv_from_cf_paths(cf_paths: np.ndarray, discount_factors: np.ndarray) -> np.ndarray:
+def pv_from_cf_paths(cf_paths: FloatArray, discount_factors: FloatArray) -> FloatArray:
     """Compute PV per scenario from cashflow paths and discount factors.
 
-    Parameters
-    ----------
-    cf_paths : np.ndarray
-        Cashflows by scenario and time, shape (N, H).
-    discount_factors : np.ndarray
-        Discount factors, shape (H,) or (1,H) or (N,H).
+    Args:
+        cf_paths: Cashflows by scenario and time, shape (N, H).
+        discount_factors: Discount factors, shape (H,), (1, H), or (N, H).
 
     Returns:
-    -------
-    np.ndarray
-        PV per scenario, shape (N,).
+        Present value per scenario with shape (N,).
     """
     cf = np.asarray(cf_paths, dtype=float)
     if cf.ndim != 2:
@@ -119,20 +137,18 @@ def pv_from_cf_paths(cf_paths: np.ndarray, discount_factors: np.ndarray) -> np.n
     raise ValueError("discount_factors must be 1D or 2D.")
 
 
-def pv_matrix_from_cf_paths(cf_paths: np.ndarray, discount_factors: np.ndarray) -> np.ndarray:
+def pv_matrix_from_cf_paths(cf_paths: FloatArray, discount_factors: FloatArray) -> FloatArray:
     """Compute PV-by-horizon matrix from cashflow paths.
 
-    pv[n,h] = sum_{t>=h} cf[n,t] * D[n,t]/D[n,h]
+    The PV at horizon h is:
+        pv[n, h] = sum_{t>=h} cf[n, t] * D[n, t] / D[n, h]
 
-    Parameters
-    ----------
-    cf_paths : (N,T)
-    discount_factors : (T,) or (1,T) or (N,T)
+    Args:
+        cf_paths: Cashflows by scenario and time, shape (N, T).
+        discount_factors: Discount factors, shape (T,), (1, T), or (N, T).
 
     Returns:
-    -------
-    pv : (N,T)
-        PV at each horizon h for each scenario n.
+        PV at each horizon for each scenario, shape (N, T).
     """
     cf = np.asarray(cf_paths, dtype=float)
     if cf.ndim != 2:
@@ -163,21 +179,39 @@ def pv_matrix_from_cf_paths(cf_paths: np.ndarray, discount_factors: np.ndarray) 
     # tail sums: sum_{t>=h} cf*D
     tail = np.cumsum(cfd[:, ::-1], axis=1)[:, ::-1]  # (N,T)
 
-    # divide by D_h -> PV at horizon h
-    pv = tail / df
-    return pv
+    return tail / df
 
 
 def cohort_survival_full_horizon_from_q(
-    q_paths: np.ndarray,
-    ages: np.ndarray,
+    q_paths: FloatArray,
+    ages: FloatArray,
     *,
     age0: float,
     horizon: int,
     age_fit_min: int = 80,
     age_fit_max: int = 95,
     m_floor: float = 1e-12,
-) -> np.ndarray:
+) -> FloatArray:
+    """Build cohort survival over the full horizon using a Gompertz tail.
+
+    For ages within the provided grid, this uses the diagonal of q_paths.
+    Beyond the maximum age, it fits a Gompertz tail per time step and scenario.
+
+    Args:
+        q_paths: One-year death probabilities. Shape (N, A, H).
+        ages: Age grid. Shape (A,).
+        age0: Cohort age at projection start.
+        horizon: Number of years to build.
+        age_fit_min: Minimum age used in the Gompertz fit window.
+        age_fit_max: Maximum age used in the Gompertz fit window.
+        m_floor: Floor for converting q to m before log fitting.
+
+    Returns:
+        Cohort survival paths with shape (N, H).
+
+    Raises:
+        ValueError: If the fit window is not available or degenerate.
+    """
     q_paths = np.asarray(q_paths, dtype=float)  # (N,A,H)
     ages = np.asarray(ages, dtype=float)
     N, A, H = q_paths.shape

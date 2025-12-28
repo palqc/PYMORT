@@ -1,34 +1,47 @@
+"""Cairns-Blake-Dowd model with cohort effect (CBD M6).
+
+This module extends the basic CBD model with a cohort term to capture
+year-of-birth effects.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pymort.lifetables import validate_q
 from pymort.models.cbd_m5 import _logit, fit_cbd
 from pymort.models.utils import _estimate_rw_params
 
+FloatArray = NDArray[np.floating]
+IntArray = NDArray[np.integer]
+
 
 @dataclass
 class CBDM6Params:
-    """Parameters of a CBD model with cohort effect (M6):
+    """Parameters for the CBD model with a cohort effect.
 
-        logit(q_{x,t}) = kappa1_t + kappa2_t * (x - x_bar) + gamma_{t-x}
-
-    where gamma_{t-x} captures cohort effects (year-of-birth effect).
+    The model is:
+        logit(q_{x,t}) = kappa1_t + kappa2_t * (x - x_bar) + gamma_{t-x},
+    where gamma_{t-x} captures year-of-birth effects.
     """
 
     # Period factors (as in basic CBD)
-    kappa1: np.ndarray  # (T,)
-    kappa2: np.ndarray  # (T,)
+    kappa1: FloatArray  # (T,)
+    kappa2: FloatArray  # (T,)
 
     # Cohort effect
-    gamma: np.ndarray  # (C,) values of cohort effect
-    cohorts: np.ndarray  # (C,) corresponding cohort indices c = t - x
+    gamma: FloatArray  # (C,) values of cohort effect
+    cohorts: FloatArray  # (C,) corresponding cohort indices c = t - x
 
     # Age / time grids used in the fit
-    ages: np.ndarray  # (A,)
-    years: np.ndarray  # (T,)
+    ages: FloatArray  # (A,)
+    years: IntArray  # (T,)
     x_bar: float  # mean age used for centering
 
     # Optional RW+drift parameters on (kappa1_t, kappa2_t)
@@ -38,8 +51,16 @@ class CBDM6Params:
     sigma2: float | None = None
 
     def gamma_for_age_at_last_year(self, age: float) -> float:
-        """Return gamma_{t-x} for a given age at the last observed calendar year.
-        Assumes age is (en pratique) sur la grille self.ages.
+        """Return gamma_{t-x} for a given age at the last observed year.
+
+        Args:
+            age: Age at the last observed year.
+
+        Returns:
+            Cohort effect gamma_{t-x}.
+
+        Raises:
+            ValueError: If the implied cohort is not in the stored grid.
         """
         ages_grid = np.asarray(self.ages, dtype=float)
         age_eff = float(ages_grid[np.argmin(np.abs(ages_grid - float(age)))])
@@ -55,26 +76,43 @@ class CBDM6Params:
         return float(self.gamma[idx])
 
 
-def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
-    """Compute the cohort index c = t - x on the (age, year) grid.
+def _compute_cohort_index(ages: FloatArray, years: IntArray) -> FloatArray:
+    """Compute the cohort index c = t - x on the age/year grid.
 
-    Returns an array C with shape (A, T) where C[x,t] = years[t] - ages[x].
+    Args:
+        ages: Age grid. Shape (A,).
+        years: Calendar year grid. Shape (T,).
+
+    Returns:
+        Cohort indices with shape (A, T) where C[x, t] = years[t] - ages[x].
     """
     ages = np.asarray(ages)
     years = np.asarray(years)
     return years[None, :] - ages[:, None]
 
 
-def fit_cbd_cohort(q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM6Params:
-    """Fit a CBD model with an additional cohort effect:
+def fit_cbd_cohort(q: FloatArray, ages: FloatArray, years: IntArray) -> CBDM6Params:
+    """Fit the CBD model with an additional cohort effect.
 
+    The model is:
         logit(q_{x,t}) = kappa1_t + kappa2_t * (x - x_bar) + gamma_{t-x}.
 
     Strategy:
-      1) Fit the basic CBD model (period factors only) on q_x,t.
-      2) Compute residuals on logit scale.
-      3) For each cohort c = t - x, average residuals over all (x,t) with that cohort.
-      4) Center gamma_c so that its (weighted) mean is zero (identifiability).
+    1) Fit the basic CBD model (period factors only).
+    2) Compute logit residuals.
+    3) Average residuals by cohort c = t - x to estimate gamma_c.
+    4) Center gamma_c for identifiability.
+
+    Args:
+        q: Death probabilities. Shape (A, T).
+        ages: Age grid. Shape (A,).
+        years: Year grid. Shape (T,).
+
+    Returns:
+        CBDM6Params with fitted period and cohort effects.
+
+    Raises:
+        ValueError: If inputs are invalid or shapes do not match.
     """
     if q.ndim != 2:
         raise ValueError("q must be a 2D array with shape (A, T).")
@@ -129,8 +167,15 @@ def fit_cbd_cohort(q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM6P
     )
 
 
-def reconstruct_logit_q_cbd_cohort(params: CBDM6Params) -> np.ndarray:
-    """Reconstruct logit(q_{x,t}) for the CBD cohort model on the original age/year grid."""
+def reconstruct_logit_q_cbd_cohort(params: CBDM6Params) -> FloatArray:
+    """Reconstruct logit(q_{x,t}) for the CBD cohort model.
+
+    Args:
+        params: Fitted CBDM6 parameters.
+
+    Returns:
+        Logit mortality surface with shape (A, T).
+    """
     ages = params.ages
     years = params.years
     z = ages - params.x_bar  # (A,)
@@ -153,15 +198,29 @@ def reconstruct_logit_q_cbd_cohort(params: CBDM6Params) -> np.ndarray:
     return base_logit + gamma_matrix
 
 
-def reconstruct_q_cbd_cohort(params: CBDM6Params) -> np.ndarray:
-    """Reconstruct q_{x,t} for the CBD cohort model."""
+def reconstruct_q_cbd_cohort(params: CBDM6Params) -> FloatArray:
+    """Reconstruct q_{x,t} for the CBD cohort model.
+
+    Args:
+        params: Fitted CBDM6 parameters.
+
+    Returns:
+        Mortality probabilities with shape (A, T).
+    """
     logit_q = reconstruct_logit_q_cbd_cohort(params)
     return 1.0 / (1.0 + np.exp(-logit_q))
 
 
 def estimate_rw_params_cbd_cohort(params: CBDM6Params) -> CBDM6Params:
-    """Estimate RW+drift parameters for (kappa1_t, kappa2_t) and store them
-    into the CBDM6Params object. Gamma is cohort-specific and treated as static.
+    """Estimate random-walk-with-drift parameters for kappa1_t and kappa2_t.
+
+    Gamma is treated as static.
+
+    Args:
+        params: Fitted CBDM6 parameters.
+
+    Returns:
+        Updated CBDM6Params with mu/sigma values stored.
     """
     mu1, sigma1 = _estimate_rw_params(params.kappa1)
     mu2, sigma2 = _estimate_rw_params(params.kappa2)
@@ -171,21 +230,31 @@ def estimate_rw_params_cbd_cohort(params: CBDM6Params) -> CBDM6Params:
 
 
 class CBDM6:
-    """CBD model with cohort effect:
-
-    logit(q_{x,t}) = kappa1_t + kappa2_t * (x - x_bar) + gamma_{t-x}.
-    """
+    """CBD model with a cohort effect."""
 
     def __init__(self) -> None:
         self.params: CBDM6Params | None = None
 
-    def fit(self, q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM6:
-        """Fit the CBD cohort model on q[age, year] and store parameters."""
+    def fit(self, q: FloatArray, ages: FloatArray, years: IntArray) -> CBDM6:
+        """Fit the model and store parameters.
+
+        Args:
+            q: Death probabilities. Shape (A, T).
+            ages: Age grid. Shape (A,).
+            years: Year grid. Shape (T,).
+
+        Returns:
+            Self, with fitted parameters stored.
+        """
         self.params = fit_cbd_cohort(q, ages, years)
         return self
 
     def estimate_rw(self) -> tuple[float, float, float, float]:
-        """Estimate RW+drift parameters for (kappa1_t, kappa2_t)."""
+        """Estimate random-walk-with-drift parameters for kappa1_t and kappa2_t.
+
+        Returns:
+            Tuple of (mu1, sigma1, mu2, sigma2).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         self.params = estimate_rw_params_cbd_cohort(self.params)
@@ -196,14 +265,22 @@ class CBDM6:
             self.params.sigma2,
         )
 
-    def predict_logit_q(self) -> np.ndarray:
-        """Reconstruct the logit-mortality surface implied by the fitted CBD cohort model."""
+    def predict_logit_q(self) -> FloatArray:
+        """Reconstruct the logit mortality surface from fitted parameters.
+
+        Returns:
+            Logit mortality surface with shape (A, T).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_logit_q_cbd_cohort(self.params)
 
-    def predict_q(self) -> np.ndarray:
-        """Reconstruct q_{x,t} implied by the fitted CBD cohort model."""
+    def predict_q(self) -> FloatArray:
+        """Reconstruct mortality probabilities from fitted parameters.
+
+        Returns:
+            Mortality probabilities with shape (A, T).
+        """
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_q_cbd_cohort(self.params)
@@ -215,9 +292,18 @@ class CBDM6:
         n_sims: int = 1000,
         seed: int | None = None,
         include_last: bool = False,
-    ) -> np.ndarray:
-        """Simulate random–walk forecasts of kappa1_t or kappa2_t
-        using the fitted drift and volatility parameters (vectorized).
+    ) -> FloatArray:
+        """Simulate random-walk forecasts of kappa1_t or kappa2_t.
+
+        Args:
+            kappa_index: "kappa1" or "kappa2".
+            horizon: Number of years to simulate.
+            n_sims: Number of scenarios.
+            seed: Random seed for reproducibility.
+            include_last: Whether to include the last observed kappa_t.
+
+        Returns:
+            Simulated paths with shape (N, H) or (N, H + 1) if include_last.
         """
         if self.params is None:
             raise ValueError("Fit the model first.")
@@ -245,7 +331,7 @@ class CBDM6:
 
         from pymort.analysis.projections import simulate_random_walk_paths
 
-        paths = simulate_random_walk_paths(
+        return simulate_random_walk_paths(
             k_last=k_last,
             mu=float(mu),
             sigma=float(sigma),
@@ -254,5 +340,3 @@ class CBDM6:
             rng=rng,
             include_last=include_last,
         )
-
-        return paths

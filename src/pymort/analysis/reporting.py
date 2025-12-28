@@ -1,3 +1,12 @@
+"""Risk reporting utilities for scenario PV paths.
+
+This module builds structured risk summaries (VaR/CVaR, moments, and
+comparisons) from simulated present-value paths.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -20,14 +29,13 @@ PVKind = Literal["cost", "value", "pnl"]
 class RiskReport:
     """Structured risk summary for scenario PVs.
 
-    Convention
-    ----------
-    We compute risk on a *loss* variable L:
-      - pv_kind="cost":  L =  PV   (bigger PV = worse)
-      - pv_kind="value": L = -PV   (bigger PV = better, so loss is -PV)
-      - pv_kind="pnl":   L = -PnL  (profit positive -> loss negative)
+    Convention:
+        Risk is computed on a *loss* variable L:
+          - pv_kind="cost":  L =  PV   (bigger PV = worse)
+          - pv_kind="value": L = -PV   (bigger PV = better, so loss is -PV)
+          - pv_kind="pnl":   L = -PnL  (profit positive -> loss is negative)
 
-    Reported VaR/CVaR are on L (loss units).
+    Reported VaR/CVaR are computed on L (loss units).
     """
 
     name: str
@@ -128,23 +136,19 @@ def generate_risk_report(
     quantile_grid: Sequence[float] = (0.01, 0.05, 0.50, 0.95, 0.99),
     loss_threshold: float | None = None,
 ) -> RiskReport:
-    """Generate a pro-grade RiskReport from scenario PV paths.
+    """Generate a RiskReport from scenario PV paths.
 
-    Parameters
-    ----------
-    pv_paths:
-        Scenario PVs (N,).
-    pv_kind:
-        "cost" (default): PV is a liability cost. Higher is worse.
-        "value": PV is an asset value. Lower is worse (loss = -PV).
-        "pnl": PV is a PnL. Lower is worse (loss = -PV).
-    ref_pv_paths:
-        Optional reference PVs (same N) to compute reduction metrics.
-    quantile_grid:
-        PV & loss quantiles to store.
-    loss_threshold:
-        Optional loss threshold to report exceedance probability.
-        (Threshold is expressed in *loss* units.)
+    Args:
+        pv_paths: Scenario PVs, shape (N,).
+        name: Report label.
+        var_level: Quantile level for VaR/CVaR (e.g., 0.99).
+        ref_pv_paths: Optional reference PVs (same N) for reduction metrics.
+        pv_kind: "cost", "value", or "pnl" to define the loss convention.
+        quantile_grid: PV and loss quantiles to store.
+        loss_threshold: Optional loss threshold for exceedance probability.
+
+    Returns:
+        RiskReport with summary statistics and risk measures.
     """
     pv = _as_1d(pv_paths, name="pv_paths")
     N = pv.size

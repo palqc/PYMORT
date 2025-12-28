@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-"""
-Lightweight shared utilities that are free of model-level imports.
+"""Shared model utilities that avoid heavy imports.
 
-These helpers are intentionally kept small to avoid circular imports between
-modules under ``pymort.models``.
+These helpers stay small and isolated to prevent circular dependencies inside
+``pymort.models``.
+
+Note:
+    Docstrings follow Google style for clarity and spec alignment.
 """
 
 
@@ -12,16 +14,23 @@ import numpy as np
 
 
 def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
-    """Estimate random-walk-with-drift parameters for a 1D time index:
+    """Estimate random-walk-with-drift parameters for a 1D series.
 
-        k_t = k_{t-1} + mu + eps_t,   eps_t ~ N(0, sigma^2)
+    The model is:
+        k_t = k_{t-1} + mu + eps_t,  eps_t ~ N(0, sigma^2)
 
-    Returns (mu, sigma) based on differences of k_t.
+    Args:
+        k: 1D array of factor values, shape (T,).
+
+    Returns:
+        Tuple of (mu, sigma) estimated from first differences.
+
+    Raises:
+        ValueError: If k is not 1D, too short, or contains non-finite values.
 
     Notes:
-    -----
-    If only 2 points are available, sigma is not identifiable with ddof=1.
-    In that case we return sigma = 0.0 (deterministic RW).
+        If only two points are available, sigma is not identifiable with ddof=1
+        and is returned as 0.0 (deterministic random walk).
     """
     k = np.asarray(k, dtype=float)
     if k.ndim != 1 or k.size < 2:
@@ -33,10 +42,7 @@ def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
     mu = float(dk.mean())
 
     # If dk has <2 samples, ddof=1 would produce NaN → return 0.0
-    if dk.size >= 2:
-        sigma = float(dk.std(ddof=1))
-    else:
-        sigma = 0.0
+    sigma = float(dk.std(ddof=1)) if dk.size >= 2 else 0.0
 
     if not np.isfinite(mu):
         raise ValueError("Estimated mu is not finite.")
@@ -47,10 +53,20 @@ def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
 
 
 def _estimate_rw_params(kappa: np.ndarray) -> tuple[float, float]:
-    """CBD helper: estimate RW+drift parameters for a 1D series.
+    """Estimate random-walk-with-drift parameters for a 1D CBD series.
 
-    More permissive than ``estimate_rw_params``: if sigma is not finite or
-    negative, it is set to 0.0 instead of raising.
+    This helper is more permissive than ``estimate_rw_params``: if the
+    estimated sigma is not finite or negative, it is set to 0.0 instead
+    of raising.
+
+    Args:
+        kappa: 1D array of factor values, shape (T,).
+
+    Returns:
+        Tuple of (mu, sigma) estimated from first differences.
+
+    Raises:
+        ValueError: If kappa is not 1D or too short, or mu is not finite.
     """
     if kappa.ndim != 1 or kappa.size < 2:
         raise ValueError("kappa must be 1D with at least 2 points.")

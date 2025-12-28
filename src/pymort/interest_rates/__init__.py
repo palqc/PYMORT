@@ -1,3 +1,9 @@
+"""Interest-rate scenario helpers for PYMORT.
+
+Note:
+    Docstrings follow Google style to align with project standards.
+"""
+
 from .hull_white import (
     InterestRateScenarioSet,
     build_interest_rate_scenarios,

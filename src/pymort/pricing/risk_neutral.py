@@ -1,3 +1,9 @@
+"""Risk-neutral calibration and scenario generation utilities.
+
+Note:
+    Docstrings follow Google style and type hints use NDArray for clarity.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
@@ -5,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.optimize import least_squares
 
 from pymort.analysis import MortalityScenarioSet, bootstrap_from_m
@@ -27,35 +34,41 @@ from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
 
 Lambda = float | Sequence[float] | np.ndarray
 Shock = Sequence[float] | np.ndarray
+FloatArray = NDArray[np.floating]
 
 
 # ============================================================================
-# 1) Esscher transform on Gaussian random–walk factors
+# 1) Esscher transform on Gaussian random walk factors
 # ============================================================================
 
 
 @dataclass(frozen=True)
 class EsscherResult:
-    """Container for Esscher-transformed RW parameters.
-    All arrays are 1D, shape (K,).
+    """Container for Esscher-transformed random-walk parameters.
+
+    Attributes:
+        mu_P: Drift under P, shape (K,).
+        sigma_P: Volatility under P, shape (K,).
+        mu_Q: Drift under Q, shape (K,).
+        lambda_esscher: Esscher tilt, shape (K,).
     """
 
-    mu_P: np.ndarray
-    sigma_P: np.ndarray
-    mu_Q: np.ndarray
-    lambda_esscher: np.ndarray
+    mu_P: FloatArray
+    sigma_P: FloatArray
+    mu_Q: FloatArray
+    lambda_esscher: FloatArray
 
 
 @dataclass(frozen=True)
 class CalibrationCache:
-    """Objects and common random numbers precomputed once, reused across lambda calls."""
+    """Objects and common random numbers reused across lambda calls."""
 
     model: object
     bs_res: object
-    eps: dict[str, np.ndarray]
-    ages: np.ndarray
-    years: np.ndarray
-    m: np.ndarray
+    eps: dict[str, FloatArray]
+    ages: FloatArray
+    years: NDArray[np.integer]
+    m: FloatArray
     model_name: str
     horizon: int
     n_process: int
@@ -74,9 +87,19 @@ def esscher_shift_normal_rw(
     sigma_P: Iterable[float] | float,
     lambda_esscher: Iterable[float] | float,
 ) -> EsscherResult:
-    """Normal Esscher tilt for RW increments:
-    mu_Q = mu_P + lambda * sigma^2
-    sigma_Q = sigma_P
+    """Apply a normal Esscher tilt to random-walk increments.
+
+    Uses:
+        mu_Q = mu_P + lambda * sigma^2
+        sigma_Q = sigma_P
+
+    Args:
+        mu_P: Drift under P (scalar or vector).
+        sigma_P: Volatility under P (scalar or vector).
+        lambda_esscher: Esscher tilt (scalar or vector).
+
+    Returns:
+        EsscherResult with drift/volatility under P and Q.
     """
     mu_P_arr = _to_1d_array(mu_P, "mu_P")
     sigma_P_arr = _to_1d_array(sigma_P, "sigma_P")
@@ -244,7 +267,7 @@ def apply_cohort_trend_shock_to_qpaths(
 
     if q.ndim != 3:
         raise ValueError("q_paths must have shape (N, A, H).")
-    n, a, h = q.shape
+    _n, a, h = q.shape
     if ages_arr.shape[0] != a:
         raise ValueError("ages length must match q_paths second dimension.")
     if years_arr.shape[0] != h:
@@ -420,10 +443,11 @@ def _price_from_scen_set(
 class MultiInstrumentQuote:
     """Market quote used to calibrate lambda.
 
-    kind ∈ {"longevity_bond","survivor_swap","s_forward","q_forward","life_annuity"}
-    spec: instrument spec object
-    market_price: observed market PV
-    weight: objective weight
+    Attributes:
+        kind: Instrument kind (e.g., "longevity_bond", "survivor_swap").
+        spec: Instrument specification object.
+        market_price: Observed market PV.
+        weight: Objective weight.
     """
 
     kind: str
