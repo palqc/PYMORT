@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import numpy as np
 
 
 @dataclass
 class GompertzFitResult:
-    """
-    Per-year Gompertz fit on central death rates m_x,t:
+    """Per-year Gompertz fit on central death rates m_x,t:
 
         m_x,t = exp(a_t + b_t * x)
 
@@ -26,7 +24,7 @@ class GompertzFitResult:
     age_fit_min: int
     age_fit_max: int
     m_floor: float
-    m_fitted: Optional[np.ndarray] = None  # (A,T) if computed
+    m_fitted: np.ndarray | None = None  # (A,T) if computed
     meta: dict = None
 
 
@@ -46,8 +44,7 @@ def fit_gompertz_per_year(
     m_floor: float = 1e-12,
     compute_fitted_surface: bool = True,
 ) -> GompertzFitResult:
-    """
-    Fit Gompertz per calendar year using OLS on log(m):
+    """Fit Gompertz per calendar year using OLS on log(m):
         log(m_x,t) = a_t + b_t * x
 
     Parameters
@@ -59,7 +56,7 @@ def fit_gompertz_per_year(
     m_floor : clip floor before log
     compute_fitted_surface : if True, returns m_fitted on full age grid
 
-    Returns
+    Returns:
     -------
     GompertzFitResult
     """
@@ -134,10 +131,9 @@ def extrapolate_gompertz_surface(
     fit: GompertzFitResult,
     *,
     age_max: int,
-    age_min: Optional[int] = None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Extrapolate/extend the fitted Gompertz surface to a new age grid.
+    age_min: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Extrapolate/extend the fitted Gompertz surface to a new age grid.
 
     Returns (ages_ext, years, m_ext) where m_ext is Gompertz-implied.
     """

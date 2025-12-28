@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -16,8 +16,7 @@ from pymort.pricing.utils import (
 
 @dataclass
 class QForwardSpec:
-    """
-    q-forward with (optional) separate measurement vs settlement.
+    """q-forward with (optional) separate measurement vs settlement.
 
     We measure q at Tm, but settle/pay at Ts (Ts >= Tm).
     Payoff at settlement:
@@ -27,14 +26,13 @@ class QForwardSpec:
     age: float
     maturity_years: int  # measurement Tm (years from start, 1..H)
     notional: float = 1.0
-    strike: Optional[float] = None  # if None, ATM (mean of q_{x,Tm})
-    settlement_years: Optional[int] = None  # if None -> Ts = Tm
+    strike: float | None = None  # if None, ATM (mean of q_{x,Tm})
+    settlement_years: int | None = None  # if None -> Ts = Tm
 
 
 @dataclass
 class SForwardSpec:
-    """
-    s-forward with (optional) separate measurement vs settlement.
+    """s-forward with (optional) separate measurement vs settlement.
 
     Measure S at Tm, settle at Ts (Ts >= Tm).
     Payoff at settlement:
@@ -44,20 +42,19 @@ class SForwardSpec:
     age: float
     maturity_years: int  # measurement Tm
     notional: float = 1.0
-    strike: Optional[float] = None  # if None, ATM (mean of S_{x,Tm})
-    settlement_years: Optional[int] = None  # if None -> Ts = Tm
+    strike: float | None = None  # if None, ATM (mean of S_{x,Tm})
+    settlement_years: int | None = None  # if None -> Ts = Tm
 
 
 def price_q_forward(
     scen_set: MortalityScenarioSet,
     spec: QForwardSpec,
     *,
-    short_rate: Optional[float] = None,
-    discount_factors: Optional[np.ndarray] = None,
+    short_rate: float | None = None,
+    discount_factors: np.ndarray | None = None,
     return_cf_paths: bool = False,
-) -> Dict[str, Any]:
-    """
-    Price a q-forward using mortality scenarios, with optional separate
+) -> dict[str, Any]:
+    """Price a q-forward using mortality scenarios, with optional separate
     measurement vs settlement.
 
     Measurement at Tm:
@@ -79,9 +76,7 @@ def price_q_forward(
     if Tm <= 0:
         raise ValueError("spec.maturity_years must be > 0.")
     if Tm > H_full:
-        raise ValueError(
-            f"spec.maturity_years={Tm} exceeds available projection horizon {H_full}."
-        )
+        raise ValueError(f"spec.maturity_years={Tm} exceeds available projection horizon {H_full}.")
     tm_idx = Tm - 1
 
     # Settlement date (Ts): default Ts = Tm
@@ -127,11 +122,9 @@ def price_q_forward(
 
     # For metadata convenience
     df_arr = np.asarray(df_full, dtype=float)
-    df_settle = (
-        float(df_arr[ts_idx]) if df_arr.ndim == 1 else float(df_arr[:, ts_idx].mean())
-    )
+    df_settle = float(df_arr[ts_idx]) if df_arr.ndim == 1 else float(df_arr[:, ts_idx].mean())
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "N_scenarios": int(N),
         "age": float(spec.age),
         "age_index": int(age_idx),
@@ -144,7 +137,7 @@ def price_q_forward(
         "discount_factor_settlement": float(df_settle),
     }
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,
@@ -167,12 +160,11 @@ def price_s_forward(
     scen_set: MortalityScenarioSet,
     spec: SForwardSpec,
     *,
-    short_rate: Optional[float] = None,
-    discount_factors: Optional[np.ndarray] = None,
+    short_rate: float | None = None,
+    discount_factors: np.ndarray | None = None,
     return_cf_paths: bool = False,
-) -> Dict[str, Any]:
-    """
-    Price an s-forward (survival forward) using mortality scenarios, with optional
+) -> dict[str, Any]:
+    """Price an s-forward (survival forward) using mortality scenarios, with optional
     separate measurement vs settlement.
 
     Measurement at Tm:
@@ -196,9 +188,7 @@ def price_s_forward(
     if Tm <= 0:
         raise ValueError("spec.maturity_years must be > 0.")
     if Tm > H_full:
-        raise ValueError(
-            f"spec.maturity_years={Tm} exceeds available projection horizon {H_full}."
-        )
+        raise ValueError(f"spec.maturity_years={Tm} exceeds available projection horizon {H_full}.")
     tm_idx = Tm - 1
 
     # Settlement date (Ts): default Ts = Tm
@@ -229,9 +219,7 @@ def price_s_forward(
         S_Tm = S_curve[:, -1]
 
         if not np.isfinite(S_Tm).all():
-            raise ValueError(
-                "Some S_Tm values are not finite (even after Gompertz fallback)."
-            )
+            raise ValueError("Some S_Tm values are not finite (even after Gompertz fallback).")
 
     # Strike: user-provided or ATM on measurement date
     K = float(S_Tm.mean()) if spec.strike is None else float(spec.strike)
@@ -255,11 +243,9 @@ def price_s_forward(
     expected_cashflows = cf_paths.mean(axis=0)
 
     df_arr = np.asarray(df_full, dtype=float)
-    df_settle = (
-        float(df_arr[ts_idx]) if df_arr.ndim == 1 else float(df_arr[:, ts_idx].mean())
-    )
+    df_settle = float(df_arr[ts_idx]) if df_arr.ndim == 1 else float(df_arr[:, ts_idx].mean())
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "N_scenarios": int(N),
         "age": float(spec.age),
         "age_index": int(age_idx),
@@ -272,7 +258,7 @@ def price_s_forward(
         "discount_factor_settlement": float(df_settle),
     }
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,

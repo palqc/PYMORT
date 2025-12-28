@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from pymort.analysis.scenario import MortalityScenarioSet, validate_scenario_set
-from pymort.interest_rates.hull_white import build_interest_rate_scenarios
 from pymort.pipeline import (
     build_interest_rate_pipeline,
     build_joint_scenarios,
@@ -161,11 +159,7 @@ def test_end_to_end_mini_run_projection_to_pricing():
         bootstrap_kwargs={"B": 2, "n_process": 3},
         seed=11,
     )
-    spec = {
-        "bond": LongevityBondSpec(
-            issue_age=60.0, maturity_years=3, include_principal=True
-        )
-    }
+    spec = {"bond": LongevityBondSpec(issue_age=60.0, maturity_years=3, include_principal=True)}
     price = pricing_pipeline(scen_Q=scen, specs=spec, short_rate=0.02)["bond"]
     assert np.isfinite(price)
     assert price > 0.0

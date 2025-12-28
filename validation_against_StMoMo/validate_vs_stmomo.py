@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -17,16 +16,13 @@ from pymort.models.lc_m1 import fit_lee_carter, reconstruct_log_m
 
 
 def _read_stmomo_surface_csv(path: Path) -> pd.DataFrame:
-    """
-    Expect a long CSV with columns: Age, Year, value
+    """Expect a long CSV with columns: Age, Year, value
     or Age, Year, logm_fitted / logitq_fitted.
     """
     df = pd.read_csv(path)
 
     if not {"Age", "Year"}.issubset(df.columns):
-        raise ValueError(
-            f"{path.name}: expected columns Age, Year. Got: {df.columns.tolist()}"
-        )
+        raise ValueError(f"{path.name}: expected columns Age, Year. Got: {df.columns.tolist()}")
 
     if "Value" in df.columns:
         val_col = "Value"
@@ -52,9 +48,7 @@ def _read_stmomo_surface_csv(path: Path) -> pd.DataFrame:
 
 
 def _read_stmomo_series_csv(path: Path) -> pd.DataFrame:
-    """
-    Read a time series CSV from StMoMo, e.g. lc_kt.csv (Year, kt)
-    """
+    """Read a time series CSV from StMoMo, e.g. lc_kt.csv (Year, kt)"""
     df = pd.read_csv(path)
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -63,9 +57,7 @@ def _read_stmomo_series_csv(path: Path) -> pd.DataFrame:
 
 
 def _read_stmomo_params_csv(path: Path) -> pd.DataFrame:
-    """
-    Read age params CSV from StMoMo, e.g. lc_params.csv (Age, ax, bx)
-    """
+    """Read age params CSV from StMoMo, e.g. lc_params.csv (Age, ax, bx)"""
     df = pd.read_csv(path)
     for col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -73,13 +65,11 @@ def _read_stmomo_params_csv(path: Path) -> pd.DataFrame:
     return df
 
 
-def _long_to_matrix(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _long_to_matrix(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     ages = np.sort(df["Age"].unique()).astype(int)
     years = np.sort(df["Year"].unique()).astype(int)
 
-    piv = df.pivot(index="Age", columns="Year", values="Value").reindex(
-        index=ages, columns=years
-    )
+    piv = df.pivot(index="Age", columns="Year", values="Value").reindex(index=ages, columns=years)
     mat = piv.to_numpy(dtype=float)
 
     if np.isnan(mat).any():
@@ -151,10 +141,9 @@ def _assert_same_grid(
 def _normalize_lc(
     ax: np.ndarray, bx: np.ndarray, kt: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Normalize LC to a common identifiability convention:
-      - sum(bx) = 1
-      - mean(kt) = 0
+    """Normalize LC to a common identifiability convention:
+    - sum(bx) = 1
+    - mean(kt) = 0
     """
     bx = np.asarray(bx, dtype=float).copy()
     kt = np.asarray(kt, dtype=float).copy()
@@ -174,9 +163,7 @@ def _normalize_lc(
 
 
 def _align_sign(bx_py, kt_py, bx_r, kt_r):
-    """
-    Fix sign indeterminacy: if kt correlation is negative, flip Python (bx, kt).
-    """
+    """Fix sign indeterminacy: if kt correlation is negative, flip Python (bx, kt)."""
     corr = np.corrcoef(np.asarray(kt_py).ravel(), np.asarray(kt_r).ravel())[0, 1]
     if np.isfinite(corr) and corr < 0:
         bx_py = -bx_py
@@ -190,7 +177,7 @@ def _align_sign(bx_py, kt_py, bx_r, kt_r):
 
 
 def main() -> None:
-    repo = Path(".")
+    repo = Path()
     xlsx_path = repo / "Data" / "data_france.xlsx"
     out_dir = repo / "validation_against_StMoMo" / "outputs"
 
@@ -307,9 +294,7 @@ def main() -> None:
     ok_all = lc_ok and cbd_check.ok
 
     if not lc_ok:
-        raise SystemExit(
-            "❌ LC validation failed: (corr or kt RMSE rel) beyond tolerance."
-        )
+        raise SystemExit("❌ LC validation failed: (corr or kt RMSE rel) beyond tolerance.")
     if not cbd_check.ok:
         raise SystemExit("❌ CBD validation failed: surface beyond tolerance.")
     print("\n✅ Validation passed (robust criteria).")

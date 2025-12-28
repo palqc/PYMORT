@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Literal, Optional
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -29,15 +30,14 @@ ModelName = Literal["LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"]
 
 @dataclass
 class FittedModel:
-    """
-    Container for a single fitted mortality model and its diagnostics.
+    """Container for a single fitted mortality model and its diagnostics.
 
     This object is designed as the bridge between:
 
     - the modelling layer (LC/CBD/APC fitted on raw or smoothed data), and
     - the projection / pricing layers.
 
-    Attributes
+    Attributes:
     ----------
     name : str
         Model name, e.g. 'LCM2', 'CBDM7'.
@@ -78,15 +78,15 @@ class FittedModel:
     years: np.ndarray
     model: Any
 
-    m_fit_surface: Optional[np.ndarray] = None
-    m_eval_surface: Optional[np.ndarray] = None
+    m_fit_surface: np.ndarray | None = None
+    m_eval_surface: np.ndarray | None = None
 
-    rmse_logm: Optional[float] = None
-    rmse_logitq: Optional[float] = None
-    aic: Optional[float] = None
-    bic: Optional[float] = None
+    rmse_logm: float | None = None
+    rmse_logitq: float | None = None
+    aic: float | None = None
+    bic: float | None = None
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def _fit_single_model(
@@ -96,10 +96,7 @@ def _fit_single_model(
     m_fit: np.ndarray,
     m_eval: np.ndarray,
 ) -> FittedModel:
-    """
-    Internal helper: fit one model on m_fit, evaluate diagnostics on m_eval.
-    """
-
+    """Internal helper: fit one model on m_fit, evaluate diagnostics on m_eval."""
     ages = np.asarray(ages, dtype=float)
     years = np.asarray(years, dtype=int)
     m_fit = np.asarray(m_fit, dtype=float)
@@ -111,7 +108,7 @@ def _fit_single_model(
         )
 
     A, T = m_fit.shape
-    if A != ages.shape[0] or T != years.shape[0]:
+    if ages.shape[0] != A or years.shape[0] != T:
         raise ValueError("m_fit shape must be consistent with ages and years grids.")
 
     m_eval_safe = np.clip(m_eval, 1e-12, None)
@@ -120,10 +117,10 @@ def _fit_single_model(
     q_eval = m_to_q(m_eval_safe)
     logit_true = _logit(q_eval)
 
-    rmse_logm: Optional[float] = None
-    rmse_logitq: Optional[float] = None
-    aic: Optional[float] = None
-    bic: Optional[float] = None
+    rmse_logm: float | None = None
+    rmse_logitq: float | None = None
+    aic: float | None = None
+    bic: float | None = None
 
     # -------- LC / APC family: fit on log m --------
     if model_name == "LCM1":
@@ -234,11 +231,10 @@ def fit_mortality_model(
     m: np.ndarray,
     *,
     smoothing: Literal["none", "cpsplines"] = "none",
-    cpsplines_kwargs: Optional[Dict[str, Any]] = None,
+    cpsplines_kwargs: dict[str, Any] | None = None,
     eval_on_raw: bool = True,
 ) -> FittedModel:
-    """
-    High-level entry point: fit a single mortality model, with optional CPsplines.
+    """High-level entry point: fit a single mortality model, with optional CPsplines.
 
     Parameters
     ----------
@@ -261,7 +257,7 @@ def fit_mortality_model(
         If False, diagnostics are computed on the same smoothed surface
         used for fitting.
 
-        Note
+    Note:
         ----
         Comparing models fitted on raw vs smoothed data using RMSE/AIC/BIC
         can be misleading: models fitted on raw data usually achieve smaller
@@ -269,7 +265,7 @@ def fit_mortality_model(
         keeps the evaluation surface fixed (raw) and isolates the impact of
         smoothing on the *systematic* component rather than the noise.
 
-    Returns
+    Returns:
     -------
     FittedModel
         Fitted model and associated diagnostics.
@@ -280,8 +276,7 @@ def fit_mortality_model(
 
     if m.shape != (ages.shape[0], years.shape[0]):
         raise ValueError(
-            f"Shape mismatch: m has shape {m.shape}, "
-            f"expected ({ages.shape[0]}, {years.shape[0]})."
+            f"Shape mismatch: m has shape {m.shape}, expected ({ages.shape[0]}, {years.shape[0]})."
         )
 
     if smoothing == "none":
@@ -304,9 +299,7 @@ def fit_mortality_model(
             )
             m_fit = cp_res["m_fitted"]
             data_source = (
-                "cpsplines_fit_eval_on_raw"
-                if eval_on_raw
-                else "cpsplines_fit_eval_on_smooth"
+                "cpsplines_fit_eval_on_raw" if eval_on_raw else "cpsplines_fit_eval_on_smooth"
             )
         except Exception as exc:
             # Tiny grids / solver issues (e.g. mosek fusion DimensionError): fall back gracefully
@@ -357,8 +350,7 @@ def model_selection_by_forecast_rmse(
     ),
     metric: Literal["log_m", "logit_q"] = "logit_q",
 ) -> tuple[pd.DataFrame, ModelName]:
-    """
-    Select a mortality model based on out-of-sample forecast RMSE.
+    """Select a mortality model based on out-of-sample forecast RMSE.
     Robust: if a candidate model fails to fit/backtest on the dataset,
     it is recorded as failed and skipped from selection.
     """
@@ -368,14 +360,12 @@ def model_selection_by_forecast_rmse(
 
     if m.shape != (ages.shape[0], years.shape[0]):
         raise ValueError(
-            f"Shape mismatch: m has shape {m.shape}, "
-            f"expected ({ages.shape[0]}, {years.shape[0]})."
+            f"Shape mismatch: m has shape {m.shape}, expected ({ages.shape[0]}, {years.shape[0]})."
         )
 
     if train_end < years[0] or train_end >= years[-1]:
         raise ValueError(
-            f"train_end must lie in [{int(years[0])}, {int(years[-1]) - 1}], "
-            f"got {train_end}."
+            f"train_end must lie in [{int(years[0])}, {int(years[-1]) - 1}], got {train_end}."
         )
     if not np.isfinite(m).all():
         raise ValueError("m must contain only finite values.")
@@ -552,10 +542,9 @@ def select_and_fit_best_model_for_pricing(
         "CBDM7",
     ),
     metric: Literal["log_m", "logit_q"] = "logit_q",
-    cpsplines_kwargs: Optional[Dict[str, Any]] = None,
+    cpsplines_kwargs: dict[str, Any] | None = None,
 ) -> tuple[pd.DataFrame, FittedModel]:
-    """
-    High-level helper for the pricing pipeline.
+    """High-level helper for the pricing pipeline.
 
     1) Use out-of-sample forecast RMSE (via model_selection_by_forecast_rmse)
        on *raw* data to choose the structural model (LCM1, LCM2, APCM3, CBDM5-7).
@@ -585,7 +574,7 @@ def select_and_fit_best_model_for_pricing(
         Extra arguments forwarded to smooth_mortality_with_cpsplines for
         the final smoothing step (e.g. {'k': None, 'horizon': 0, 'verbose': False}).
 
-    Returns
+    Returns:
     -------
     selection_df : pandas.DataFrame
         Forecast RMSE comparison across candidate models.

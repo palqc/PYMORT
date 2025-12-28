@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
@@ -14,9 +13,7 @@ from pymort.analysis.scenario import (
 )
 
 
-def _build_scenarios(
-    N: int = 3, T: int = 5, discount_factors=None, with_m: bool = False
-):
+def _build_scenarios(N: int = 3, T: int = 5, discount_factors=None, with_m: bool = False):
     ages = np.array([60.0, 61.0], dtype=float)
     years = np.arange(2020, 2020 + T, dtype=int)
     q_paths = np.full((N, ages.size, T), 0.01, dtype=float)
@@ -78,9 +75,7 @@ def test_save_load_round_trip_preserves_arrays_and_metadata(tmp_path: Path):
 
 def test_save_load_round_trip_with_2d_discount_factors(tmp_path: Path):
     scen = _build_scenarios()
-    df2d = np.tile(
-        np.exp(-0.01 * np.arange(1, scen.horizon() + 1)), (scen.n_scenarios(), 1)
-    )
+    df2d = np.tile(np.exp(-0.01 * np.arange(1, scen.horizon() + 1)), (scen.n_scenarios(), 1))
     scen = MortalityScenarioSet(
         years=scen.years,
         ages=scen.ages,

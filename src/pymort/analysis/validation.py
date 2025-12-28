@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, Tuple
-
 import numpy as np
 
 from pymort.lifetables import m_to_q
@@ -15,12 +13,12 @@ from pymort.models.lc_m2 import LCM2
 
 def _time_split(
     years: np.ndarray, train_end: int
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     years = np.asarray(years, dtype=int)
     if years.ndim != 1:
         raise ValueError("years must be 1D.")
     if train_end < years[0] or train_end >= years[-1]:
-        raise ValueError(f"train_end must be in [{years[0]}, {years[-1]-1}].")
+        raise ValueError(f"train_end must be in [{years[0]}, {years[-1] - 1}].")
     tr_mask = years <= train_end
     te_mask = years > train_end
     return tr_mask, te_mask, years[tr_mask], years[te_mask]
@@ -59,9 +57,7 @@ def _rmse_logit_q_from_m(m_true: np.ndarray, m_hat: np.ndarray) -> float:
     return _rmse_logit_q(m_to_q(m_true), m_to_q(m_hat))
 
 
-def _rmse_logit_forecast_from_logit_hat(
-    q_te: np.ndarray, logit_hat_te: np.ndarray
-) -> float:
+def _rmse_logit_forecast_from_logit_hat(q_te: np.ndarray, logit_hat_te: np.ndarray) -> float:
     return _rmse(_logit(q_te), logit_hat_te)
 
 
@@ -79,8 +75,7 @@ def _freeze_gamma_last_per_age(
     gamma: np.ndarray,
     train_end: int,
 ) -> np.ndarray:
-    """
-    Return gamma_last_per_age[i] = gamma_{c_last = train_end - ages[i]},
+    """Return gamma_last_per_age[i] = gamma_{c_last = train_end - ages[i]},
     choosing the closest cohort index if there is no exact match.
     """
     out = np.zeros_like(ages, dtype=float)
@@ -105,9 +100,8 @@ def time_split_backtest_lc_m1(
     years: np.ndarray,
     m: np.ndarray,
     train_end: int,
-) -> Dict[str, np.ndarray | float]:
-    """
-    Backtest Lee–Carter M1 with an explicit time split.
+) -> dict[str, np.ndarray | float]:
+    """Backtest Lee–Carter M1 with an explicit time split.
 
     Fits LC on years <= train_end (training set), then produces a
     deterministic forecast of log m on years > train_end (test set)
@@ -150,9 +144,8 @@ def time_split_backtest_lc_m2(
     years: np.ndarray,
     m: np.ndarray,
     train_end: int,
-) -> Dict[str, float | np.ndarray]:
-    """
-    Backtest for Lee–Carter with cohort effect (LC M2):
+) -> dict[str, float | np.ndarray]:
+    """Backtest for Lee–Carter with cohort effect (LC M2):
 
         log m_{x,t} = a_x + b_x k_t + gamma_{t-x}
 
@@ -209,9 +202,8 @@ def time_split_backtest_cbd_m5(
     years: np.ndarray,
     q: np.ndarray,
     train_end: int,
-) -> Dict[str, np.ndarray | float]:
-    """
-    Backtest CBD (M5) with an explicit time split on q_x,t (logit scale).
+) -> dict[str, np.ndarray | float]:
+    """Backtest CBD (M5) with an explicit time split on q_x,t (logit scale).
 
     - Fit CBD on years <= train_end,
     - Use RW+drift on (kappa1_t, kappa2_t) to produce a deterministic
@@ -258,10 +250,8 @@ def time_split_backtest_cbd_m6(
     years: np.ndarray,
     q: np.ndarray,
     train_end: int,
-) -> Dict[str, np.ndarray | float]:
-    """
-    Backtest CBD+cohort (M6) with explicit time split on q_x,t (logit scale).
-    """
+) -> dict[str, np.ndarray | float]:
+    """Backtest CBD+cohort (M6) with explicit time split on q_x,t (logit scale)."""
     _check_surface_time_inputs(years, q, "q")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
     q_tr = q[:, tr_mask]
@@ -283,9 +273,7 @@ def time_split_backtest_cbd_m6(
 
     z = ages - params.x_bar
 
-    gamma_last_per_age = _freeze_gamma_last_per_age(
-        ages, params.cohorts, params.gamma, train_end
-    )
+    gamma_last_per_age = _freeze_gamma_last_per_age(ages, params.cohorts, params.gamma, train_end)
     gamma_grid = gamma_last_per_age[:, None]
 
     logit_hat_te = k1_for[None, :] + z[:, None] * k2_for[None, :] + gamma_grid
@@ -305,10 +293,8 @@ def time_split_backtest_cbd_m7(
     years: np.ndarray,
     q: np.ndarray,
     train_end: int,
-) -> Dict[str, np.ndarray | float]:
-    """
-    Backtest CBD M7 (quadratic + cohort) with explicit time split on q_x,t (logit scale).
-    """
+) -> dict[str, np.ndarray | float]:
+    """Backtest CBD M7 (quadratic + cohort) with explicit time split on q_x,t (logit scale)."""
     _check_surface_time_inputs(years, q, "q")
     tr_mask, te_mask, yrs_tr, yrs_te = _time_split(years, train_end)
     q_tr = q[:, tr_mask]
@@ -332,16 +318,11 @@ def time_split_backtest_cbd_m7(
     z = ages - params.x_bar
     z2c = z**2 - params.sigma2_x
 
-    gamma_last_per_age = _freeze_gamma_last_per_age(
-        ages, params.cohorts, params.gamma, train_end
-    )
+    gamma_last_per_age = _freeze_gamma_last_per_age(ages, params.cohorts, params.gamma, train_end)
     gamma_grid = gamma_last_per_age[:, None]
 
     logit_hat_te = (
-        k1_for[None, :]
-        + z[:, None] * k2_for[None, :]
-        + z2c[:, None] * k3_for[None, :]
-        + gamma_grid
+        k1_for[None, :] + z[:, None] * k2_for[None, :] + z2c[:, None] * k3_for[None, :] + gamma_grid
     )
 
     rmse_logit_forecast = _rmse_logit_forecast_from_logit_hat(q_te, logit_hat_te)
@@ -359,9 +340,8 @@ def time_split_backtest_apc_m3(
     years: np.ndarray,
     m: np.ndarray,
     train_end: int,
-) -> Dict[str, float | np.ndarray]:
-    """
-    Backtest for APC Model M3:
+) -> dict[str, float | np.ndarray]:
+    """Backtest for APC Model M3:
 
         ln m_{x,t} = beta_x + kappa_t + gamma_{t-x}
 
@@ -419,8 +399,7 @@ def time_split_backtest_apc_m3(
 def rmse_aic_bic(
     logit_true: np.ndarray, logit_hat: np.ndarray, n_params: int
 ) -> tuple[float, float, float]:
-    """
-    Compute RMSE, AIC and BIC under a Gaussian error assumption
+    """Compute RMSE, AIC and BIC under a Gaussian error assumption
     on the logit scale.
     """
     logit_true = np.asarray(logit_true).ravel()

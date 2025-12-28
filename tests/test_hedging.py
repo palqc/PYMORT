@@ -13,7 +13,6 @@ from pymort.pricing.hedging import (
     compute_multihorizon_hedge,
 )
 
-
 # ======================================================================================
 # Min-variance hedge (scenario OLS)
 # ======================================================================================
@@ -25,9 +24,7 @@ def test_min_variance_exact_replication_single_hedge():
     L = rng.normal(loc=10.0, scale=1.0, size=N)
     H = L.copy().reshape(-1, 1)  # perfect hedge
 
-    res = hedging_pipeline(
-        liability_pv_paths=L, hedge_pv_paths=H, method="min_variance"
-    )
+    res = hedging_pipeline(liability_pv_paths=L, hedge_pv_paths=H, method="min_variance")
 
     assert res.weights.shape == (1,)
     assert np.isfinite(res.weights[0])
@@ -248,9 +245,7 @@ def test_greek_matching_invalid_method_raises():
 
 def test_greek_matching_instrument_names_mismatch_raises():
     with pytest.raises(ValueError):
-        compute_greek_matching_hedge(
-            [1.0, 2.0], np.eye(2), instrument_names=["only_one"]
-        )
+        compute_greek_matching_hedge([1.0, 2.0], np.eye(2), instrument_names=["only_one"])
 
 
 def test_duration_and_duration_convexity_hedges_shapes():
@@ -348,4 +343,6 @@ def test_hedging_raises_on_bad_shapes():
     df_bad = np.array([0.9, 0.8])  # length mismatch T=3
     H_cf = rng.normal(size=(10, 2, 3))
     with pytest.raises(ValueError):
-        compute_multihorizon_hedge(liability_cf_paths=L_cf, instruments_cf_paths=H_cf, discount_factors=df_bad)
+        compute_multihorizon_hedge(
+            liability_cf_paths=L_cf, instruments_cf_paths=H_cf, discount_factors=df_bad
+        )

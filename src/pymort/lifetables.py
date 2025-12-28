@@ -1,5 +1,4 @@
-"""
-lifetables.py — Mortality table utilities for PYMORT
+"""lifetables.py — Mortality table utilities for PYMORT
 ====================================================
 
 This module provides tools for working with mortality surfaces in terms of
@@ -56,7 +55,8 @@ Users must preprocess such datasets externally before using PYMORT.
 from __future__ import annotations
 
 import io
-from typing import Any, Dict, Iterable, Literal, Optional, Tuple, Union
+from collections.abc import Iterable
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -89,9 +89,8 @@ _CANON = {
 
 def _find_header_and_map(
     sheet_df: pd.DataFrame, max_scan_rows: int = 50
-) -> Tuple[Optional[int], Dict[str, int]]:
-    """
-    Scan top rows to find the header row and a mapping {CanonName -> column index}.
+) -> tuple[int | None, dict[str, int]]:
+    """Scan top rows to find the header row and a mapping {CanonName -> column index}.
     Returns (header_row_index, mapping). If not found, (None, {}).
     """
     # work on raw values (no header)
@@ -104,7 +103,7 @@ def _find_header_and_map(
         normalized = [_norm(v) for v in row_vals]
 
         # try to map required keys
-        colmap: Dict[str, int] = {}
+        colmap: dict[str, int] = {}
         for j, key in enumerate(normalized):
             if key in _CANON:
                 canon = _CANON[key]
@@ -121,11 +120,9 @@ def _find_header_and_map(
 
 
 def _read_table_with_header(
-    sheet_df: pd.DataFrame, header_row: int, colmap: Dict[str, int]
+    sheet_df: pd.DataFrame, header_row: int, colmap: dict[str, int]
 ) -> pd.DataFrame:
-    """
-    Build a tidy DataFrame with canonical columns present in the sheet.
-    """
+    """Build a tidy DataFrame with canonical columns present in the sheet."""
     # Re-read the sheet row subset with header at header_row
     # (convert again to let pandas parse types under the header)
     data = sheet_df.iloc[header_row + 1 :].copy()
@@ -173,9 +170,8 @@ def load_m_from_excel(
     year_max: int | None = None,
     m_floor: float = 1e-12,
     drop_years: Iterable[int] | None = None,
-) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """
-    Load a mortality table from an Excel file.
+) -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Load a mortality table from an Excel file.
 
     The function automatically detects columns 'Year', 'Age', and one mortality column
     ('Total', 'Male', or 'Female'), regardless of their order in the sheet. It returns
@@ -183,10 +179,10 @@ def load_m_from_excel(
     """
     # Read all sheets raw (no header) to allow header detection
     xls_dict = pd.read_excel(path, sheet_name=None, header=None, engine="openpyxl")
-    found_df: Optional[pd.DataFrame] = None
-    found_cols: Dict[str, int] = {}
-    found_sheet: Optional[str] = None
-    header_row: Optional[int] = None
+    found_df: pd.DataFrame | None = None
+    found_cols: dict[str, int] = {}
+    found_sheet: str | None = None
+    header_row: int | None = None
 
     # Try each sheet until we find Year & Age & (Total/Female/Male)
     for sheet_name, df in xls_dict.items():
@@ -209,11 +205,7 @@ def load_m_from_excel(
                 hrow,
             )
         # Prefer sheet where requested sex is available
-        if (
-            (sex in table.columns)
-            and (found_df is not None)
-            and (sex not in found_df.columns)
-        ):
+        if (sex in table.columns) and (found_df is not None) and (sex not in found_df.columns):
             found_df, found_cols, found_sheet, header_row = (
                 table,
                 cmap,
@@ -240,9 +232,7 @@ def load_m_from_excel(
     df = found_df
 
     # Choose the rate column to use
-    rate_col = (
-        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
-    )
+    rate_col = sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
     if rate_col is None:
         # If requested sex not present and no Total, fallback to Female or Male (whichever exists)
         rate_col = "Female" if "Female" in df.columns else "Male"
@@ -292,8 +282,7 @@ def load_m_from_excel(
 
 
 def m_to_q(m: np.ndarray) -> np.ndarray:
-    """
-    Convert central death rates m_x,t into one-year death probabilities q_x,t
+    """Convert central death rates m_x,t into one-year death probabilities q_x,t
     using the standard approximation q = m / (1 + 0.5*m). The output is clipped
     to maintain 0 < q < 1.
     """
@@ -302,8 +291,7 @@ def m_to_q(m: np.ndarray) -> np.ndarray:
 
 
 def q_to_m(q: np.ndarray) -> np.ndarray:
-    """
-    Convert one-year death probabilities q_x,t back to central death rates m_x,t
+    """Convert one-year death probabilities q_x,t back to central death rates m_x,t
     via m = 2q / (2 - q). The result is clipped to ensure numerical stability.
     """
     q = np.clip(q, 1e-10, 1 - 1e-10)
@@ -311,8 +299,7 @@ def q_to_m(q: np.ndarray) -> np.ndarray:
 
 
 def survival_from_q(q: np.ndarray) -> np.ndarray:
-    """
-    Compute survival probabilities S_x(t) from one-year death probabilities q_x,t
+    """Compute survival probabilities S_x(t) from one-year death probabilities q_x,t
     by cumulative multiplication of (1 - q). Survival is computed along the time axis.
     """
     q = np.asarray(q, dtype=float)
@@ -325,8 +312,7 @@ def survival_from_q(q: np.ndarray) -> np.ndarray:
 
 
 def validate_q(q: np.ndarray) -> None:
-    """
-    Validate that all q_x,t lie strictly within (0,1).
+    """Validate that all q_x,t lie strictly within (0,1).
     Raises an AssertionError if invalid values are detected.
     """
     if not (np.all(q > 0) and np.all(q < 1)):
@@ -336,8 +322,7 @@ def validate_q(q: np.ndarray) -> None:
 
 
 def validate_survival_monotonic(S: np.ndarray) -> None:
-    """
-    Check that survival curves are non-increasing over time.
+    """Check that survival curves are non-increasing over time.
     Ignores comparisons where either side is not finite (e.g. NaN tails).
     """
     S = np.asarray(S, dtype=float)
@@ -351,8 +336,7 @@ def validate_survival_monotonic(S: np.ndarray) -> None:
 
 
 def cohort_survival_from_q_paths(q_paths: np.ndarray) -> np.ndarray:
-    """
-    Cohort survival surfaces from q_paths.
+    """Cohort survival surfaces from q_paths.
 
     Builds S_cohort[n, a, k] = Π_{j=0..k} (1 - q_paths[n, a+j, j])
     for every starting age index a.
@@ -362,7 +346,7 @@ def cohort_survival_from_q_paths(q_paths: np.ndarray) -> np.ndarray:
     q_paths : np.ndarray
         Shape (N, A, H)
 
-    Returns
+    Returns:
     -------
     np.ndarray
         Shape (N, A, H). Entries that are not reachable because a+k >= A
@@ -388,7 +372,7 @@ def cohort_survival_from_q_paths(q_paths: np.ndarray) -> np.ndarray:
 
 
 def load_m_from_excel_any(
-    source: Union[str, bytes, bytearray, Any],
+    source: str | bytes | bytearray | Any,
     *,
     sex: Sex = "Total",
     age_min: int = 60,
@@ -397,9 +381,8 @@ def load_m_from_excel_any(
     year_max: int | None = None,
     m_floor: float = 1e-12,
     drop_years: Iterable[int] | None = None,
-) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """
-    Streamlit-friendly loader.
+) -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Streamlit-friendly loader.
 
     Accepts:
       - str path
@@ -429,10 +412,10 @@ def load_m_from_excel_any(
     # Read all sheets raw (no header) to allow header detection
     xls_dict = pd.read_excel(excel_obj, sheet_name=None, header=None, engine="openpyxl")
 
-    found_df: Optional[pd.DataFrame] = None
-    found_cols: Dict[str, int] = {}
-    found_sheet: Optional[str] = None
-    header_row: Optional[int] = None
+    found_df: pd.DataFrame | None = None
+    found_cols: dict[str, int] = {}
+    found_sheet: str | None = None
+    header_row: int | None = None
 
     # Try each sheet until we find Year & Age & (Total/Female/Male)
     for sheet_name, df in xls_dict.items():
@@ -455,11 +438,7 @@ def load_m_from_excel_any(
                 hrow,
             )
 
-        if (
-            (sex in table.columns)
-            and (found_df is not None)
-            and (sex not in found_df.columns)
-        ):
+        if (sex in table.columns) and (found_df is not None) and (sex not in found_df.columns):
             found_df, found_cols, found_sheet, header_row = (
                 table,
                 cmap,
@@ -476,9 +455,7 @@ def load_m_from_excel_any(
     df = found_df
 
     # Choose the rate column to use
-    rate_col = (
-        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
-    )
+    rate_col = sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
     if rate_col is None:
         rate_col = "Female" if "Female" in df.columns else "Male"
 

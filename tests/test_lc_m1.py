@@ -6,7 +6,6 @@ import pytest
 from pymort.models.lc_m1 import LCM1, LCM1Params, fit_lee_carter, reconstruct_log_m
 from pymort.models.utils import estimate_rw_params
 
-
 _A_TRUE = np.array([-4.7, -4.3], dtype=float)
 _B_TRUE = np.array([0.4, 0.6], dtype=float)  # sum=1
 _K_TRUE = np.array([-0.08, 0.0, 0.09], dtype=float)  # mean≈0

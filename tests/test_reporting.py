@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 from pymort.analysis.reporting import (
-    RiskReport,
     generate_risk_report,
     plot_hedge_performance,
     plot_price_distribution,
@@ -12,10 +11,10 @@ from pymort.analysis.reporting import (
 )
 from pymort.analysis.scenario import MortalityScenarioSet
 
-
 # ----------------------------
 # Core: generate_risk_report
 # ----------------------------
+
 
 def test_generate_risk_report_constant_paths_zero_variance():
     pv = np.array([1.0, 1.0, 1.0])
@@ -122,6 +121,7 @@ def test_generate_risk_report_with_reference_metrics_and_mismatch_error():
 # Plots (smoke + errors)
 # ----------------------------
 
+
 @pytest.fixture
 def tiny_scen_set():
     years = np.array([2020, 2021, 2022], dtype=int)
@@ -140,6 +140,7 @@ def tiny_scen_set():
 
 def test_plot_survival_fan_smoke(tiny_scen_set, monkeypatch):
     import matplotlib
+
     matplotlib.use("Agg")
     ax = plot_survival_fan(tiny_scen_set, age=60.0)
     assert ax is not None
@@ -147,18 +148,26 @@ def test_plot_survival_fan_smoke(tiny_scen_set, monkeypatch):
 
 def test_plot_survival_fan_quantiles_errors(tiny_scen_set, monkeypatch):
     import matplotlib
+
     matplotlib.use("Agg")
 
     with pytest.raises(ValueError):
-        plot_survival_fan(tiny_scen_set, age=60.0, quantiles=(0.05, 0.25, 0.75, 0.95))  # missing 0.50
+        plot_survival_fan(
+            tiny_scen_set, age=60.0, quantiles=(0.05, 0.25, 0.75, 0.95)
+        )  # missing 0.50
     with pytest.raises(ValueError):
-        plot_survival_fan(tiny_scen_set, age=60.0, quantiles=(0.05, 0.25, 0.50, 0.50, 0.95))  # duplicate
+        plot_survival_fan(
+            tiny_scen_set, age=60.0, quantiles=(0.05, 0.25, 0.50, 0.50, 0.95)
+        )  # duplicate
     with pytest.raises(ValueError):
-        plot_survival_fan(tiny_scen_set, age=60.0, quantiles=(0.0, 0.25, 0.50, 0.75, 0.95))  # out of bounds
+        plot_survival_fan(
+            tiny_scen_set, age=60.0, quantiles=(0.0, 0.25, 0.50, 0.75, 0.95)
+        )  # out of bounds
 
 
 def test_plot_price_distribution_smoke_and_errors(monkeypatch):
     import matplotlib
+
     matplotlib.use("Agg")
 
     x = np.random.default_rng(1).normal(size=200)
@@ -171,6 +180,7 @@ def test_plot_price_distribution_smoke_and_errors(monkeypatch):
 
 def test_plot_hedge_performance_smoke_and_errors(monkeypatch):
     import matplotlib
+
     matplotlib.use("Agg")
 
     rng = np.random.default_rng(2)

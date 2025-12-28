@@ -7,20 +7,18 @@ These helpers are intentionally kept small to avoid circular imports between
 modules under ``pymort.models``.
 """
 
-from typing import Tuple
 
 import numpy as np
 
 
-def estimate_rw_params(k: np.ndarray) -> Tuple[float, float]:
-    """
-    Estimate random-walk-with-drift parameters for a 1D time index:
+def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
+    """Estimate random-walk-with-drift parameters for a 1D time index:
 
         k_t = k_{t-1} + mu + eps_t,   eps_t ~ N(0, sigma^2)
 
     Returns (mu, sigma) based on differences of k_t.
 
-    Notes
+    Notes:
     -----
     If only 2 points are available, sigma is not identifiable with ddof=1.
     In that case we return sigma = 0.0 (deterministic RW).
@@ -48,9 +46,8 @@ def estimate_rw_params(k: np.ndarray) -> Tuple[float, float]:
     return mu, sigma
 
 
-def _estimate_rw_params(kappa: np.ndarray) -> Tuple[float, float]:
-    """
-    CBD helper: estimate RW+drift parameters for a 1D series.
+def _estimate_rw_params(kappa: np.ndarray) -> tuple[float, float]:
+    """CBD helper: estimate RW+drift parameters for a 1D series.
 
     More permissive than ``estimate_rw_params``: if sigma is not finite or
     negative, it is set to 0.0 instead of raising.
@@ -67,4 +64,4 @@ def _estimate_rw_params(kappa: np.ndarray) -> Tuple[float, float]:
     return mu, sigma
 
 
-__all__ = ["estimate_rw_params", "_estimate_rw_params"]
+__all__ = ["_estimate_rw_params", "estimate_rw_params"]

@@ -1,26 +1,21 @@
-from typing import Optional
-
 import numpy as np
 
 from pymort.analysis import MortalityScenarioSet
 
 
 def find_nearest_age_index(ages: np.ndarray, target_age: float) -> int:
-    """
-    Return the index of the age in `ages` closest to `target_age`.
-    """
+    """Return the index of the age in `ages` closest to `target_age`."""
     ages = np.asarray(ages, dtype=float)
     return int(np.argmin(np.abs(ages - float(target_age))))
 
 
 def build_discount_factors(
     scen_set: MortalityScenarioSet,
-    short_rate: Optional[float],
-    discount_factors: Optional[np.ndarray],
+    short_rate: float | None,
+    discount_factors: np.ndarray | None,
     H: int,
 ) -> np.ndarray:
-    """
-    Determine discount factors for the pricing horizon.
+    """Determine discount factors for the pricing horizon.
 
     Priority:
         1) explicit discount_factors (if provided),
@@ -29,15 +24,12 @@ def build_discount_factors(
 
     Returns 1D (H,) or 2D (N,H) array when scenario-specific discounting is provided.
     """
-
     # 1) Explicit discount factors
     if discount_factors is not None:
         df = np.asarray(discount_factors, dtype=float)
         if df.ndim == 1:
             if df.shape[0] < H:
-                raise ValueError(
-                    f"discount_factors must have length >= {H}, got {df.shape[0]}."
-                )
+                raise ValueError(f"discount_factors must have length >= {H}, got {df.shape[0]}.")
             df = df[:H]
         elif df.ndim == 2:
             if df.shape[1] < H:
@@ -57,8 +49,7 @@ def build_discount_factors(
         if df.ndim == 1:
             if df.shape[0] < H:
                 raise ValueError(
-                    f"scen_set.discount_factors must have length >= H "
-                    f"({df.shape[0]} vs {H})."
+                    f"scen_set.discount_factors must have length >= H ({df.shape[0]} vs {H})."
                 )
             df = df[:H]
         elif df.ndim == 2:
@@ -90,8 +81,7 @@ def build_discount_factors(
 
 
 def pv_from_cf_paths(cf_paths: np.ndarray, discount_factors: np.ndarray) -> np.ndarray:
-    """
-    Compute PV per scenario from cashflow paths and discount factors.
+    """Compute PV per scenario from cashflow paths and discount factors.
 
     Parameters
     ----------
@@ -100,7 +90,7 @@ def pv_from_cf_paths(cf_paths: np.ndarray, discount_factors: np.ndarray) -> np.n
     discount_factors : np.ndarray
         Discount factors, shape (H,) or (1,H) or (N,H).
 
-    Returns
+    Returns:
     -------
     np.ndarray
         PV per scenario, shape (N,).
@@ -119,25 +109,18 @@ def pv_from_cf_paths(cf_paths: np.ndarray, discount_factors: np.ndarray) -> np.n
 
     if df.ndim == 2:
         if df.shape[1] != H:
-            raise ValueError(
-                f"discount_factors second dim {df.shape[1]} must equal H={H}."
-            )
+            raise ValueError(f"discount_factors second dim {df.shape[1]} must equal H={H}.")
         if df.shape[0] == 1:
             return (cf * np.repeat(df, N, axis=0)).sum(axis=1)
         if df.shape[0] != N:
-            raise ValueError(
-                f"discount_factors first dim must be 1 or N={N}; got {df.shape[0]}."
-            )
+            raise ValueError(f"discount_factors first dim must be 1 or N={N}; got {df.shape[0]}.")
         return (cf * df).sum(axis=1)
 
     raise ValueError("discount_factors must be 1D or 2D.")
 
 
-def pv_matrix_from_cf_paths(
-    cf_paths: np.ndarray, discount_factors: np.ndarray
-) -> np.ndarray:
-    """
-    Compute PV-by-horizon matrix from cashflow paths.
+def pv_matrix_from_cf_paths(cf_paths: np.ndarray, discount_factors: np.ndarray) -> np.ndarray:
+    """Compute PV-by-horizon matrix from cashflow paths.
 
     pv[n,h] = sum_{t>=h} cf[n,t] * D[n,t]/D[n,h]
 
@@ -146,7 +129,7 @@ def pv_matrix_from_cf_paths(
     cf_paths : (N,T)
     discount_factors : (T,) or (1,T) or (N,T)
 
-    Returns
+    Returns:
     -------
     pv : (N,T)
         PV at each horizon h for each scenario n.
@@ -163,15 +146,11 @@ def pv_matrix_from_cf_paths(
         df = np.repeat(df[None, :], n, axis=0)
     elif df.ndim == 2:
         if df.shape[1] != t:
-            raise ValueError(
-                f"discount_factors second dim {df.shape[1]} must equal T={t}."
-            )
+            raise ValueError(f"discount_factors second dim {df.shape[1]} must equal T={t}.")
         if df.shape[0] == 1:
             df = np.repeat(df, n, axis=0)
         elif df.shape[0] != n:
-            raise ValueError(
-                f"discount_factors first dim must be 1 or N={n}; got {df.shape[0]}."
-            )
+            raise ValueError(f"discount_factors first dim must be 1 or N={n}; got {df.shape[0]}.")
     else:
         raise ValueError("discount_factors must be 1D or 2D.")
 
@@ -236,9 +215,7 @@ def cohort_survival_full_horizon_from_q(
 
         q_fit_raw = q_paths[:, fit_mask, k]
         if not np.isfinite(q_fit_raw).all():
-            q_fit_raw = np.nan_to_num(
-                q_fit_raw, nan=0.0, posinf=1.0 - 1e-12, neginf=0.0
-            )
+            q_fit_raw = np.nan_to_num(q_fit_raw, nan=0.0, posinf=1.0 - 1e-12, neginf=0.0)
         q_fit = np.clip(q_fit_raw, 0.0, 1.0 - 1e-12)
 
         m_fit = np.clip(-np.log(1.0 - q_fit), m_floor, None)

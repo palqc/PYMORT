@@ -52,10 +52,14 @@ def test_positive_prices_with_discount_factors():
 
     specs = {
         "bond": LongevityBondSpec(issue_age=60.0, notional=10.0, maturity_years=T),
-        "swap": SurvivorSwapSpec(age=60.0, maturity_years=T, strike=0.2, notional=5.0, payer="fixed"),
+        "swap": SurvivorSwapSpec(
+            age=60.0, maturity_years=T, strike=0.2, notional=5.0, payer="fixed"
+        ),
         "q_fwd": QForwardSpec(age=60.0, maturity_years=2, strike=0.0, notional=1.0),
         "s_fwd": SForwardSpec(age=60.0, maturity_years=3, strike=0.5, notional=1.0),
-        "annuity": CohortLifeAnnuitySpec(issue_age=60.0, maturity_years=T, payment_per_survivor=1.0),
+        "annuity": CohortLifeAnnuitySpec(
+            issue_age=60.0, maturity_years=T, payment_per_survivor=1.0
+        ),
     }
 
     prices = pricing_pipeline(scen_Q=scen, specs=specs, short_rate=0.0)
@@ -68,7 +72,9 @@ def test_positive_prices_with_discount_factors():
 
 def test_discounting_monotonicity_for_positive_cashflows():
     scen = _make_scenario_set(discount_factors=None)
-    bond_spec = {"bond": LongevityBondSpec(issue_age=60.0, maturity_years=5, include_principal=True)}
+    bond_spec = {
+        "bond": LongevityBondSpec(issue_age=60.0, maturity_years=5, include_principal=True)
+    }
     ann_spec = {"annuity": CohortLifeAnnuitySpec(issue_age=60.0, maturity_years=5)}
 
     price_low = pricing_pipeline(scen_Q=scen, specs=bond_spec, short_rate=0.01)["bond"]

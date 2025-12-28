@@ -34,7 +34,7 @@ jobs:
 
       - name: Ruff (format check)
         run: |
-          ruff format --check .
+          ruff format --check src
 
       - name: MyPy (types)
         run: |

@@ -78,8 +78,8 @@ st.session_state["raw_df"] = None  # optional: could store long df later
 st.session_state["data_meta"] = {
     "source_file": uploaded.name,
     "sex": sex,
-    "age_min": int(60),
-    "age_max": int(110),
+    "age_min": 60,
+    "age_max": 110,
     "year_min": year_min_opt,
     "year_max": year_max_opt,
     "drop_years": drop_years,
@@ -111,9 +111,7 @@ for k in [
 # ---- Display summary
 col1, col2, col3 = st.columns(3)
 col1.metric("Ages", f"{int(np.min(ages))} → {int(np.max(ages))}", f"{len(ages)} points")
-col2.metric(
-    "Years", f"{int(np.min(years))} → {int(np.max(years))}", f"{len(years)} points"
-)
+col2.metric("Years", f"{int(np.min(years))} → {int(np.max(years))}", f"{len(years)} points")
 col3.metric("m shape", f"{m.shape[0]} × {m.shape[1]}", "age × year")
 
 st.subheader("Preview")

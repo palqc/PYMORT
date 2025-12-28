@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from pymort.pipeline import pricing_pipeline
 from pymort.pricing.longevity_bonds import LongevityBondSpec
@@ -120,9 +119,7 @@ def test_calibration_recovers_lambda_true_and_reduces_error():
         include_last=True,
     )
     lambda_true = 0.5
-    market_prices = _price_with_lambda(
-        cache, lam=lambda_true, specs=(bond_spec, swap_spec)
-    )
+    market_prices = _price_with_lambda(cache, lam=lambda_true, specs=(bond_spec, swap_spec))
     quotes = _make_quotes_from_prices(market_prices, bond_spec, swap_spec)
 
     res = calibrate_lambda_least_squares(
@@ -176,9 +173,7 @@ def test_lambda_bounds_respected():
         include_last=True,
     )
     lambda_true = 0.5
-    market_prices = _price_with_lambda(
-        cache, lam=lambda_true, specs=(bond_spec, swap_spec)
-    )
+    market_prices = _price_with_lambda(cache, lam=lambda_true, specs=(bond_spec, swap_spec))
     quotes = _make_quotes_from_prices(market_prices, bond_spec, swap_spec)
     bounds = (-0.1, 0.1)
     res = calibrate_lambda_least_squares(

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -10,8 +9,7 @@ from pymort.models.utils import estimate_rw_params
 
 @dataclass
 class APCM3Params:
-    """
-    Parameters of the Age–Period–Cohort model M3:
+    """Parameters of the Age–Period–Cohort model M3:
 
         log m_{x,t} = beta_x + kappa_t + gamma_{t-x}
 
@@ -33,12 +31,11 @@ class APCM3Params:
     years: np.ndarray  # (T,)
 
     # RW + drift parameters for kappa_t (used for forecasting)
-    mu: Optional[float] = None
-    sigma: Optional[float] = None
+    mu: float | None = None
+    sigma: float | None = None
 
     def gamma_for_age_at_last_year(self, age: float) -> float:
-        """
-        Return gamma_{t-x} for a given age at the LAST observed calendar year.
+        """Return gamma_{t-x} for a given age at the LAST observed calendar year.
 
         This is mainly a convenience helper for diagnostics / plotting.
         """
@@ -51,8 +48,7 @@ class APCM3Params:
 
 
 def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
-    """
-    Compute the cohort index c = t - x on the (age, year) grid.
+    """Compute the cohort index c = t - x on the (age, year) grid.
 
     Returns an array C with shape (A, T) where C[x, t] = years[t] - ages[x].
     """
@@ -66,8 +62,7 @@ def fit_apc_m3(
     ages: np.ndarray,
     years: np.ndarray,
 ) -> APCM3Params:
-    """
-    Fit the Age–Period–Cohort model M3 on a mortality surface m[age, year]:
+    """Fit the Age–Period–Cohort model M3 on a mortality surface m[age, year]:
 
         log m_{x,t} = beta_x + kappa_t + gamma_{t-x} + eps_{x,t}.
 
@@ -170,10 +165,9 @@ def fit_apc_m3(
 
 
 def reconstruct_log_m_apc(params: APCM3Params) -> np.ndarray:
-    """
-    Reconstruct the fitted log-mortality surface:
+    """Reconstruct the fitted log-mortality surface:
 
-        log m_{x,t} = beta_x + kappa_t + gamma_{t-x}
+    log m_{x,t} = beta_x + kappa_t + gamma_{t-x}
     """
     beta = params.beta_age
     kappa = params.kappa
@@ -196,16 +190,13 @@ def reconstruct_log_m_apc(params: APCM3Params) -> np.ndarray:
 
 
 def reconstruct_m_apc(params: APCM3Params) -> np.ndarray:
-    """
-    Reconstruct m_{x,t} from APC M3 parameters.
-    """
+    """Reconstruct m_{x,t} from APC M3 parameters."""
     ln_m = reconstruct_log_m_apc(params)
     return np.exp(ln_m)
 
 
 class APCM3:
-    """
-    Age–Period–Cohort model M3:
+    """Age–Period–Cohort model M3:
 
         log m_{x,t} = beta_x + kappa_t + gamma_{t-x}.
 
@@ -215,23 +206,20 @@ class APCM3:
     """
 
     def __init__(self) -> None:
-        self.params: Optional[APCM3Params] = None
+        self.params: APCM3Params | None = None
 
     def fit(
         self,
         m: np.ndarray,
         ages: np.ndarray,
         years: np.ndarray,
-    ) -> "APCM3":
-        """
-        Fit APC M3 and store the resulting parameters.
-        """
+    ) -> APCM3:
+        """Fit APC M3 and store the resulting parameters."""
         self.params = fit_apc_m3(m, ages, years)
         return self
 
-    def estimate_rw(self) -> Tuple[float, float]:
-        """
-        Estimate RW+drift parameters for the period index kappa_t:
+    def estimate_rw(self) -> tuple[float, float]:
+        """Estimate RW+drift parameters for the period index kappa_t:
 
             kappa_t = kappa_{t-1} + mu + eps_t.
 
@@ -244,17 +232,13 @@ class APCM3:
         return mu, sigma
 
     def predict_log_m(self) -> np.ndarray:
-        """
-        Reconstruct log m_{x,t} from fitted APC M3 parameters.
-        """
+        """Reconstruct log m_{x,t} from fitted APC M3 parameters."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_log_m_apc(self.params)
 
     def predict_m(self) -> np.ndarray:
-        """
-        Reconstruct m_{x,t} from fitted APC M3 parameters.
-        """
+        """Reconstruct m_{x,t} from fitted APC M3 parameters."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_m_apc(self.params)
@@ -263,11 +247,10 @@ class APCM3:
         self,
         horizon: int,
         n_sims: int = 1000,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         include_last: bool = False,
     ) -> np.ndarray:
-        """
-        Simulate future trajectories of the period index kappa_t under
+        """Simulate future trajectories of the period index kappa_t under
 
             kappa_t = kappa_{t-1} + mu + eps_t
 

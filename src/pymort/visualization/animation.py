@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Iterable, Literal, Optional
+from collections.abc import Iterable
+from typing import Literal
 
-import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import animation
 
 from pymort.analysis import MortalityScenarioSet
 
@@ -15,11 +16,10 @@ def animate_mortality_surface(
     value: Literal["q", "S"] = "q",
     statistic: Literal["mean", "median"] = "median",
     interval: int = 200,
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     dpi: int = 100,
 ) -> animation.FuncAnimation:
-    """
-    Animate age×time mortality/survival surface over projection horizon.
+    """Animate age×time mortality/survival surface over projection horizon.
 
     Parameters
     ----------
@@ -72,19 +72,21 @@ def animate_mortality_surface(
 def animate_survival_curves(
     scen_set: MortalityScenarioSet,
     *,
-    ages: Optional[Iterable[float]] = None,
+    ages: Iterable[float] | None = None,
     statistic: Literal["mean", "median"] = "median",
     interval: int = 200,
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     dpi: int = 100,
 ) -> animation.FuncAnimation:
-    """
-    Animate survival curves over calendar time for selected ages.
-    """
+    """Animate survival curves over calendar time for selected ages."""
     ages_grid = np.asarray(scen_set.ages, dtype=float)
     years = np.asarray(scen_set.years, dtype=int)
     if ages is None:
-        ages_sel = [float(ages_grid[0]), float(ages_grid[len(ages_grid) // 2]), float(ages_grid[-1])]
+        ages_sel = [
+            float(ages_grid[0]),
+            float(ages_grid[len(ages_grid) // 2]),
+            float(ages_grid[-1]),
+        ]
     else:
         ages_sel = list(ages)
     idx = [int(np.argmin(np.abs(ages_grid - a))) for a in ages_sel]

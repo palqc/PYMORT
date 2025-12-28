@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import logging
 import pickle
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union, cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -29,10 +30,10 @@ from pymort.analysis.sensitivities import (
     rate_convexity,
     rate_sensitivity,
 )
-from pymort.interest_rates.hull_white import build_interest_rate_scenarios
 from pymort.lifetables import m_to_q
 from pymort.pipeline import (
-    build_joint_scenarios,
+    _infer_kind,
+    _normalize_spec,
     build_projection_pipeline,
     build_risk_neutral_pipeline,
     hedging_pipeline,
@@ -40,8 +41,6 @@ from pymort.pipeline import (
     reporting_pipeline,
     risk_analysis_pipeline,
     stress_testing_pipeline,
-    _infer_kind,
-    _normalize_spec,
 )
 from pymort.pricing.liabilities import CohortLifeAnnuitySpec, price_cohort_life_annuity
 from pymort.pricing.longevity_bonds import LongevityBondSpec, price_simple_longevity_bond
@@ -85,7 +84,7 @@ def _setup_logging(level: str, verbose: bool, quiet: bool) -> None:
     )
 
 
-def _load_config(path: Optional[Path]) -> Dict[str, Any]:
+def _load_config(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
     if not path.exists():
@@ -109,7 +108,7 @@ def _ensure_outdir(path: Path, overwrite: bool) -> None:
         return
 
 
-def _parse_number_list(spec: Optional[str]) -> Optional[np.ndarray]:
+def _parse_number_list(spec: str | None) -> np.ndarray | None:
     if spec is None:
         return None
     if spec.strip() == "":
@@ -118,7 +117,7 @@ def _parse_number_list(spec: Optional[str]) -> Optional[np.ndarray]:
     return np.asarray(items, dtype=float)
 
 
-def _parse_range_spec(spec: Optional[str]) -> Optional[tuple[float, float]]:
+def _parse_range_spec(spec: str | None) -> tuple[float, float] | None:
     if spec is None:
         return None
     txt = spec.replace(" ", "")
@@ -143,8 +142,8 @@ def _slice_surface(
     years: np.ndarray,
     m: np.ndarray,
     *,
-    age_range: Optional[tuple[float, float]] = None,
-    year_range: Optional[tuple[float, float]] = None,
+    age_range: tuple[float, float] | None = None,
+    year_range: tuple[float, float] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     ages_arr = np.asarray(ages, dtype=float)
     years_arr = np.asarray(years, dtype=int)
@@ -168,11 +167,7 @@ def _read_numeric_series(path: Path) -> np.ndarray:
         data = np.load(path)
         first_key = list(data.keys())[0]
         return np.asarray(data[first_key]).reshape(-1)
-    df = (
-        pd.read_parquet(path)
-        if ext in {".parquet", ".pq"}
-        else pd.read_csv(path, header=None)
-    )
+    df = pd.read_parquet(path) if ext in {".parquet", ".pq"} else pd.read_csv(path, header=None)
     arr = df.to_numpy().reshape(-1)
     return np.asarray(arr, dtype=float)
 
@@ -184,11 +179,7 @@ def _read_numeric_matrix(path: Path) -> np.ndarray:
         if isinstance(arr, np.lib.npyio.NpzFile):
             arr = arr[list(arr.keys())[0]]
         return np.asarray(arr, dtype=float)
-    df = (
-        pd.read_parquet(path)
-        if ext in {".parquet", ".pq"}
-        else pd.read_csv(path, header=None)
-    )
+    df = pd.read_parquet(path) if ext in {".parquet", ".pq"} else pd.read_csv(path, header=None)
     return np.asarray(df.to_numpy(), dtype=float)
 
 
@@ -196,18 +187,16 @@ def _read_numeric_cube(path: Path) -> np.ndarray:
     arr = _read_numeric_matrix(path)
     if arr.ndim == 3:
         return arr
-    raise typer.BadParameter(
-        f"Expected 3D array at {path}; use .npy/.npz with shape (N,M,T)."
-    )
+    raise typer.BadParameter(f"Expected 3D array at {path}; use .npy/.npz with shape (N,M,T).")
 
 
 def _load_m_surface(
     m_path: Path,
-    ages_inline: Optional[str],
-    years_inline: Optional[str],
-    ages_path: Optional[Path],
-    years_path: Optional[Path],
-    preferred_rate_col: Optional[str] = None,
+    ages_inline: str | None,
+    years_inline: str | None,
+    ages_path: Path | None,
+    years_path: Path | None,
+    preferred_rate_col: str | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     ext = m_path.suffix.lower()
     ages = _parse_number_list(ages_inline) if ages_inline else None
@@ -226,9 +215,7 @@ def _load_m_surface(
         if m.ndim != 2:
             raise typer.BadParameter("m-path .npy must contain a 2D array (A,T).")
         if ages is None or years is None:
-            raise typer.BadParameter(
-                "Provide --ages/--years when loading .npy wide arrays."
-            )
+            raise typer.BadParameter("Provide --ages/--years when loading .npy wide arrays.")
         if m.shape != (ages.shape[0], years.shape[0]):
             raise typer.BadParameter(
                 f"m shape {m.shape} incompatible with ages {ages.shape} and years {years.shape}."
@@ -242,9 +229,7 @@ def _load_m_surface(
         age_col = [c for c in df.columns if c.lower() == "age"][0]
         year_col = [c for c in df.columns if c.lower() == "year"][0]
         rate_candidates = [
-            c
-            for c in df.columns
-            if c.lower() in {"m", "mx", "rate", "total", "male", "female"}
+            c for c in df.columns if c.lower() in {"m", "mx", "rate", "total", "male", "female"}
         ]
         rate_col = None
         if preferred_rate_col is not None:
@@ -304,7 +289,7 @@ def _save_table(obj: Any, path: Path, fmt: str) -> None:
         raise typer.BadParameter(f"Unsupported format: {fmt}")
 
 
-def _save_npz(data: Dict[str, Any], path: Path) -> None:
+def _save_npz(data: dict[str, Any], path: Path) -> None:
     # convert metadata to json-serializable
     meta = data.get("metadata")
     if meta is not None and not isinstance(meta, (str, bytes)):
@@ -325,7 +310,7 @@ def _load_scenarios(path: Path) -> MortalityScenarioSet:
         ages = np.asarray(data["ages"])
         years = np.asarray(data["years"])
         meta_raw = data.get("metadata")
-        metadata: Dict[str, Any] = {}
+        metadata: dict[str, Any] = {}
         if meta_raw is not None:
             if isinstance(meta_raw, (bytes, str)):
                 try:
@@ -343,9 +328,7 @@ def _load_scenarios(path: Path) -> MortalityScenarioSet:
             q_paths=q,
             S_paths=s,
             m_paths=data.get("m_paths") if "m_paths" in data else None,
-            discount_factors=(
-                data.get("discount_factors") if "discount_factors" in data else None
-            ),
+            discount_factors=(data.get("discount_factors") if "discount_factors" in data else None),
             metadata=metadata,
         )
     raise typer.BadParameter(f"Unsupported scenario format for {path} (use .npz).")
@@ -366,7 +349,7 @@ def _save_scenarios(scen_set: MortalityScenarioSet, path: Path) -> None:
     _save_npz(payload, path)
 
 
-def _maybe_pickle(obj: Any, path: Optional[Path]) -> None:
+def _maybe_pickle(obj: Any, path: Path | None) -> None:
     if path is None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -400,7 +383,7 @@ def _price_paths_for_spec(
     scen_set: MortalityScenarioSet,
     spec_obj: object,
     *,
-    short_rate: Optional[float],
+    short_rate: float | None,
 ) -> tuple[float, np.ndarray]:
     spec = _normalize_spec(spec_obj)
     kind = _infer_kind(spec)
@@ -422,13 +405,9 @@ def _price_paths_for_spec(
     return float(res["price"]), np.asarray(res["pv_paths"], dtype=float).reshape(-1)
 
 
-def _to_spec(kind: str, cfg: Dict[str, Any]) -> Union[
-    LongevityBondSpec,
-    SurvivorSwapSpec,
-    SForwardSpec,
-    QForwardSpec,
-    CohortLifeAnnuitySpec,
-]:
+def _to_spec(
+    kind: str, cfg: dict[str, Any]
+) -> LongevityBondSpec | SurvivorSwapSpec | SForwardSpec | QForwardSpec | CohortLifeAnnuitySpec:
     k = kind.lower()
     if k == "longevity_bond":
         return LongevityBondSpec(**cfg)
@@ -447,14 +426,14 @@ def _to_spec(kind: str, cfg: Dict[str, Any]) -> Union[
 class CLIContext:
     outdir: Path
     output_format: str
-    seed: Optional[int]
+    seed: int | None
     verbose: bool
     quiet: bool
     log_level: str
     overwrite: bool
-    config: Dict[str, Any]
-    save_path: Optional[Path]
-    load_path: Optional[Path]
+    config: dict[str, Any]
+    save_path: Path | None
+    load_path: Path | None
 
 
 def _ctx(ctx: typer.Context) -> CLIContext:
@@ -469,22 +448,18 @@ def _ctx(ctx: typer.Context) -> CLIContext:
 @app.callback()
 def main(
     ctx: typer.Context,
-    config: Optional[Path] = typer.Option(
+    config: Path | None = typer.Option(
         None, "--config", "-c", help="YAML/JSON config file with defaults."
     ),
-    seed: Optional[int] = typer.Option(None, help="RNG seed."),
+    seed: int | None = typer.Option(None, help="RNG seed."),
     outdir: Path = typer.Option(Path("outputs"), help="Output directory."),
     format: str = typer.Option("csv", "--format", help="Tabular output format."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose logging."),
     quiet: bool = typer.Option(False, "--quiet", help="Quiet logging."),
-    log_level: str = typer.Option(
-        "INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)."
-    ),
+    log_level: str = typer.Option("INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)."),
     overwrite: bool = typer.Option(False, help="Allow overwriting output files."),
-    save: Optional[Path] = typer.Option(
-        None, help="Optional pickle/npz path to save result."
-    ),
-    load: Optional[Path] = typer.Option(None, help="Load a previously saved object."),
+    save: Path | None = typer.Option(None, help="Optional pickle/npz path to save result."),
+    load: Path | None = typer.Option(None, help="Load a previously saved object."),
 ) -> None:
     cfg = _load_config(config)
     _setup_logging(log_level, verbose, quiet)
@@ -513,19 +488,11 @@ data_app = typer.Typer(help="Data utilities (validation, clipping, conversion)."
 @data_app.command("validate-m")
 def data_validate_m(
     ctx: typer.Context,
-    m_path: Path = typer.Option(
-        ..., help="Path to mortality surface (csv/parquet/npy)."
-    ),
-    ages: Optional[str] = typer.Option(None, help="Inline ages list, e.g. '60,61,62'."),
-    years: Optional[str] = typer.Option(
-        None, help="Inline years list, e.g. '2000,2001'."
-    ),
-    ages_path: Optional[Path] = typer.Option(
-        None, help="Path to ages (csv/parquet/npy)."
-    ),
-    years_path: Optional[Path] = typer.Option(
-        None, help="Path to years (csv/parquet/npy)."
-    ),
+    m_path: Path = typer.Option(..., help="Path to mortality surface (csv/parquet/npy)."),
+    ages: str | None = typer.Option(None, help="Inline ages list, e.g. '60,61,62'."),
+    years: str | None = typer.Option(None, help="Inline years list, e.g. '2000,2001'."),
+    ages_path: Path | None = typer.Option(None, help="Path to ages (csv/parquet/npy)."),
+    years_path: Path | None = typer.Option(None, help="Path to years (csv/parquet/npy)."),
 ) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
@@ -550,15 +517,13 @@ def data_validate_m(
 @data_app.command("clip-m")
 def data_clip_m(
     ctx: typer.Context,
-    m_path: Path = typer.Option(
-        ..., help="Path to mortality surface (csv/parquet/npy)."
-    ),
+    m_path: Path = typer.Option(..., help="Path to mortality surface (csv/parquet/npy)."),
     eps: float = typer.Option(1e-12, help="Minimum value for clipping."),
-    ages: Optional[str] = typer.Option(None, help="Inline ages."),
-    years: Optional[str] = typer.Option(None, help="Inline years."),
-    ages_path: Optional[Path] = typer.Option(None, help="Path to ages."),
-    years_path: Optional[Path] = typer.Option(None, help="Path to years."),
-    output: Optional[Path] = typer.Option(None, help="Output path (.npz or .npy)."),
+    ages: str | None = typer.Option(None, help="Inline ages."),
+    years: str | None = typer.Option(None, help="Inline years."),
+    ages_path: Path | None = typer.Option(None, help="Path to ages."),
+    years_path: Path | None = typer.Option(None, help="Path to years."),
+    output: Path | None = typer.Option(None, help="Output path (.npz or .npy)."),
 ) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
@@ -571,14 +536,12 @@ def data_clip_m(
 @data_app.command("to-q")
 def data_to_q(
     ctx: typer.Context,
-    m_path: Path = typer.Option(
-        ..., help="Path to mortality surface (csv/parquet/npy)."
-    ),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None, help="Output path (.npz)."),
+    m_path: Path = typer.Option(..., help="Path to mortality surface (csv/parquet/npy)."),
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
+    output: Path | None = typer.Option(None, help="Output path (.npz)."),
 ) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
@@ -602,19 +565,17 @@ smooth_app = typer.Typer(help="Smoothing utilities (CPsplines).")
 def smooth_cpsplines_cmd(
     ctx: typer.Context,
     m_path: Path = typer.Option(..., help="Path to mortality surface."),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
     deg: str = typer.Option("3,3", help="Degrees for (age,year) splines."),
     ord_d: str = typer.Option("2,2", help="Orders of derivative penalties."),
-    k: Optional[str] = typer.Option(None, help="Knots as 'ka,kt' or 'auto'."),
+    k: str | None = typer.Option(None, help="Knots as 'ka,kt' or 'auto'."),
     sp_method: str = typer.Option("grid_search", help="Smoothing parameter method."),
-    sp_args: Optional[str] = typer.Option(None, help="JSON string for smoothing args."),
+    sp_args: str | None = typer.Option(None, help="JSON string for smoothing args."),
     horizon: int = typer.Option(0, help="Forecast horizon for CPsplines."),
-    output: Optional[Path] = typer.Option(
-        None, help="Output npz path for fitted surface."
-    ),
+    output: Path | None = typer.Option(None, help="Output npz path for fitted surface."),
 ) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
@@ -664,20 +625,20 @@ fit_app = typer.Typer(help="Model fitting and selection.")
 @fit_app.callback(invoke_without_command=True)
 def fit_default_cmd(
     ctx: typer.Context,
-    data: Optional[Path] = typer.Argument(None, help="Long CSV/parquet mortality data."),
-    model: Optional[str] = typer.Option(
+    data: Path | None = typer.Argument(None, help="Long CSV/parquet mortality data."),
+    model: str | None = typer.Option(
         None,
         "--model",
         "-m",
         help="Model alias (lee-carter, cbd-m6, etc.).",
     ),
-    ages: Optional[str] = typer.Option(None, help="Age range e.g. '60-100'."),
-    years: Optional[str] = typer.Option(None, help="Year range e.g. '1970-2019'."),
-    rate_column: Optional[str] = typer.Option(
+    ages: str | None = typer.Option(None, help="Age range e.g. '60-100'."),
+    years: str | None = typer.Option(None, help="Year range e.g. '1970-2019'."),
+    rate_column: str | None = typer.Option(
         None, help="Optional column to use (Total, Male, Female, m)."
     ),
-    output: Optional[Path] = typer.Option(None, help="Pickle path for fitted model."),
-    summary: Optional[Path] = typer.Option(None, help="JSON summary path."),
+    output: Path | None = typer.Option(None, help="Pickle path for fitted model."),
+    summary: Path | None = typer.Option(None, help="JSON summary path."),
 ) -> None:
     if ctx.invoked_subcommand is not None:
         return
@@ -734,15 +695,15 @@ def fit_one_cmd(
     ctx: typer.Context,
     model: ModelName = typer.Option(..., help="Model name."),
     m_path: Path = typer.Option(...),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
     smoothing: str = typer.Option("none", help="none or cpsplines"),
     eval_on_raw: bool = typer.Option(True, help="Evaluate diagnostics on raw m."),
-    cpsplines_k: Optional[int] = typer.Option(None),
+    cpsplines_k: int | None = typer.Option(None),
     cpsplines_horizon: int = typer.Option(0),
-    output: Optional[Path] = typer.Option(None, help="Pickle path for fitted model."),
+    output: Path | None = typer.Option(None, help="Pickle path for fitted model."),
 ) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
@@ -770,16 +731,16 @@ def fit_select_cmd(
     ctx: typer.Context,
     m_path: Path = typer.Option(...),
     train_end: int = typer.Option(..., help="Last year in training set."),
-    models: List[str] = typer.Option(
+    models: list[str] = typer.Option(
         [], "--models", "-m", help="Comma-separated model list (default all)."
     ),
     metric: str = typer.Option("logit_q", help="Selection metric (log_m or logit_q)."),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None, help="Selection table path."),
-    ) -> None:
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
+    output: Path | None = typer.Option(None, help="Selection table path."),
+) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
     model_names: Sequence[ModelName] = (
@@ -812,16 +773,16 @@ def fit_select_and_fit_cmd(
     ctx: typer.Context,
     m_path: Path = typer.Option(...),
     train_end: int = typer.Option(...),
-    models: List[str] = typer.Option([], "--models", "-m"),
+    models: list[str] = typer.Option([], "--models", "-m"),
     metric: str = typer.Option("logit_q"),
-    cpsplines_k: Optional[int] = typer.Option(None),
+    cpsplines_k: int | None = typer.Option(None),
     cpsplines_horizon: int = typer.Option(0),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None, help="Pickle path for fitted model."),
-    selection_output: Optional[Path] = typer.Option(None, help="Selection table path."),
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
+    output: Path | None = typer.Option(None, help="Pickle path for fitted model."),
+    selection_output: Path | None = typer.Option(None, help="Selection table path."),
 ) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
@@ -871,21 +832,17 @@ def scen_build_p_cmd(
     train_end: int = typer.Option(..., help="Last year in training set for backtest."),
     horizon: int = typer.Option(50, help="Projection horizon."),
     n_scenarios: int = typer.Option(1000, help="Target number of scenarios."),
-    models: List[str] = typer.Option(
-        [], "--models", "-m", help="Subset of models to consider."
-    ),
-    cpsplines_k: Optional[int] = typer.Option(None),
+    models: list[str] = typer.Option([], "--models", "-m", help="Subset of models to consider."),
+    cpsplines_k: int | None = typer.Option(None),
     cpsplines_horizon: int = typer.Option(0),
-    seed: Optional[int] = typer.Option(None),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None, help="Output scenarios npz."),
+    seed: int | None = typer.Option(None),
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
+    output: Path | None = typer.Option(None, help="Output scenarios npz."),
 ) -> None:
-    """
-    End-to-end projection pipeline (P-measure) → MortalityScenarioSet.
-    """
+    """End-to-end projection pipeline (P-measure) → MortalityScenarioSet."""
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
     model_names: Sequence[str] = (
@@ -920,23 +877,21 @@ def scen_build_p_cmd(
 def scen_build_q_cmd(
     ctx: typer.Context,
     m_path: Path = typer.Option(..., help="Raw mortality surface for calibration."),
-    model_name: str = typer.Option(
-        "CBDM7", help="Model for lambda calibration (LCM2 or CBDM7)."
-    ),
+    model_name: str = typer.Option("CBDM7", help="Model for lambda calibration (LCM2 or CBDM7)."),
     lambda_esscher: float = typer.Option(
         ..., help="Lambda Esscher tilt (single value or first component)."
     ),
     B_bootstrap: int = typer.Option(100),
     n_process: int = typer.Option(200),
     horizon: int = typer.Option(50),
-    seed: Optional[int] = typer.Option(None),
+    seed: int | None = typer.Option(None),
     scale_sigma: float = typer.Option(1.0, help="Scale factor for sigma (vega)."),
     include_last: bool = typer.Option(False),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None, help="Output scenarios npz."),
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
+    output: Path | None = typer.Option(None, help="Output scenarios npz."),
 ) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
@@ -967,7 +922,7 @@ def scen_summarize_cmd(
     ctx: typer.Context,
     scen_path: Path = typer.Option(..., help="Scenario set npz."),
     percentiles: str = typer.Option("5,50,95"),
-    output: Optional[Path] = typer.Option(None, help="Summary table path."),
+    output: Path | None = typer.Option(None, help="Summary table path."),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -996,11 +951,11 @@ def stress_apply_cmd(
     scen_path: Path = typer.Option(..., help="Scenario set npz."),
     shock_type: str = typer.Option("long_life"),
     magnitude: float = typer.Option(0.1),
-    pandemic_year: Optional[int] = typer.Option(None),
+    pandemic_year: int | None = typer.Option(None),
     pandemic_duration: int = typer.Option(1),
-    plateau_start_year: Optional[int] = typer.Option(None),
-    accel_start_year: Optional[int] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None, help="Output stressed scenarios npz."),
+    plateau_start_year: int | None = typer.Option(None),
+    accel_start_year: int | None = typer.Option(None),
+    output: Path | None = typer.Option(None, help="Output stressed scenarios npz."),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1031,7 +986,7 @@ def stress_chain_cmd(
     ctx: typer.Context,
     scen_path: Path = typer.Option(...),
     chain_spec: Path = typer.Option(..., help="JSON/YAML list of shocks."),
-    output: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1041,9 +996,7 @@ def stress_chain_cmd(
     chain: list[ShockSpec] = []
     for spec in spec_list:
         if not isinstance(spec, dict) or "shock_type" not in spec:
-            raise typer.BadParameter(
-                "Each shock must be a dict with shock_type and params."
-            )
+            raise typer.BadParameter("Each shock must be a dict with shock_type and params.")
         chain.append(
             ShockSpec(
                 name=str(spec.get("name", spec["shock_type"])),
@@ -1063,7 +1016,7 @@ def stress_bundle_cmd(
     scen_path: Path = typer.Option(...),
     long_life_bump: float = typer.Option(0.1),
     short_life_bump: float = typer.Option(0.1),
-    output: Optional[Path] = typer.Option(None, help="Output directory for bundle."),
+    output: Path | None = typer.Option(None, help="Output directory for bundle."),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1071,12 +1024,8 @@ def stress_bundle_cmd(
     outdir.mkdir(parents=True, exist_ok=True)
     base_path = outdir / "base.npz"
     _save_scenarios(scen_set, base_path)
-    long_life = apply_mortality_shock(
-        scen_set, shock_type="long_life", magnitude=long_life_bump
-    )
-    short_life = apply_mortality_shock(
-        scen_set, shock_type="short_life", magnitude=short_life_bump
-    )
+    long_life = apply_mortality_shock(scen_set, shock_type="long_life", magnitude=long_life_bump)
+    short_life = apply_mortality_shock(scen_set, shock_type="short_life", magnitude=short_life_bump)
     _save_scenarios(long_life, outdir / "optimistic.npz")
     _save_scenarios(short_life, outdir / "pessimistic.npz")
     manifest = {
@@ -1109,11 +1058,9 @@ def price_longevity_bond_cmd(
     issue_age: float = typer.Option(...),
     maturity_years: int = typer.Option(...),
     notional: float = typer.Option(1.0),
-    include_principal: bool = typer.Option(
-        True, "--include-principal/--no-include-principal"
-    ),
-    short_rate: Optional[float] = typer.Option(None, help="Flat short rate."),
-    output: Optional[Path] = typer.Option(None, help="Result JSON/CSV."),
+    include_principal: bool = typer.Option(True, "--include-principal/--no-include-principal"),
+    short_rate: float | None = typer.Option(None, help="Flat short rate."),
+    output: Path | None = typer.Option(None, help="Result JSON/CSV."),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1140,10 +1087,10 @@ def price_survivor_swap_cmd(
     age: float = typer.Option(...),
     maturity_years: int = typer.Option(...),
     notional: float = typer.Option(1.0),
-    strike: Optional[float] = typer.Option(None),
+    strike: float | None = typer.Option(None),
     payer: str = typer.Option("fixed", help="fixed or floating"),
-    short_rate: Optional[float] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None),
+    short_rate: float | None = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1170,11 +1117,11 @@ def price_q_forward_cmd(
     scen_path: Path = typer.Option(...),
     age: float = typer.Option(...),
     maturity_years: int = typer.Option(...),
-    strike: Optional[float] = typer.Option(None),
-    settlement_years: Optional[int] = typer.Option(None),
+    strike: float | None = typer.Option(None),
+    settlement_years: int | None = typer.Option(None),
     notional: float = typer.Option(1.0),
-    short_rate: Optional[float] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None),
+    short_rate: float | None = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1201,11 +1148,11 @@ def price_s_forward_cmd(
     scen_path: Path = typer.Option(...),
     age: float = typer.Option(...),
     maturity_years: int = typer.Option(...),
-    strike: Optional[float] = typer.Option(None),
-    settlement_years: Optional[int] = typer.Option(None),
+    strike: float | None = typer.Option(None),
+    settlement_years: int | None = typer.Option(None),
     notional: float = typer.Option(1.0),
-    short_rate: Optional[float] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None),
+    short_rate: float | None = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1231,14 +1178,14 @@ def price_life_annuity_cmd(
     ctx: typer.Context,
     scen_path: Path = typer.Option(...),
     issue_age: float = typer.Option(...),
-    maturity_years: Optional[int] = typer.Option(None),
+    maturity_years: int | None = typer.Option(None),
     payment_per_survivor: float = typer.Option(1.0),
     defer_years: int = typer.Option(0),
     exposure_at_issue: float = typer.Option(1.0),
     include_terminal: bool = typer.Option(False),
     terminal_notional: float = typer.Option(0.0),
-    short_rate: Optional[float] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None),
+    short_rate: float | None = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1282,21 +1229,21 @@ def rn_calibrate_lambda_cmd(
     B_bootstrap: int = typer.Option(50),
     n_process: int = typer.Option(200),
     short_rate: float = typer.Option(0.02),
-    horizon: Optional[int] = typer.Option(None),
-    seed: Optional[int] = typer.Option(None),
+    horizon: int | None = typer.Option(None),
+    seed: int | None = typer.Option(None),
     include_last: bool = typer.Option(False),
-    output: Optional[Path] = typer.Option(None, help="Calibration result pickle."),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None, help="Calibration result pickle."),
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     quotes_cfg = _load_config(quotes_path)
     if not isinstance(quotes_cfg, list):
         raise typer.BadParameter("quotes file must be a list of quote dicts.")
 
-    def _mk_quote(d: Dict[str, Any]) -> MultiInstrumentQuote:
+    def _mk_quote(d: dict[str, Any]) -> MultiInstrumentQuote:
         if "kind" not in d or "spec" not in d:
             raise typer.BadParameter("Each quote must have 'kind' and 'spec' fields.")
         kind_norm = str(d["kind"]).replace("-", "_")
@@ -1309,8 +1256,8 @@ def rn_calibrate_lambda_cmd(
         )
 
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
-    instruments: Dict[str, Any] = {}
-    market_prices: Dict[str, float] = {}
+    instruments: dict[str, Any] = {}
+    market_prices: dict[str, float] = {}
     for i, d in enumerate(quotes_cfg):
         name = str(d.get("name", f"inst_{i}"))
         q = _mk_quote(d)
@@ -1368,13 +1315,13 @@ def rn_price_under_lambda_cmd(
     horizon: int = typer.Option(50),
     short_rate: float = typer.Option(0.02),
     specs: Path = typer.Option(..., help="Specs file for instruments."),
-    seed: Optional[int] = typer.Option(None),
+    seed: int | None = typer.Option(None),
     include_last: bool = typer.Option(False),
-    output: Optional[Path] = typer.Option(None, help="Prices table path."),
-    ages: Optional[str] = typer.Option(None),
-    years: Optional[str] = typer.Option(None),
-    ages_path: Optional[Path] = typer.Option(None),
-    years_path: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None, help="Prices table path."),
+    ages: str | None = typer.Option(None),
+    years: str | None = typer.Option(None),
+    ages_path: Path | None = typer.Option(None),
+    years_path: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     spec_cfg = _load_config(specs)
@@ -1390,19 +1337,15 @@ def rn_price_under_lambda_cmd(
         seed=seed if seed is not None else c.seed,
         include_last=include_last,
     )
-    scen_set_q = build_scenarios_under_lambda_fast(
-        cache=cache, lambda_esscher=lambda_val
-    )
+    scen_set_q = build_scenarios_under_lambda_fast(cache=cache, lambda_esscher=lambda_val)
 
-    specs_norm: Dict[str, Any] = {}
+    specs_norm: dict[str, Any] = {}
     for name, item in spec_cfg.items():
         if not isinstance(item, dict) or "kind" not in item or "spec" not in item:
             raise typer.BadParameter("Specs file must map name -> {kind, spec}.")
         specs_norm[name] = _to_spec(str(item["kind"]).replace("-", "_"), item["spec"])
 
-    prices = pricing_pipeline(
-        scen_Q=scen_set_q, specs=specs_norm, short_rate=short_rate
-    )
+    prices = pricing_pipeline(scen_Q=scen_set_q, specs=specs_norm, short_rate=short_rate)
     out = output or c.outdir / "prices_under_lambda.json"
     out.write_text(json.dumps(prices, indent=2))
     typer.echo(f"Prices saved to {out}")
@@ -1426,7 +1369,7 @@ def sens_rate_cmd(
     spec_path: Path = typer.Option(..., help="JSON/YAML spec for instrument."),
     base_short_rate: float = typer.Option(...),
     bump: float = typer.Option(1e-4),
-    output: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1436,14 +1379,10 @@ def sens_rate_cmd(
 
     def price_func(*, scen_set: MortalityScenarioSet, short_rate: float) -> float:
         return float(
-            pricing_pipeline(
-                scen_Q=scen_set, specs={"inst": spec}, short_rate=short_rate
-            )["inst"]
+            pricing_pipeline(scen_Q=scen_set, specs={"inst": spec}, short_rate=short_rate)["inst"]
         )
 
-    res = rate_sensitivity(
-        price_func, scen_set, base_short_rate=base_short_rate, bump=bump
-    )
+    res = rate_sensitivity(price_func, scen_set, base_short_rate=base_short_rate, bump=bump)
     out = output or c.outdir / "rate_sensitivity.json"
     out.write_text(json.dumps(asdict(res), indent=2))
     typer.echo(f"Rate sensitivity saved to {out}")
@@ -1457,7 +1396,7 @@ def sens_convexity_cmd(
     spec_path: Path = typer.Option(...),
     base_short_rate: float = typer.Option(...),
     bump: float = typer.Option(1e-4),
-    output: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1467,14 +1406,10 @@ def sens_convexity_cmd(
 
     def price_func(*, scen_set: MortalityScenarioSet, short_rate: float) -> float:
         return float(
-            pricing_pipeline(
-                scen_Q=scen_set, specs={"inst": spec}, short_rate=short_rate
-            )["inst"]
+            pricing_pipeline(scen_Q=scen_set, specs={"inst": spec}, short_rate=short_rate)["inst"]
         )
 
-    res = rate_convexity(
-        price_func, scen_set, base_short_rate=base_short_rate, bump=bump
-    )
+    res = rate_convexity(price_func, scen_set, base_short_rate=base_short_rate, bump=bump)
     out = output or c.outdir / "rate_convexity.json"
     out.write_text(json.dumps(asdict(res), indent=2))
     typer.echo(f"Rate convexity saved to {out}")
@@ -1487,9 +1422,9 @@ def sens_delta_by_age_cmd(
     kind: str = typer.Option(...),
     spec_path: Path = typer.Option(...),
     rel_bump: float = typer.Option(0.01),
-    ages: Optional[str] = typer.Option(None, help="Subset ages, comma-separated."),
+    ages: str | None = typer.Option(None, help="Subset ages, comma-separated."),
     short_rate: float = typer.Option(0.0, help="Short rate for pricing."),
-    output: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
@@ -1499,9 +1434,7 @@ def sens_delta_by_age_cmd(
 
     def price_func(scen: MortalityScenarioSet) -> float:
         return float(
-            pricing_pipeline(scen_Q=scen, specs={"inst": spec}, short_rate=short_rate)[
-                "inst"
-            ]
+            pricing_pipeline(scen_Q=scen, specs={"inst": spec}, short_rate=short_rate)["inst"]
         )
 
     ages_sel = _parse_number_list(ages) if ages else None
@@ -1530,11 +1463,9 @@ def sens_all_cmd(
     sigma_rel_bump: float = typer.Option(0.05),
     q_rel_bump: float = typer.Option(0.01),
     rate_bump: float = typer.Option(1e-4),
-    output: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
-    """
-    Compute all sensitivities via pipeline.risk_analysis_pipeline.
-    """
+    """Compute all sensitivities via pipeline.risk_analysis_pipeline."""
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
     specs_cfg = _load_config(specs_path)
@@ -1583,8 +1514,8 @@ def hedge_end_to_end_cmd(
     liabilities: Path = typer.Option(..., help="Liability specs (YAML/JSON)."),
     instruments: Path = typer.Option(..., help="Hedge instrument specs (YAML/JSON)."),
     method: str = typer.Option("min_variance", help="Hedging method."),
-    short_rate: Optional[float] = typer.Option(None, help="Flat rate if no discount factors."),
-    output: Optional[Path] = typer.Option(None, help="Output JSON."),
+    short_rate: float | None = typer.Option(None, help="Flat rate if no discount factors."),
+    output: Path | None = typer.Option(None, help="Output JSON."),
 ) -> None:
     c = _ctx(ctx)
     scen_set = _load_scenarios(scenarios)
@@ -1604,7 +1535,7 @@ def hedge_end_to_end_cmd(
     else:
         instr_specs = instr_cfg
 
-    liab_paths: Optional[np.ndarray] = None
+    liab_paths: np.ndarray | None = None
     for spec in liab_specs.values():
         _, pv = _price_paths_for_spec(scen_set, spec, short_rate=short_rate)
         liab_paths = pv if liab_paths is None else liab_paths + pv
@@ -1630,8 +1561,7 @@ def hedge_end_to_end_cmd(
         res.instrument_names = instr_names  # type: ignore[attr-defined]
 
     weights_map = {
-        name: float(w)
-        for name, w in zip(instr_names, np.asarray(res.weights).reshape(-1))
+        name: float(w) for name, w in zip(instr_names, np.asarray(res.weights).reshape(-1))
     }
     payload = {
         "method": method,
@@ -1648,8 +1578,8 @@ def hedge_min_variance_cmd(
     ctx: typer.Context,
     liab_pv_path: Path = typer.Option(..., help="Liability PV paths npy/csv/parquet."),
     instr_pv_path: Path = typer.Option(..., help="Instrument PV paths (N,M)."),
-    names: Optional[str] = typer.Option(None, help="Comma-separated instrument names."),
-    output: Optional[Path] = typer.Option(None),
+    names: str | None = typer.Option(None, help="Comma-separated instrument names."),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     liab = _read_numeric_series(liab_pv_path).reshape(-1)
@@ -1678,9 +1608,9 @@ def hedge_multihorizon_cmd(
     ctx: typer.Context,
     liab_cf_path: Path = typer.Option(..., help="Liability CF paths (N,T)."),
     instr_cf_path: Path = typer.Option(..., help="Instrument CF paths (N,M,T)."),
-    discount_factors_path: Optional[Path] = typer.Option(None),
-    time_weights_path: Optional[Path] = typer.Option(None),
-    output: Optional[Path] = typer.Option(None),
+    discount_factors_path: Path | None = typer.Option(None),
+    time_weights_path: Path | None = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     L = _read_numeric_matrix(liab_cf_path)
@@ -1720,12 +1650,10 @@ report_app = typer.Typer(help="Risk reporting utilities.")
 def report_risk_cmd(
     ctx: typer.Context,
     pv_path: Path = typer.Option(..., help="PV paths csv/parquet/npy."),
-    name: Optional[str] = typer.Option(None, help="Name for the report."),
+    name: str | None = typer.Option(None, help="Name for the report."),
     var_level: float = typer.Option(0.95, help="VaR level."),
-    ref_pv_path: Optional[Path] = typer.Option(
-        None, help="Optional reference PV paths."
-    ),
-    output: Optional[Path] = typer.Option(None),
+    ref_pv_path: Path | None = typer.Option(None, help="Optional reference PV paths."),
+    output: Path | None = typer.Option(None),
 ) -> None:
     c = _ctx(ctx)
     pv = _read_numeric_series(pv_path)
@@ -1757,7 +1685,7 @@ def plot_survival_fan_cmd(
     scen_path: Path = typer.Option(...),
     age: float = typer.Option(...),
     quantiles: str = typer.Option("5,50,95"),
-    output: Optional[Path] = typer.Option(None, help="PNG path."),
+    output: Path | None = typer.Option(None, help="PNG path."),
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -1776,7 +1704,7 @@ def plot_price_dist_cmd(
     ctx: typer.Context,
     pv_path: Path = typer.Option(...),
     bins: int = typer.Option(30),
-    output: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -1799,10 +1727,8 @@ def plot_lexis_cmd(
     scen_path: Path = typer.Option(..., help="Scenario set npz."),
     value: str = typer.Option("q", help="m, q, or S"),
     statistic: str = typer.Option("median", help="mean or median"),
-    cohorts: Optional[str] = typer.Option(
-        None, help="Comma-separated cohort birth years."
-    ),
-    output: Optional[Path] = typer.Option(None, help="PNG path."),
+    cohorts: str | None = typer.Option(None, help="Comma-separated cohort birth years."),
+    output: Path | None = typer.Option(None, help="PNG path."),
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -1830,7 +1756,7 @@ def plot_fan_cmd(
     age: float = typer.Option(...),
     value: str = typer.Option("S", help="S or q"),
     quantiles: str = typer.Option("5,25,50,75,95"),
-    output: Optional[Path] = typer.Option(None),
+    output: Path | None = typer.Option(None),
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -2025,16 +1951,12 @@ def run_hedge_pipeline_cmd(
         method=hedge_cfg.get("method", "min_variance"),
     )
     res.instrument_names = names  # type: ignore[attr-defined]
-    weights_map = {
-        name: float(w) for name, w in zip(names, np.asarray(res.weights).reshape(-1))
-    }
+    weights_map = {name: float(w) for name, w in zip(names, np.asarray(res.weights).reshape(-1))}
 
     out_path = Path(hedge_cfg.get("output", c.outdir / "hedge_weights.json"))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
-        json.dumps(
-            {"weights": weights_map, "summary": getattr(res, "summary", {})}, indent=2
-        )
+        json.dumps({"weights": weights_map, "summary": getattr(res, "summary", {})}, indent=2)
     )
     typer.echo(f"Hedge weights saved to {out_path}")
 

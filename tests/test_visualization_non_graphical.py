@@ -80,9 +80,7 @@ def test_plot_functions_raise_on_unknown_value_or_statistic():
 def test_animate_survival_curves_no_save_runs_or_skips_cleanly():
     scen = _toy_scenarios(T=3)  # keep frames minimal
     plt.close("all")
-    anim = animate_survival_curves(
-        scen_set=scen, statistic="mean", interval=50, save_path=None
-    )
+    anim = animate_survival_curves(scen_set=scen, statistic="mean", interval=50, save_path=None)
     assert anim is not None
     plt.close("all")
 

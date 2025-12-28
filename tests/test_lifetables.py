@@ -6,10 +6,10 @@ import pytest
 
 import pymort.lifetables as lt
 
-
 # ----------------------------
 # Core conversions
 # ----------------------------
+
 
 def test_m_to_q_bounds_and_inverse_roundtrip():
     m = np.array([[1e-8, 0.02], [0.05, 0.1]], dtype=float)
@@ -31,6 +31,7 @@ def test_q_to_m_clips_extremes():
 # ----------------------------
 # Survival and validators
 # ----------------------------
+
 
 def test_survival_from_q_monotonic_and_shapes():
     q = np.array([[0.1, 0.2, 0.05]], dtype=float)
@@ -60,6 +61,7 @@ def test_validate_survival_monotonic_raises_if_increasing():
 # survival_paths_from_q_paths
 # ----------------------------
 
+
 def test_survival_paths_from_q_paths_happy_path_and_shape_error():
     q_paths = np.array(
         [
@@ -81,6 +83,7 @@ def test_survival_paths_from_q_paths_happy_path_and_shape_error():
 # ----------------------------
 # Excel loader internals
 # ----------------------------
+
 
 def test__norm_normalizes_tokens():
     assert lt._norm(" Year ") == "year"
@@ -134,6 +137,7 @@ def test__read_table_with_header_parses_and_drops_open_age():
 # load_m_from_excel (with monkeypatch)
 # ----------------------------
 
+
 def _fake_excel_dict_ok_with_gaps():
     """
     Build a dict of sheets as read_excel(sheet_name=None, header=None) would return.
@@ -147,7 +151,7 @@ def _fake_excel_dict_ok_with_gaps():
         ["Age", "Year", "Total"],
         ["110+", 2000, 0.5],
         [60, 2000, 0.01],
-        [60, 2001, np.nan],   # gap to impute
+        [60, 2001, np.nan],  # gap to impute
         [61, 2000, 0.02],
         [61, 2001, 0.021],
     ]

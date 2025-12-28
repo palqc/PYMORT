@@ -58,8 +58,7 @@ with st.sidebar:
     default_sel = [
         k
         for k in all_kinds
-        if k
-        in ("life_annuity", "longevity_bond", "q_forward", "s_forward", "survivor_swap")
+        if k in ("life_annuity", "longevity_bond", "q_forward", "s_forward", "survivor_swap")
     ]
     selected_kinds = st.multiselect(
         "Compute on",
@@ -73,9 +72,7 @@ with st.sidebar:
     compute_rate = st.checkbox("Rate sensitivity (dP/dr, duration, DV01)", value=True)
     rate_bump = None
     if compute_rate:
-        rate_bump = st.number_input(
-            "Rate bump (h)", value=1e-4, step=1e-5, format="%.8f"
-        )
+        rate_bump = st.number_input("Rate bump (h)", value=1e-4, step=1e-5, format="%.8f")
 
     compute_convexity = st.checkbox("Rate convexity", value=False)
 
@@ -83,9 +80,7 @@ with st.sidebar:
     q_rel_bump = None
     ages_for_delta = None
     if compute_delta:
-        q_rel_bump = st.number_input(
-            "q relative bump (eps)", value=0.01, step=0.005, format="%.4f"
-        )
+        q_rel_bump = st.number_input("q relative bump (eps)", value=0.01, step=0.005, format="%.4f")
 
         ages_grid = np.asarray(getattr(scen, "ages", []), dtype=float)
         if ages_grid.size > 0:
@@ -112,9 +107,7 @@ with st.sidebar:
             step = st.number_input("Age step", value=5.0, step=1.0)
             if step <= 0:
                 step = 5.0
-            ages_for_delta = np.arange(
-                float(lo), float(hi) + 1e-9, float(step)
-            ).tolist()
+            ages_for_delta = np.arange(float(lo), float(hi) + 1e-9, float(step)).tolist()
 
     compute_vega = st.checkbox(
         "Mortality vega via sigma scaling (requires calibration)", value=False
@@ -176,9 +169,7 @@ if run:
             bumps["q_rel_bump"] = float(q_rel_bump) if q_rel_bump is not None else 0.01
             bumps["ages_for_delta"] = ages_for_delta
         if compute_vega:
-            bumps["sigma_rel_bump"] = (
-                float(sigma_rel_bump) if sigma_rel_bump is not None else 0.05
-            )
+            bumps["sigma_rel_bump"] = float(sigma_rel_bump) if sigma_rel_bump is not None else 0.05
             if vega_available:
                 bumps["calibration_cache"] = cache
                 bumps["lambda_esscher"] = lam
@@ -280,9 +271,9 @@ if "rate_convexity" in res:
 if "vega_sigma_scale" in res:
     st.subheader("Mortality vega (sigma-scale)")
     vega = res["vega_sigma_scale"] or {}
-    df_v = pd.DataFrame(
-        [{"instrument": k, "vega": float(v)} for k, v in vega.items()]
-    ).sort_values("instrument")
+    df_v = pd.DataFrame([{"instrument": k, "vega": float(v)} for k, v in vega.items()]).sort_values(
+        "instrument"
+    )
     st.dataframe(df_v, use_container_width=True)
 
 # -----------------------------

@@ -113,9 +113,7 @@ else:
     m_s = np.asarray(m_s, dtype=float)
 
     s1, s2, s3 = st.columns(3)
-    s1.metric(
-        "Slice ages", f"{int(ages_s.min())} → {int(ages_s.max())}", f"{len(ages_s)} pts"
-    )
+    s1.metric("Slice ages", f"{int(ages_s.min())} → {int(ages_s.max())}", f"{len(ages_s)} pts")
     s2.metric(
         "Slice years",
         f"{int(years_s.min())} → {int(years_s.max())}",

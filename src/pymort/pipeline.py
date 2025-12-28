@@ -1,5 +1,4 @@
-"""
-PYMORT pipelines
+"""PYMORT pipelines
 ===========================
 
 This module wires together the modelling, projection, risk-neutral, pricing,
@@ -18,8 +17,9 @@ building blocks:
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Literal, Mapping, Optional, Sequence
+from typing import Any, Literal
 
 import numpy as np
 
@@ -87,18 +87,12 @@ from pymort.pricing.survivor_swaps import SurvivorSwapSpec
 
 
 def _derive_bootstrap_params(
-    n_scenarios: int, bootstrap_kwargs: Optional[dict]
+    n_scenarios: int, bootstrap_kwargs: dict | None
 ) -> tuple[int, int, str]:
-    """
-    Choose (B_bootstrap, n_process, resample) given a target number of scenarios.
-    """
+    """Choose (B_bootstrap, n_process, resample) given a target number of scenarios."""
     if bootstrap_kwargs is None:
         bootstrap_kwargs = {}
-    B = int(
-        bootstrap_kwargs.get(
-            "B", bootstrap_kwargs.get("B_bootstrap", max(1, n_scenarios))
-        )
-    )
+    B = int(bootstrap_kwargs.get("B", bootstrap_kwargs.get("B_bootstrap", max(1, n_scenarios))))
     n_process = int(bootstrap_kwargs.get("n_process", max(1, n_scenarios // max(1, B))))
     resample = str(bootstrap_kwargs.get("resample", "year_block"))
     return B, n_process, resample
@@ -120,15 +114,11 @@ def _infer_kind(spec: object) -> str:
         return "life_annuity"
     if isinstance(spec, dict) and "kind" in spec:
         return str(spec["kind"])
-    raise ValueError(
-        "Cannot infer instrument kind; provide a spec dataclass or dict with 'kind'."
-    )
+    raise ValueError("Cannot infer instrument kind; provide a spec dataclass or dict with 'kind'.")
 
 
 def _normalize_spec(spec: object) -> object:
-    """
-    Accepts either already-instantiated specs or dict {"kind": ..., "spec": {...}}.
-    """
+    """Accepts either already-instantiated specs or dict {"kind": ..., "spec": {...}}."""
     if isinstance(
         spec,
         (
@@ -160,9 +150,7 @@ def _normalize_spec(spec: object) -> object:
             return QForwardSpec(**data)
         if kind == "life_annuity":
             return CohortLifeAnnuitySpec(**data)
-    raise ValueError(
-        "Unsupported spec format; expected dataclass or {'kind','spec'} dict."
-    )
+    raise ValueError("Unsupported spec format; expected dataclass or {'kind','spec'} dict.")
 
 
 def _build_multi_instrument_quotes(
@@ -190,9 +178,7 @@ def _build_multi_instrument_quotes(
 
 
 def _calibration_summary(lam_res: dict[str, Any]) -> dict[str, Any]:
-    """
-    Build a structured calibration summary from calibrate_lambda_least_squares output.
-    """
+    """Build a structured calibration summary from calibrate_lambda_least_squares output."""
     prices_model = np.asarray(lam_res.get("fitted_prices", []), dtype=float)
     prices_market = np.asarray(lam_res.get("market_prices", []), dtype=float)
     errors = prices_model - prices_market
@@ -207,9 +193,7 @@ def _calibration_summary(lam_res: dict[str, Any]) -> dict[str, Any]:
             instr_names = []
     residual_table = []
     if instr_names and prices_model.size == prices_market.size:
-        for name, pm, pobs in zip(
-            instr_names, prices_model.tolist(), prices_market.tolist()
-        ):
+        for name, pm, pobs in zip(instr_names, prices_model.tolist(), prices_market.tolist()):
             residual_table.append(
                 {
                     "instrument": name,
@@ -254,16 +238,14 @@ def build_mortality_scenarios_for_pricing(
         "CBDM7",
     ),
     selection_metric: Literal["log_m", "logit_q"] = "logit_q",
-    cpsplines_kwargs: Optional[Dict[str, Any]] = None,
+    cpsplines_kwargs: dict[str, Any] | None = None,
     B_bootstrap: int = 1000,
     horizon: int = 50,
     n_process: int = 200,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     include_last: bool = True,
 ) -> tuple[FittedModel, ProjectionResult, MortalityScenarioSet, CalibrationCache]:
-    """
-    Legacy end-to-end fit + projection pipeline used by earlier CLI code.
-    """
+    """Legacy end-to-end fit + projection pipeline used by earlier CLI code."""
     ages = np.asarray(ages, dtype=float)
     years = np.asarray(years, dtype=int)
     m = np.asarray(m, dtype=float)
@@ -279,9 +261,7 @@ def build_mortality_scenarios_for_pricing(
     )
 
     if fitted_best.m_fit_surface is None:
-        raise RuntimeError(
-            "FittedModel.m_fit_surface is None; expected CPsplines-smoothed m."
-        )
+        raise RuntimeError("FittedModel.m_fit_surface is None; expected CPsplines-smoothed m.")
     m_smooth = fitted_best.m_fit_surface
     model_cls = type(fitted_best.model)
 
@@ -307,7 +287,7 @@ def build_mortality_scenarios_for_pricing(
         include_last=include_last,
     )
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "selected_model": fitted_best.name,
         "selection_metric": selection_metric,
         "train_end": int(train_end),
@@ -350,7 +330,7 @@ def project_from_fitted_model(
     B_bootstrap: int = 1000,
     horizon: int = 50,
     n_process: int = 200,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     include_last: bool = True,
     resample: Literal["cell", "year_block"] = "year_block",
     ages_raw: np.ndarray | None = None,
@@ -359,9 +339,7 @@ def project_from_fitted_model(
     plot_age_start: int = 95,
     plot_age_max: int = 200,
 ) -> tuple[ProjectionResult, MortalityScenarioSet, CalibrationCache]:
-    """
-    Bootstrap + stochastic projection starting from an existing fitted model.
-    """
+    """Bootstrap + stochastic projection starting from an existing fitted model."""
     ages = np.asarray(fitted.ages, dtype=float)
     years = np.asarray(fitted.years, dtype=int)
 
@@ -393,7 +371,7 @@ def project_from_fitted_model(
         include_last=include_last,
     )
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "selected_model": fitted.name,
         "selection_metric": fitted.metadata.get("selection_metric"),
         "train_end": fitted.metadata.get("selection_train_end"),
@@ -463,7 +441,7 @@ def build_projection_pipeline(
         "CBDM6",
         "CBDM7",
     ),
-    cpsplines_kwargs: Optional[dict] = None,
+    cpsplines_kwargs: dict | None = None,
     bootstrap_kwargs: dict | None = None,
     seed: int | None = None,
     ages_raw: np.ndarray | None = None,
@@ -472,8 +450,7 @@ def build_projection_pipeline(
     plot_age_start: int = 95,
     plot_age_max: int = 200,
 ) -> tuple[MortalityScenarioSet, CalibrationCache]:
-    """
-    End-to-end P-measure mortality projection pipeline.
+    """End-to-end P-measure mortality projection pipeline.
 
     Steps (spec: Mortality models → Stochastic projections):
       1) Model selection via forecast RMSE on raw m.
@@ -486,9 +463,7 @@ def build_projection_pipeline(
     B_bootstrap, n_process, resample = _derive_bootstrap_params(
         n_scenarios=n_scenarios, bootstrap_kwargs=bootstrap_kwargs
     )
-    include_last = bool(
-        bootstrap_kwargs.get("include_last", True) if bootstrap_kwargs else True
-    )
+    include_last = bool(bootstrap_kwargs.get("include_last", True) if bootstrap_kwargs else True)
     fitted, proj, scen, cache = build_mortality_scenarios_for_pricing(
         ages=ages,
         years=years,
@@ -508,9 +483,9 @@ def build_projection_pipeline(
     N = q.shape[0]
     target = int(n_scenarios)
 
-    if N != target:
+    if target != N:
         rng = np.random.default_rng(seed)
-        if N > target:
+        if target < N:
             idx = rng.choice(N, size=target, replace=False)
         else:
             idx = rng.choice(N, size=target, replace=True)
@@ -559,10 +534,9 @@ def build_risk_neutral_pipeline(
     instruments: Mapping[str, object],
     market_prices: Mapping[str, float],
     short_rate: float,
-    calibration_kwargs: Dict[str, Any],
+    calibration_kwargs: dict[str, Any],
 ) -> tuple[MortalityScenarioSet, dict[str, Any], Any]:
-    """
-    Calibrate market price of longevity risk and build Q-measure scenarios.
+    """Calibrate market price of longevity risk and build Q-measure scenarios.
 
     Spec: Risk-neutral valuation layer.
       - Calibrate lambda via observed instrument prices.
@@ -591,14 +565,11 @@ def build_risk_neutral_pipeline(
                 calibration_kwargs = dict(calibration_kwargs)
                 calibration_kwargs.setdefault("ages", scen_P.ages)
                 calibration_kwargs.setdefault("years", scen_P.years)
-                calibration_kwargs.setdefault(
-                    "m", np.asarray(scen_P.m_paths).mean(axis=0)
-                )
+                calibration_kwargs.setdefault("m", np.asarray(scen_P.m_paths).mean(axis=0))
                 missing = [k for k in required if k not in calibration_kwargs]
         if missing:
             raise ValueError(
-                "calibration_kwargs must provide a CalibrationCache or keys: "
-                + ", ".join(missing)
+                "calibration_kwargs must provide a CalibrationCache or keys: " + ", ".join(missing)
             )
         cache = build_calibration_cache(
             ages=np.asarray(calibration_kwargs["ages"], dtype=float),
@@ -618,7 +589,7 @@ def build_risk_neutral_pipeline(
         if hasattr(cache.bs_res, "params_list"):
             B_bootstrap = len(cache.bs_res.params_list)
         else:
-            B_bootstrap = int(getattr(cache.bs_res, "mu_sigma").shape[0])
+            B_bootstrap = int(cache.bs_res.mu_sigma.shape[0])
     lam_res = calibrate_lambda_least_squares(
         quotes=quotes,
         ages=cache.ages,
@@ -640,9 +611,7 @@ def build_risk_neutral_pipeline(
     calib_summary["metadata"] = {
         "model_name": cache.model_name,
         "horizon": cache.horizon,
-        "B_bootstrap": (
-            cache.bs_res.mu_sigma.shape[0] if hasattr(cache, "bs_res") else None
-        ),
+        "B_bootstrap": (cache.bs_res.mu_sigma.shape[0] if hasattr(cache, "bs_res") else None),
         "n_process": cache.n_process,
     }
 
@@ -651,9 +620,7 @@ def build_risk_neutral_pipeline(
         lambda_esscher=lambda_star,
         scale_sigma=calibration_kwargs.get("scale_sigma", 1.0),
         kappa_drift_shock=calibration_kwargs.get("kappa_drift_shock"),
-        kappa_drift_shock_mode=calibration_kwargs.get(
-            "kappa_drift_shock_mode", "additive"
-        ),
+        kappa_drift_shock_mode=calibration_kwargs.get("kappa_drift_shock_mode", "additive"),
         cohort_shock_type=calibration_kwargs.get("cohort_shock_type"),
         cohort_shock_magnitude=calibration_kwargs.get("cohort_shock_magnitude", 0.01),
         cohort_pivot_year=calibration_kwargs.get("cohort_pivot_year"),
@@ -670,11 +637,10 @@ def pricing_pipeline(
     scen_Q: MortalityScenarioSet,
     *,
     specs: Mapping[str, object],
-    short_rate: Optional[float] = 0.02,
-    hull_white: Optional[HullWhiteConfig] = None,
+    short_rate: float | None = 0.02,
+    hull_white: HullWhiteConfig | None = None,
 ) -> dict[str, float]:
-    """
-    Price a set of longevity instruments on Q-measure scenarios.
+    """Price a set of longevity instruments on Q-measure scenarios.
 
     Spec: Pricing engine layer.
       - Supports longevity bonds, survivor swaps, q-/s-forwards, life annuities.
@@ -702,8 +668,7 @@ def risk_analysis_pipeline(
     short_rate: float,
     bumps: dict,
 ) -> AllSensitivities:
-    """
-    Compute mortality/rate sensitivities and convexity for a set of instruments.
+    """Compute mortality/rate sensitivities and convexity for a set of instruments.
 
     Spec: Sensitivity analysis layer.
       - Mortality delta-by-age
@@ -756,8 +721,7 @@ def sensitivities_pipeline(
     compute_vega: bool = False,
     bumps: dict | None = None,
 ) -> dict[str, Any]:
-    """
-    UI-friendly sensitivities pipeline:
+    """UI-friendly sensitivities pipeline:
     - always returns base prices
     - optionally returns rate sensitivity, convexity, delta-by-age, vega
     - vega requires a scenario builder (or cache+lambda)
@@ -808,9 +772,7 @@ def sensitivities_pipeline(
         build_scen_func = bumps.get("build_scenarios_func")
 
         # 2) or infer builder from cache + lambda
-        if build_scen_func is None and (
-            "calibration_cache" in bumps and "lambda_esscher" in bumps
-        ):
+        if build_scen_func is None and ("calibration_cache" in bumps and "lambda_esscher" in bumps):
             cache = bumps["calibration_cache"]
             lam = bumps["lambda_esscher"]
 
@@ -849,8 +811,7 @@ def stress_testing_pipeline(
     *,
     shock_specs: list[ShockSpec] | list[dict[str, Any]],
 ) -> dict[str, MortalityScenarioSet]:
-    """
-    Generate stressed scenario sets (base/optimistic/pessimistic/custom shocks).
+    """Generate stressed scenario sets (base/optimistic/pessimistic/custom shocks).
 
     Spec: Scenario analysis layer.
       - Supports pandemic, plateau, accel_improvement, cohort, life_expectancy, etc.
@@ -880,26 +841,22 @@ def stress_testing_pipeline(
 
 def build_interest_rate_pipeline(
     *,
-    times: Optional[np.ndarray] = None,
-    zero_rates: Optional[np.ndarray] = None,
-    zero_curve: Optional[np.ndarray] = None,
-    horizon: Optional[int] = None,
+    times: np.ndarray | None = None,
+    zero_rates: np.ndarray | None = None,
+    zero_curve: np.ndarray | None = None,
+    horizon: int | None = None,
     a: float,
     sigma: float,
     n_scenarios: int,
-    r0: Optional[float] = None,
-    seed: Optional[int] = None,
+    r0: float | None = None,
+    seed: int | None = None,
 ) -> InterestRateScenarioSet:
-    """
-    Build Hull–White (1F) interest-rate scenarios calibrated to a zero curve.
-    """
+    """Build Hull–White (1F) interest-rate scenarios calibrated to a zero curve."""
     if zero_rates is None and zero_curve is not None:
         zero_rates = zero_curve
     if times is None:
         if horizon is None or zero_rates is None:
-            raise ValueError(
-                "Provide either times or both horizon and zero_rates/zero_curve."
-            )
+            raise ValueError("Provide either times or both horizon and zero_rates/zero_curve.")
         times = np.arange(1, int(horizon) + 1, dtype=float)
     if zero_rates is None:
         raise ValueError("zero_rates (or zero_curve) must be provided.")
@@ -918,8 +875,7 @@ def build_joint_scenarios(
     mort_scen: MortalityScenarioSet,
     rate_scen: InterestRateScenarioSet,
 ) -> MortalityScenarioSet:
-    """
-    Combine mortality scenarios with rate scenarios by attaching discount factors.
+    """Combine mortality scenarios with rate scenarios by attaching discount factors.
 
     Assumes independence (no correlation). If rate_scen has N=1, it is broadcast
     across mortality scenarios; otherwise N must match.
@@ -953,9 +909,7 @@ def build_joint_scenarios(
     elif N_r == N_m:
         df = df_rates[:, :H]
     else:
-        raise ValueError(
-            "Number of rate scenarios must be 1 or equal to mortality scenarios."
-        )
+        raise ValueError("Number of rate scenarios must be 1 or equal to mortality scenarios.")
 
     q_paths = q_paths[:, :, :H]
     S_paths = S_paths[:, :, :H]
@@ -991,8 +945,7 @@ def hedging_pipeline(
     constraints: dict | None = None,
     discount_factors: np.ndarray | None = None,
 ) -> HedgeResult | GreekHedgeResult:
-    """
-    Compute hedge weights using various strategies.
+    """Compute hedge weights using various strategies.
 
     Spec: Hedging layer.
       - Variance-minimising hedge (OLS or bounded).
@@ -1043,9 +996,7 @@ def hedging_pipeline(
             or "liability" not in hedge_greeks
             or "instruments" not in hedge_greeks
         ):
-            raise ValueError(
-                "hedge_greeks must provide 'liability' and 'instruments' arrays."
-            )
+            raise ValueError("hedge_greeks must provide 'liability' and 'instruments' arrays.")
         return compute_greek_matching_hedge(
             liability_greeks=hedge_greeks["liability"],
             instruments_greeks=np.asarray(hedge_greeks["instruments"], dtype=float),
@@ -1055,9 +1006,7 @@ def hedging_pipeline(
 
     if m == "duration":
         if hedge_greeks is None:
-            raise ValueError(
-                "hedge_greeks must provide 'liability_dPdr' and 'instruments_dPdr'."
-            )
+            raise ValueError("hedge_greeks must provide 'liability_dPdr' and 'instruments_dPdr'.")
         return compute_duration_matching_hedge(
             liability_dPdr=float(hedge_greeks["liability_dPdr"]),
             instruments_dPdr=hedge_greeks["instruments_dPdr"],
@@ -1090,8 +1039,7 @@ def reporting_pipeline(
     name: str,
     var_level: float = 0.99,
 ) -> RiskReport:
-    """
-    Generate a RiskReport for PV paths (before/after hedge).
+    """Generate a RiskReport for PV paths (before/after hedge).
 
     Spec: Reporting layer.
     """
@@ -1119,8 +1067,7 @@ def _attach_plot_extension_gompertz(
     age_fit_min: int = 80,
     age_fit_max: int = 100,
 ) -> None:
-    """
-    Plot-only extension beyond plot_age_start using Gompertz fitted on RAW observed m.
+    """Plot-only extension beyond plot_age_start using Gompertz fitted on RAW observed m.
     Writes into scen.metadata["plot_extension"].
     Never raises (swallows errors into scen.metadata["plot_extension_error"]).
     """
@@ -1191,22 +1138,22 @@ class HullWhiteConfig:
     enabled: bool = False
     a: float = 0.05
     sigma: float = 0.01
-    seed: Optional[int] = 0
+    seed: int | None = 0
     # zéro-courbe: soit array (H,), soit float (plat), soit None -> on fallback sur short_rate
-    zero_rates: Optional[np.ndarray] = None
-    r0: Optional[float] = None  # si None, prend zero_rates[0]
+    zero_rates: np.ndarray | None = None
+    r0: float | None = None  # si None, prend zero_rates[0]
 
 
 def apply_hull_white_discounting(
     scen: MortalityScenarioSet,
     *,
     hw: HullWhiteConfig,
-    short_rate: Optional[float],
+    short_rate: float | None,
 ) -> MortalityScenarioSet:
     if not hw.enabled:
         return scen
 
-    H = int(len(scen.years))
+    H = len(scen.years)
     times = np.arange(1, H + 1, dtype=float)
 
     # --- construire la zero curve ---
@@ -1222,9 +1169,7 @@ def apply_hull_white_discounting(
             zero_rates = np.full(H, float(zr[0]), dtype=float)
         else:
             if zr.size < H:
-                raise ValueError(
-                    f"zero_rates must have length >= H={H}, got {zr.size}."
-                )
+                raise ValueError(f"zero_rates must have length >= H={H}, got {zr.size}.")
             zero_rates = zr[:H]
 
     # --- simulate rate paths + DF paths ---

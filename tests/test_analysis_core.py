@@ -67,9 +67,7 @@ def test_scenario_analysis_shocks_keep_shapes_and_monotonicity():
     years = np.array([2020, 2021, 2022, 2023], dtype=int)
     q = np.full((3, ages.size, years.size), 0.01, dtype=float)
     S = survival_from_q(q)
-    base = MortalityScenarioSet(
-        years=years, ages=ages, q_paths=q, S_paths=S, metadata={}
-    )
+    base = MortalityScenarioSet(years=years, ages=ages, q_paths=q, S_paths=S, metadata={})
 
     shocked = apply_mortality_shock(base, shock_type="plateau", plateau_start_year=2022)
     assert shocked.q_paths.shape == q.shape
@@ -86,9 +84,7 @@ def test_scenario_analysis_shocks_keep_shapes_and_monotonicity():
     assert cohort_shocked.q_paths.shape == q.shape
     validate_survival_monotonic(cohort_shocked.S_paths)
 
-    shifted = apply_life_expectancy_shift(
-        base, age=60.0, delta_years=0.05, bracket=(0.0, 0.95)
-    )
+    shifted = apply_life_expectancy_shift(base, age=60.0, delta_years=0.05, bracket=(0.0, 0.95))
     assert shifted.q_paths.shape == q.shape
     validate_survival_monotonic(shifted.S_paths)
 

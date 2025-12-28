@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional, Sequence, Tuple
+from typing import Any
 
 import numpy as np
 from scipy.optimize import least_squares
@@ -35,8 +36,7 @@ Shock = Sequence[float] | np.ndarray
 
 @dataclass(frozen=True)
 class EsscherResult:
-    """
-    Container for Esscher-transformed RW parameters.
+    """Container for Esscher-transformed RW parameters.
     All arrays are 1D, shape (K,).
     """
 
@@ -48,9 +48,7 @@ class EsscherResult:
 
 @dataclass(frozen=True)
 class CalibrationCache:
-    """
-    Objects and common random numbers precomputed once, reused across lambda calls.
-    """
+    """Objects and common random numbers precomputed once, reused across lambda calls."""
 
     model: object
     bs_res: object
@@ -76,10 +74,9 @@ def esscher_shift_normal_rw(
     sigma_P: Iterable[float] | float,
     lambda_esscher: Iterable[float] | float,
 ) -> EsscherResult:
-    """
-    Normal Esscher tilt for RW increments:
-        mu_Q = mu_P + lambda * sigma^2
-        sigma_Q = sigma_P
+    """Normal Esscher tilt for RW increments:
+    mu_Q = mu_P + lambda * sigma^2
+    sigma_Q = sigma_P
     """
     mu_P_arr = _to_1d_array(mu_P, "mu_P")
     sigma_P_arr = _to_1d_array(sigma_P, "sigma_P")
@@ -94,9 +91,7 @@ def esscher_shift_normal_rw(
     if lambda_arr.shape[0] == 1 and k > 1:
         lambda_arr = np.full(k, float(lambda_arr[0]), dtype=float)
     elif lambda_arr.shape[0] != k:
-        raise ValueError(
-            f"lambda_esscher must have length 1 or {k}; got {lambda_arr.shape[0]}."
-        )
+        raise ValueError(f"lambda_esscher must have length 1 or {k}; got {lambda_arr.shape[0]}.")
 
     if np.any(sigma_P_arr < 0.0):
         raise ValueError("sigma_P entries must be non-negative.")
@@ -118,26 +113,19 @@ def esscher_shift_normal_rw(
 
 def risk_neutral_from_lcm2(model_lcm2: LCM2, lambda_esscher: Lambda) -> EsscherResult:
     mu_P, sigma_P = model_lcm2.estimate_rw()
-    return esscher_shift_normal_rw(
-        mu_P=mu_P, sigma_P=sigma_P, lambda_esscher=lambda_esscher
-    )
+    return esscher_shift_normal_rw(mu_P=mu_P, sigma_P=sigma_P, lambda_esscher=lambda_esscher)
 
 
-def risk_neutral_from_cbdm7(
-    model_cbdm7: CBDM7, lambda_esscher: Lambda
-) -> EsscherResult:
+def risk_neutral_from_cbdm7(model_cbdm7: CBDM7, lambda_esscher: Lambda) -> EsscherResult:
     rw = model_cbdm7.estimate_rw()
     if len(rw) != 6:
         raise RuntimeError(
-            "CBDM7.estimate_rw() must return 6 values "
-            "(mu1, sigma1, mu2, sigma2, mu3, sigma3)."
+            "CBDM7.estimate_rw() must return 6 values (mu1, sigma1, mu2, sigma2, mu3, sigma3)."
         )
     mu1, sigma1, mu2, sigma2, mu3, sigma3 = rw
     mu_P = np.array([mu1, mu2, mu3], dtype=float)
     sigma_P = np.array([sigma1, sigma2, sigma3], dtype=float)
-    return esscher_shift_normal_rw(
-        mu_P=mu_P, sigma_P=sigma_P, lambda_esscher=lambda_esscher
-    )
+    return esscher_shift_normal_rw(mu_P=mu_P, sigma_P=sigma_P, lambda_esscher=lambda_esscher)
 
 
 # ============================================================================
@@ -212,7 +200,7 @@ def build_calibration_cache(
 def apply_kappa_drift_shock(
     mu_Q: np.ndarray,
     *,
-    shock: Optional[Iterable[float]] = None,
+    shock: Iterable[float] | None = None,
     mode: str = "additive",
 ) -> np.ndarray:
     mu_Q_arr = np.asarray(mu_Q, dtype=float).reshape(-1)
@@ -366,7 +354,7 @@ def build_scenarios_under_lambda_fast(
 
 def _price_from_scen_set(
     scen_set: MortalityScenarioSet,
-    quote: "MultiInstrumentQuote",
+    quote: MultiInstrumentQuote,
     *,
     short_rate: float,
 ) -> float:
@@ -430,8 +418,7 @@ def _price_from_scen_set(
 
 @dataclass(frozen=True)
 class MultiInstrumentQuote:
-    """
-    Market quote used to calibrate lambda.
+    """Market quote used to calibrate lambda.
 
     kind ∈ {"longevity_bond","survivor_swap","s_forward","q_forward","life_annuity"}
     spec: instrument spec object
@@ -440,13 +427,7 @@ class MultiInstrumentQuote:
     """
 
     kind: str
-    spec: (
-        LongevityBondSpec
-        | SurvivorSwapSpec
-        | SForwardSpec
-        | QForwardSpec
-        | CohortLifeAnnuitySpec
-    )
+    spec: LongevityBondSpec | SurvivorSwapSpec | SForwardSpec | QForwardSpec | CohortLifeAnnuitySpec
     market_price: float
     weight: float = 1.0
 
@@ -479,7 +460,7 @@ def calibrate_lambda_least_squares(
     *,
     model_name: str = "CBDM7",
     lambda0: Lambda = 0.0,
-    bounds: Tuple[float, float] = (-5.0, 5.0),
+    bounds: tuple[float, float] = (-5.0, 5.0),
     B_bootstrap: int = 50,
     n_process: int = 200,
     short_rate: float = 0.02,
@@ -522,7 +503,7 @@ def calibrate_lambda_least_squares(
         raise ValueError("All market_price values must be finite.")
 
     w_sqrt = np.sqrt(weights)
-    h_eff = int(horizon) if horizon is not None else int(len(years))
+    h_eff = int(horizon) if horizon is not None else len(years)
 
     cache = build_calibration_cache(
         ages=ages,
@@ -548,10 +529,7 @@ def calibrate_lambda_least_squares(
             cohort_pivot_year=cohort_pivot_year,
         )
         model_prices = np.array(
-            [
-                _price_from_scen_set(scen_set_q, q, short_rate=short_rate)
-                for q in quotes_list
-            ],
+            [_price_from_scen_set(scen_set_q, q, short_rate=short_rate) for q in quotes_list],
             dtype=float,
         )
         return (model_prices - market) * w_sqrt
@@ -581,10 +559,7 @@ def calibrate_lambda_least_squares(
     )
 
     fitted = np.array(
-        [
-            _price_from_scen_set(scen_set_q_star, q, short_rate=short_rate)
-            for q in quotes_list
-        ],
+        [_price_from_scen_set(scen_set_q_star, q, short_rate=short_rate) for q in quotes_list],
         dtype=float,
     )
 
@@ -616,7 +591,7 @@ def calibrate_market_price_of_longevity_risk(
     *,
     model_name: str,
     lambda0: Lambda = 0.0,
-    bounds: Tuple[float, float] = (-5.0, 5.0),
+    bounds: tuple[float, float] = (-5.0, 5.0),
     B_bootstrap: int = 50,
     n_process: int = 200,
     short_rate: float = 0.02,

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Iterable, Literal, Optional, Tuple
+from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from pymort.analysis import MortalityScenarioSet
 
-_DEFAULT_QUANTILES: Tuple[int, ...] = (5, 25, 50, 75, 95)
+_DEFAULT_QUANTILES: tuple[int, ...] = (5, 25, 50, 75, 95)
 
 
 def _fan(
@@ -23,7 +23,12 @@ def _fan(
         _, ax = plt.subplots(figsize=(8, 4))
 
     for q in qs:
-        ax.plot(grid, np.percentile(paths, q, axis=0), label=f"P{q}" if q in (50,) else None, lw=1.5 if q == 50 else 1.0)
+        ax.plot(
+            grid,
+            np.percentile(paths, q, axis=0),
+            label=f"P{q}" if q in (50,) else None,
+            lw=1.5 if q == 50 else 1.0,
+        )
 
     ax.set_title(label)
     return ax
@@ -36,9 +41,7 @@ def plot_survival_fan(
     quantiles: Iterable[int] = _DEFAULT_QUANTILES,
     ax=None,
 ) -> None:
-    """
-    Plot a fan chart of survival probabilities for a given age over projection years.
-    """
+    """Plot a fan chart of survival probabilities for a given age over projection years."""
     ages = np.asarray(scen_set.ages, dtype=float)
     years = np.asarray(scen_set.years, dtype=int)
     idx = int(np.argmin(np.abs(ages - age)))
@@ -56,14 +59,14 @@ def plot_mortality_fan(
     quantiles: Iterable[int] = _DEFAULT_QUANTILES,
     ax=None,
 ) -> None:
-    """
-    Plot a fan chart of mortality rates q for a given age over projection years.
-    """
+    """Plot a fan chart of mortality rates q for a given age over projection years."""
     ages = np.asarray(scen_set.ages, dtype=float)
     years = np.asarray(scen_set.years, dtype=int)
     idx = int(np.argmin(np.abs(ages - age)))
     q_age = np.asarray(scen_set.q_paths)[:, idx, :]  # (N, H)
-    ax = _fan(q_age, years, quantiles=quantiles, ax=ax, label=f"Mortality fan (age≈{ages[idx]:.1f})")
+    ax = _fan(
+        q_age, years, quantiles=quantiles, ax=ax, label=f"Mortality fan (age≈{ages[idx]:.1f})"
+    )
     ax.set_xlabel("Year")
     ax.set_ylabel("q")
     ax.legend()

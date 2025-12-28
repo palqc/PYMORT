@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable
 
 import numpy as np
 
@@ -10,14 +10,13 @@ from pymort.analysis import MortalityScenarioSet
 
 @dataclass
 class SurvivalScenarioSummary:
-    """
-    Summary statistics of survival / mortality scenarios.
+    """Summary statistics of survival / mortality scenarios.
 
     This is mainly for diagnostic and reporting purposes: it condenses the
     large 3D arrays (N_scenarios, A_ages, H_horizon) into a few
     interpretable statistics by age and year.
 
-    Attributes
+    Attributes:
     ----------
     ages : np.ndarray
         Vector of ages used in the scenario set (A,).
@@ -45,18 +44,17 @@ class SurvivalScenarioSummary:
     years: np.ndarray
     S_mean: np.ndarray
     S_std: np.ndarray
-    S_quantiles: Dict[int, np.ndarray]
+    S_quantiles: dict[int, np.ndarray]
     q_mean: np.ndarray
     q_std: np.ndarray
-    q_quantiles: Dict[int, np.ndarray]
+    q_quantiles: dict[int, np.ndarray]
 
 
 @dataclass
 class PVSummary:
-    """
-    Summary statistics of present-value paths (any product).
+    """Summary statistics of present-value paths (any product).
 
-    Attributes
+    Attributes:
     ----------
     mean : float
         Mean PV over scenarios.
@@ -91,8 +89,7 @@ def summarize_survival_scenarios(
     *,
     percentiles: Iterable[int] = (5, 50, 95),
 ) -> SurvivalScenarioSummary:
-    """
-    Compute basic summary statistics of a mortality scenario set.
+    """Compute basic summary statistics of a mortality scenario set.
 
     Parameters
     ----------
@@ -101,7 +98,7 @@ def summarize_survival_scenarios(
     percentiles : iterable of int, optional
         Percentiles to compute along the scenario dimension, e.g. (5, 50, 95).
 
-    Returns
+    Returns:
     -------
     SurvivalScenarioSummary
         Dataclass with mean / std / quantiles for survival S and death
@@ -120,7 +117,7 @@ def summarize_survival_scenarios(
         raise ValueError(
             f"q_paths and S_paths must have same shape; got {q_paths.shape} vs {S_paths.shape}."
         )
-    
+
     # Mean / std across scenarios (axis=0)
     S_mean = S_paths.mean(axis=0)  # (A, H)
     S_std = S_paths.std(axis=0)  # (A, H)
@@ -128,8 +125,8 @@ def summarize_survival_scenarios(
     q_std = q_paths.std(axis=0)
 
     # Quantiles across scenarios
-    S_quantiles: Dict[int, np.ndarray] = {}
-    q_quantiles: Dict[int, np.ndarray] = {}
+    S_quantiles: dict[int, np.ndarray] = {}
+    q_quantiles: dict[int, np.ndarray] = {}
 
     for p in percentiles:
         S_quantiles[p] = np.percentile(S_paths, p, axis=0)  # (A, H)
@@ -148,8 +145,7 @@ def summarize_survival_scenarios(
 
 
 def summarize_pv_paths(pv_paths: np.ndarray) -> PVSummary:
-    """
-    Summarise a vector of PV paths (any priced instrument).
+    """Summarise a vector of PV paths (any priced instrument).
 
     This is a generic helper that can be used for:
         - longevity bond PVs,
@@ -162,7 +158,7 @@ def summarize_pv_paths(pv_paths: np.ndarray) -> PVSummary:
     pv_paths : np.ndarray
         Array of shape (N,) or (N,1) with PV in each scenario.
 
-    Returns
+    Returns:
     -------
     PVSummary
         Dataclass containing mean/std and a few quantiles.

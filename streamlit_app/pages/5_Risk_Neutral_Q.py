@@ -33,27 +33,19 @@ def _lambda_dim_from_cache(cache) -> int:
 
 def _price_instrument(scen_set, key: str, spec: object, short_rate: float) -> float:
     if key == "longevity_bond":
-        return float(
-            price_simple_longevity_bond(scen_set, spec, short_rate=short_rate)["price"]
-        )
+        return float(price_simple_longevity_bond(scen_set, spec, short_rate=short_rate)["price"])
     if key == "survivor_swap":
-        return float(
-            price_survivor_swap(scen_set, spec, short_rate=short_rate)["price"]
-        )
+        return float(price_survivor_swap(scen_set, spec, short_rate=short_rate)["price"])
     if key == "q_forward":
         return float(price_q_forward(scen_set, spec, short_rate=short_rate)["price"])
     if key == "s_forward":
         return float(price_s_forward(scen_set, spec, short_rate=short_rate)["price"])
     if key == "life_annuity":
-        return float(
-            price_cohort_life_annuity(scen_set, spec, short_rate=short_rate)["price"]
-        )
+        return float(price_cohort_life_annuity(scen_set, spec, short_rate=short_rate)["price"])
     raise ValueError(f"Unknown instrument key '{key}'")
 
 
-def _build_price_table(
-    scen_set, instruments: dict[str, object], short_rate: float
-) -> pd.DataFrame:
+def _build_price_table(scen_set, instruments: dict[str, object], short_rate: float) -> pd.DataFrame:
     rows = []
     for k, spec in instruments.items():
         p = _price_instrument(scen_set, k, spec, short_rate=float(short_rate))
@@ -134,7 +126,7 @@ ages = np.asarray(scen_P.ages, dtype=float)
 years = np.asarray(scen_P.years, dtype=int)
 age_min, age_max = int(ages.min()), int(ages.max())
 age_default = int(ages[len(ages) // 2])
-H_P = int(len(years))
+H_P = len(years)
 max_maturity = max(1, min(40, H_P))
 k_lam = _lambda_dim_from_cache(cache)
 
@@ -196,9 +188,7 @@ with col_specs:
 
     if use_bond:
         st.markdown("**Longevity bond**")
-        bond_age = st.slider(
-            "Bond issue age", age_min, age_max, age_default, 1, key="bond_age"
-        )
+        bond_age = st.slider("Bond issue age", age_min, age_max, age_default, 1, key="bond_age")
         bond_T = st.slider(
             "Bond maturity (years)",
             1,
@@ -223,9 +213,7 @@ with col_specs:
 
     if use_swap:
         st.markdown("**Survivor swap**")
-        swap_age = st.slider(
-            "Swap age", age_min, age_max, age_default, 1, key="swap_age"
-        )
+        swap_age = st.slider("Swap age", age_min, age_max, age_default, 1, key="swap_age")
         swap_T = st.slider(
             "Swap maturity (years)",
             1,
@@ -237,9 +225,7 @@ with col_specs:
         swap_notional = st.number_input(
             "Swap notional", value=100.0, step=10.0, key="swap_notional"
         )
-        payer = st.selectbox(
-            "Swap payer", ["fixed", "floating"], index=0, key="swap_payer"
-        )
+        payer = st.selectbox("Swap payer", ["fixed", "floating"], index=0, key="swap_payer")
 
         instruments["survivor_swap"] = SurvivorSwapSpec(
             age=float(swap_age),
@@ -260,9 +246,7 @@ with col_specs:
             1,
             key="qf_T",
         )
-        qf_notional = st.number_input(
-            "QF notional", value=100.0, step=10.0, key="qf_notional"
-        )
+        qf_notional = st.number_input("QF notional", value=100.0, step=10.0, key="qf_notional")
 
         instruments["q_forward"] = QForwardSpec(
             age=float(qf_age),
@@ -282,9 +266,7 @@ with col_specs:
             1,
             key="sf_T",
         )
-        sf_notional = st.number_input(
-            "SF notional", value=100.0, step=10.0, key="sf_notional"
-        )
+        sf_notional = st.number_input("SF notional", value=100.0, step=10.0, key="sf_notional")
 
         instruments["s_forward"] = SForwardSpec(
             age=float(sf_age),
@@ -294,9 +276,7 @@ with col_specs:
         )
     if use_ann:
         st.markdown("**Cohort life annuity (liability)**")
-        ann_age = st.slider(
-            "Annuity issue age", age_min, age_max, age_default, 1, key="ann_age"
-        )
+        ann_age = st.slider("Annuity issue age", age_min, age_max, age_default, 1, key="ann_age")
         ann_T = st.slider(
             "Annuity horizon (years)",
             1,
@@ -341,7 +321,7 @@ with col_specs:
 if not instruments:
     st.warning("Select at least one instrument.")
     st.stop()
-calibration_keys = [k for k in instruments.keys() if k != "life_annuity"]
+calibration_keys = [k for k in instruments if k != "life_annuity"]
 instruments_calib = {k: instruments[k] for k in calibration_keys}
 
 # -----------------------------
@@ -354,21 +334,13 @@ with st.sidebar:
     if mode.startswith("Mode A"):
         st.subheader("Mode A — choose λ")
         if k_lam == 1:
-            lam_A = st.number_input(
-                "λ (fixed)", value=0.0, step=0.1, format="%.3f", key="lam_A_1d"
-            )
+            lam_A = st.number_input("λ (fixed)", value=0.0, step=0.1, format="%.3f", key="lam_A_1d")
             lam_A_vec = [float(lam_A)]
         else:
             st.caption("CBDM7 → λ is 3D (one per RW factor).")
-            lam1 = st.number_input(
-                "λ1", value=0.0, step=0.1, format="%.3f", key="lam_A_1"
-            )
-            lam2 = st.number_input(
-                "λ2", value=0.0, step=0.1, format="%.3f", key="lam_A_2"
-            )
-            lam3 = st.number_input(
-                "λ3", value=0.0, step=0.1, format="%.3f", key="lam_A_3"
-            )
+            lam1 = st.number_input("λ1", value=0.0, step=0.1, format="%.3f", key="lam_A_1")
+            lam2 = st.number_input("λ2", value=0.0, step=0.1, format="%.3f", key="lam_A_2")
+            lam3 = st.number_input("λ3", value=0.0, step=0.1, format="%.3f", key="lam_A_3")
             lam_A_vec = [float(lam1), float(lam2), float(lam3)]
 
         st.button(
@@ -395,15 +367,9 @@ with st.sidebar:
             lam_true_vec = [float(lam_true)]
         else:
             st.caption("CBDM7 → λ_true is 3D.")
-            lt1 = st.number_input(
-                "λ_true1", value=0.3, step=0.1, format="%.3f", key="lam_true_1"
-            )
-            lt2 = st.number_input(
-                "λ_true2", value=0.0, step=0.1, format="%.3f", key="lam_true_2"
-            )
-            lt3 = st.number_input(
-                "λ_true3", value=0.0, step=0.1, format="%.3f", key="lam_true_3"
-            )
+            lt1 = st.number_input("λ_true1", value=0.3, step=0.1, format="%.3f", key="lam_true_1")
+            lt2 = st.number_input("λ_true2", value=0.0, step=0.1, format="%.3f", key="lam_true_2")
+            lt3 = st.number_input("λ_true3", value=0.0, step=0.1, format="%.3f", key="lam_true_3")
             lam_true_vec = [float(lt1), float(lt2), float(lt3)]
 
         noise_std = st.number_input(
@@ -416,9 +382,7 @@ with st.sidebar:
         seed_syn = st.number_input("Synthetic seed", value=0, step=1)
 
         st.divider()
-        lambda0 = st.number_input(
-            "Initial λ (solver)", value=0.0, step=0.1, format="%.3f"
-        )
+        lambda0 = st.number_input("Initial λ (solver)", value=0.0, step=0.1, format="%.3f")
         lam_lb = st.number_input("λ lower bound", value=-5.0, step=0.5, format="%.2f")
         lam_ub = st.number_input("λ upper bound", value=5.0, step=0.5, format="%.2f")
 
@@ -484,9 +448,7 @@ with col_prices:
     st.markdown("### Market prices / Calibration inputs")
 
     if mode.startswith("Mode A"):
-        st.info(
-            "Mode A: no market prices needed. We'll build Q directly from your chosen λ."
-        )
+        st.info("Mode A: no market prices needed. We'll build Q directly from your chosen λ.")
     else:
         st.write(
             "Mode B: edit market prices manually, or click the synthetic generator in the sidebar."
@@ -558,9 +520,7 @@ if mode.startswith("Mode B") and st.session_state.get("do_run_B", False):
     st.session_state["do_run_B"] = False
 
     # read market prices from widgets
-    market_prices = {
-        k: float(st.session_state.get(f"mkt_{k}", 0.0)) for k in calibration_keys
-    }
+    market_prices = {k: float(st.session_state.get(f"mkt_{k}", 0.0)) for k in calibration_keys}
 
     try:
         calibration_kwargs = {
@@ -584,9 +544,7 @@ if mode.startswith("Mode B") and st.session_state.get("do_run_B", False):
         calib_summary = dict(calib_summary)
         calib_summary["mode"] = "B_synthetic_or_manual_calibration"
         if "synthetic_market_debug" in st.session_state:
-            calib_summary["synthetic_market_debug"] = st.session_state[
-                "synthetic_market_debug"
-            ]
+            calib_summary["synthetic_market_debug"] = st.session_state["synthetic_market_debug"]
 
         st.session_state["scen_Q"] = scen_Q
         st.session_state["calibration_summary"] = calib_summary
@@ -633,7 +591,7 @@ if lam.size == 1:
 else:
     lc1, lc2, lc3 = st.columns(lam.size)
     for i, col in enumerate([lc1, lc2, lc3][: lam.size]):
-        col.metric(f"λ{i+1}", f"{lam[i]:.3f}")
+        col.metric(f"λ{i + 1}", f"{lam[i]:.3f}")
 
 c2.metric(
     "RMSE pricing error",

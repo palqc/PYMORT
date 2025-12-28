@@ -107,7 +107,9 @@ def test_cpsplines_raises_on_bad_inputs():
 def test_cpsplines_knots_auto_and_manual():
     ages, years, m = _toy_surface(A=5, T=7)
     # auto k
-    res_auto = smooth_mortality_with_cpsplines(m=m, ages=ages, years=years, k=None, horizon=0, verbose=False)
+    res_auto = smooth_mortality_with_cpsplines(
+        m=m, ages=ages, years=years, k=None, horizon=0, verbose=False
+    )
     assert res_auto["m_fitted"].shape == m.shape
     # manual small k
     res_manual = smooth_mortality_with_cpsplines(

@@ -9,9 +9,7 @@ from pymort.analysis.fitting import select_and_fit_best_model_for_pricing
 
 st.set_page_config(page_title="Fit & Model Selection", page_icon="🧠", layout="wide")
 st.title("🧠 Fit & Model Selection")
-st.caption(
-    "Select best mortality model (or force one) and fit on the chosen training window."
-)
+st.caption("Select best mortality model (or force one) and fit on the chosen training window.")
 
 # ---- Get data (prefer sliced if available)
 ages_slice = st.session_state.get("ages_slice")
@@ -36,15 +34,11 @@ m = np.asarray(m, dtype=float)
 with st.sidebar:
     st.header("Selection / fit options")
 
-    mode = st.radio(
-        "Mode", ["Auto (select best + fit)", "Manual (choose model)"], index=0
-    )
+    mode = st.radio("Mode", ["Auto (select best + fit)", "Manual (choose model)"], index=0)
 
     model_names_all = ["LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"]
     if mode.startswith("Auto"):
-        model_names = st.multiselect(
-            "Candidate models", model_names_all, default=model_names_all
-        )
+        model_names = st.multiselect("Candidate models", model_names_all, default=model_names_all)
     else:
         model_choice = st.selectbox("Model to fit", model_names_all, index=1)
         model_names = [model_choice]
@@ -68,15 +62,9 @@ with st.sidebar:
     cpsplines_kwargs = None
     if use_cps:
         # Keep minimal & safe defaults; you can expose more later
-        k = st.number_input(
-            "k (basis dimension)", min_value=5, max_value=20, value=12, step=5
-        )
-        deg = st.number_input(
-            "deg (B-spline degree)", min_value=1, max_value=5, value=3, step=1
-        )
-        ord_ = st.number_input(
-            "ord (penalty order)", min_value=1, max_value=4, value=2, step=1
-        )
+        k = st.number_input("k (basis dimension)", min_value=5, max_value=20, value=12, step=5)
+        deg = st.number_input("deg (B-spline degree)", min_value=1, max_value=5, value=3, step=1)
+        ord_ = st.number_input("ord (penalty order)", min_value=1, max_value=4, value=2, step=1)
         cpsplines_kwargs = {"k": int(k), "deg": int(deg), "ord": int(ord_)}
 
     st.divider()

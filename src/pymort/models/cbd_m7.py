@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import numpy as np
 
 from pymort.lifetables import validate_q
-from pymort.models.utils import _estimate_rw_params
 from pymort.models.cbd_m5 import _logit
+from pymort.models.utils import _estimate_rw_params
 
 
 @dataclass
 class CBDM7Params:
-    """
-    Parameters of the CBD Model M7 (quadratic + cohort):
+    """Parameters of the CBD Model M7 (quadratic + cohort):
 
         logit(q_{x,t}) =
             kappa1_t
@@ -44,23 +42,22 @@ class CBDM7Params:
     sigma2_x: float  # mean squared deviation of ages (for quadratic term)
 
     # Optional RW+drift parameters for (kappa1, kappa2, kappa3)
-    mu1: Optional[float] = None
-    sigma1: Optional[float] = None
-    mu2: Optional[float] = None
-    sigma2: Optional[float] = None
-    mu3: Optional[float] = None
-    sigma3: Optional[float] = None
+    mu1: float | None = None
+    sigma1: float | None = None
+    mu2: float | None = None
+    sigma2: float | None = None
+    mu3: float | None = None
+    sigma3: float | None = None
 
     # Convenience helper
     def gamma_for_age_at_last_year(self, age: float) -> float:
-        """
-        Return gamma_{t-x} for a given age at the last observed calendar year.
+        """Return gamma_{t-x} for a given age at the last observed calendar year.
         Useful for diagnostics / plotting.
         """
         age = float(age)
         c = float(self.years[-1] - age)
         idx = np.searchsorted(self.cohorts, c)
- 
+
         if idx >= len(self.cohorts) or self.cohorts[idx] != c:
             raise ValueError(
                 f"Cohort index {c} not found in stored gamma grid. "
@@ -70,8 +67,7 @@ class CBDM7Params:
 
 
 def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
-    """
-    Compute the cohort index c = t - x on the (age, year) grid.
+    """Compute the cohort index c = t - x on the (age, year) grid.
 
     Returns an array C with shape (A, T) where C[x,t] = years[t] - ages[x].
     """
@@ -81,8 +77,7 @@ def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
 
 
 def fit_cbd_m7(q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM7Params:
-    """
-    Fit the full CBD Model M7 (quadratic + cohort) to q[age, year].
+    """Fit the full CBD Model M7 (quadratic + cohort) to q[age, year].
 
     Model:
         logit(q_{x,t}) =
@@ -187,9 +182,7 @@ def fit_cbd_m7(q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM7Param
 
 
 def reconstruct_logit_q_m7(params: CBDM7Params) -> np.ndarray:
-    """
-    Reconstruct logit(q_{x,t}) from CBD M7 parameters on the original age/year grid.
-    """
+    """Reconstruct logit(q_{x,t}) from CBD M7 parameters on the original age/year grid."""
     ages = params.ages
     years = params.years
 
@@ -201,9 +194,7 @@ def reconstruct_logit_q_m7(params: CBDM7Params) -> np.ndarray:
     k3 = params.kappa3
 
     # Baseline quadratic CBD part
-    base_logit = (
-        k1[None, :] + z[:, None] * k2[None, :] + z2c[:, None] * k3[None, :]
-    )  # (A, T)
+    base_logit = k1[None, :] + z[:, None] * k2[None, :] + z2c[:, None] * k3[None, :]  # (A, T)
 
     # Cohort part: gamma_{t-x}
     C = _compute_cohort_index(ages, years)  # (A, T)
@@ -220,16 +211,13 @@ def reconstruct_logit_q_m7(params: CBDM7Params) -> np.ndarray:
 
 
 def reconstruct_q_m7(params: CBDM7Params) -> np.ndarray:
-    """
-    Reconstruct q_{x,t} from CBD M7 parameters.
-    """
+    """Reconstruct q_{x,t} from CBD M7 parameters."""
     logit_q = reconstruct_logit_q_m7(params)
     return 1.0 / (1.0 + np.exp(-logit_q))
 
 
 def estimate_rw_params_m7(params: CBDM7Params) -> CBDM7Params:
-    """
-    Estimate RW+drift parameters for (kappa1_t, kappa2_t, kappa3_t)
+    """Estimate RW+drift parameters for (kappa1_t, kappa2_t, kappa3_t)
     and store them in the CBDM7Params object.
     Gamma (cohort effect) is treated as static.
     """
@@ -244,30 +232,25 @@ def estimate_rw_params_m7(params: CBDM7Params) -> CBDM7Params:
 
 
 class CBDM7:
-    """
-    CBD Model M7 (quadratic + cohort):
+    """CBD Model M7 (quadratic + cohort):
 
-        logit(q_{x,t}) =
-            kappa1_t
-          + kappa2_t (x - x_bar)
-          + kappa3_t ((x - x_bar)^2 - sigma_x^2)
-          + gamma_{t-x}.
+    logit(q_{x,t}) =
+        kappa1_t
+      + kappa2_t (x - x_bar)
+      + kappa3_t ((x - x_bar)^2 - sigma_x^2)
+      + gamma_{t-x}.
     """
 
     def __init__(self) -> None:
-        self.params: Optional[CBDM7Params] = None
+        self.params: CBDM7Params | None = None
 
-    def fit(self, q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> "CBDM7":
-        """
-        Fit the CBD M7 model on q[age, year] and store parameters.
-        """
+    def fit(self, q: np.ndarray, ages: np.ndarray, years: np.ndarray) -> CBDM7:
+        """Fit the CBD M7 model on q[age, year] and store parameters."""
         self.params = fit_cbd_m7(q, ages, years)
         return self
 
-    def estimate_rw(self) -> Tuple[float, float, float, float, float, float]:
-        """
-        Estimate RW+drift parameters for (kappa1_t, kappa2_t, kappa3_t).
-        """
+    def estimate_rw(self) -> tuple[float, float, float, float, float, float]:
+        """Estimate RW+drift parameters for (kappa1_t, kappa2_t, kappa3_t)."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         self.params = estimate_rw_params_m7(self.params)
@@ -281,17 +264,13 @@ class CBDM7:
         )
 
     def predict_logit_q(self) -> np.ndarray:
-        """
-        Reconstruct the logit-mortality surface implied by the fitted CBD M7 model.
-        """
+        """Reconstruct the logit-mortality surface implied by the fitted CBD M7 model."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_logit_q_m7(self.params)
 
     def predict_q(self) -> np.ndarray:
-        """
-        Reconstruct q_{x,t} implied by the fitted CBD M7 model.
-        """
+        """Reconstruct q_{x,t} implied by the fitted CBD M7 model."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_q_m7(self.params)
@@ -301,11 +280,10 @@ class CBDM7:
         kappa_index: str,
         horizon: int,
         n_sims: int = 1000,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         include_last: bool = False,
     ) -> np.ndarray:
-        """
-        Vectorized simulation of kappa1_t, kappa2_t or kappa3_t under:
+        """Vectorized simulation of kappa1_t, kappa2_t or kappa3_t under:
 
             kappa_t = kappa_{t-1} + mu + sigma * eps_t.
 

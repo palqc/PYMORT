@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional
+from typing import Any
 
 import numpy as np
 
@@ -16,10 +17,9 @@ from pymort.pricing.survivor_swaps import price_survivor_swap
 
 @dataclass
 class RateSensitivity:
-    """
-    Sensitivity of a price to the short rate.
+    """Sensitivity of a price to the short rate.
 
-    Attributes
+    Attributes:
     ----------
     base_rate : float
         Short rate used for the base price (continuously compounded).
@@ -53,10 +53,9 @@ class RateSensitivity:
 
 @dataclass
 class MortalityDeltaByAge:
-    """
-    Collection of mortality deltas by age.
+    """Collection of mortality deltas by age.
 
-    Attributes
+    Attributes:
     ----------
     base_price : float
         Price under the original scenario set.
@@ -84,8 +83,7 @@ def rate_sensitivity(
     bump: float = 1e-4,
     **price_kwargs,
 ) -> RateSensitivity:
-    """
-    Compute numerical sensitivity of a price to the short rate.
+    """Compute numerical sensitivity of a price to the short rate.
 
     The pricing function is expected to have a signature like:
 
@@ -107,7 +105,7 @@ def rate_sensitivity(
     price_kwargs :
         Additional keyword arguments forwarded to price_func.
 
-    Returns
+    Returns:
     -------
     RateSensitivity
         Dataclass with base/up/down prices, dP/dr, duration, DV01.
@@ -142,11 +140,10 @@ def mortality_delta_by_age(
     price_func: Callable[[MortalityScenarioSet], float],
     scen_set: MortalityScenarioSet,
     *,
-    ages: Optional[Iterable[float]] = None,
+    ages: Iterable[float] | None = None,
     rel_bump: float = 0.01,
 ) -> MortalityDeltaByAge:
-    """
-    Compute numerical "mortality delta" by age via proportional bumps in q.
+    """Compute numerical "mortality delta" by age via proportional bumps in q.
 
     For each selected age x, we:
         1. multiply q_{x,t} by (1 + rel_bump),
@@ -173,12 +170,12 @@ def mortality_delta_by_age(
     rel_bump : float, default 0.01
         Relative bump applied multiplicatively to q, e.g. 0.01 -> +1%.
 
-    Returns
+    Returns:
     -------
     MortalityDeltaByAge
         Dataclass with base price, bump size, ages and deltas per age.
 
-    Notes
+    Notes:
     -----
     - This is a brute-force finite-difference approach. It is expensive:
       if you have A ages, you will re-price A times.
@@ -203,7 +200,7 @@ def mortality_delta_by_age(
         ages_sel = np.asarray(list(ages), dtype=float)
 
     # indices of ages to bump
-    idx_map: Dict[float, int] = {}
+    idx_map: dict[float, int] = {}
     for x in ages_sel:
         # closest age in grid
         i = int(np.argmin(np.abs(ages_all - float(x))))
@@ -259,8 +256,7 @@ def mortality_delta_by_age(
 
 @dataclass
 class RateConvexity:
-    """
-    Convexity approximée par différences finies sur le short rate.
+    """Convexity approximée par différences finies sur le short rate.
 
     On utilise les mêmes évaluations que pour la duration, mais on
     exploite la formule de dérivée seconde numérique :
@@ -286,8 +282,7 @@ def rate_convexity(
     bump: float = 1e-4,
     **price_kwargs,
 ) -> RateConvexity:
-    """
-    Approxime la convexity de taux par différences finies.
+    """Approxime la convexity de taux par différences finies.
 
     Paramètres
     ----------
@@ -339,13 +334,12 @@ def rate_convexity(
 
 @dataclass
 class MortalityVega:
-    """
-    Sensibilité du prix à un scaling de la volatilité des facteurs de mortalité.
+    """Sensibilité du prix à un scaling de la volatilité des facteurs de mortalité.
 
     On interprète le bump comme :
         sigma -> (1 ± rel_bump) * sigma
 
-    Attributes
+    Attributes:
     ----------
     base_price : float
         Prix pour scale_sigma = 1.0.
@@ -373,8 +367,7 @@ def mortality_vega_via_sigma_scale(
     *,
     rel_bump: float = 0.05,
 ) -> MortalityVega:
-    """
-    Calcule une "Vega de mortalité" en rescalant la volatilité des facteurs.
+    """Calcule une "Vega de mortalité" en rescalant la volatilité des facteurs.
 
     Idée
     ----
@@ -471,8 +464,7 @@ def make_single_product_pricer(
     spec: ProductSpec,
     short_rate: float = 0.02,
 ) -> Callable[[MortalityScenarioSet], float]:
-    """
-    Returns a function scen_set -> price for ONE instrument.
+    """Returns a function scen_set -> price for ONE instrument.
 
     Supported kinds:
       - "longevity_bond" (alias: "bond")
@@ -497,9 +489,7 @@ def make_single_product_pricer(
 
     if k == "longevity_bond":
         return lambda scen: float(
-            price_simple_longevity_bond(
-                scen_set=scen, spec=spec, short_rate=short_rate
-            )["price"]
+            price_simple_longevity_bond(scen_set=scen, spec=spec, short_rate=short_rate)["price"]
         )
 
     if k == "s_forward":
@@ -514,9 +504,7 @@ def make_single_product_pricer(
 
     if k == "survivor_swap":
         return lambda scen: float(
-            price_survivor_swap(scen_set=scen, spec=spec, short_rate=short_rate)[
-                "price"
-            ]
+            price_survivor_swap(scen_set=scen, spec=spec, short_rate=short_rate)["price"]
         )
 
     if k == "life_annuity":
@@ -541,8 +529,7 @@ def price_all_products(
     specs: Mapping[str, ProductSpec],
     short_rate: float = 0.02,
 ) -> dict[str, float]:
-    """
-    Price all instruments present in `specs` on the same scenario set.
+    """Price all instruments present in `specs` on the same scenario set.
     Returns a dict {kind: price}.
     """
     out: dict[str, float] = {}
@@ -559,8 +546,7 @@ def mortality_vega_all_products(
     short_rate: float = 0.02,
     rel_bump: float = 0.05,
 ) -> dict[str, float]:
-    """
-    Compute sigma-scale Vega for ALL instruments in `specs` at once.
+    """Compute sigma-scale Vega for ALL instruments in `specs` at once.
 
     Vega_kind ≈ (P_kind(1+eps) - P_kind(1-eps)) / (2 eps)
     """
@@ -590,8 +576,7 @@ def rate_sensitivity_all_products(
     base_short_rate: float,
     bump: float = 1e-4,
 ) -> dict[str, RateSensitivity]:
-    """
-    Compute rate sensitivity (dP/dr, duration, DV01) for each instrument in specs.
+    """Compute rate sensitivity (dP/dr, duration, DV01) for each instrument in specs.
     Reuses the SAME scen_set; only bumps the short rate inside pricers.
     """
     out: dict[str, RateSensitivity] = {}
@@ -625,9 +610,7 @@ def rate_convexity_all_products(
     base_short_rate: float,
     bump: float = 1e-4,
 ) -> dict[str, RateConvexity]:
-    """
-    Compute rate convexity for each instrument in specs.
-    """
+    """Compute rate convexity for each instrument in specs."""
     out: dict[str, RateConvexity] = {}
 
     for kind, spec in specs.items():
@@ -656,18 +639,14 @@ def mortality_delta_by_age_all_products(
     *,
     specs: Mapping[str, ProductSpec],
     short_rate: float = 0.02,
-    ages: Optional[Iterable[float]] = None,
+    ages: Iterable[float] | None = None,
     rel_bump: float = 0.01,
 ) -> dict[str, MortalityDeltaByAge]:
-    """
-    Compute mortality delta-by-age for each instrument in specs, on the SAME scen_set.
-    """
+    """Compute mortality delta-by-age for each instrument in specs, on the SAME scen_set."""
     out: dict[str, MortalityDeltaByAge] = {}
 
     for kind, spec in specs.items():
-        pricer = make_single_product_pricer(
-            kind=str(kind), spec=spec, short_rate=float(short_rate)
-        )
+        pricer = make_single_product_pricer(kind=str(kind), spec=spec, short_rate=float(short_rate))
         out[str(kind)] = mortality_delta_by_age(
             pricer,
             scen_set,
@@ -685,10 +664,9 @@ def mortality_delta_by_age_all_products(
 
 @dataclass
 class AllSensitivities:
-    """
-    Bundle of results for multiple instruments.
+    """Bundle of results for multiple instruments.
 
-    Attributes
+    Attributes:
     ----------
     prices_base : dict[str, float]
         Prices at base scenario (scale_sigma=1.0) and base_short_rate.
@@ -717,19 +695,18 @@ def compute_all_sensitivities(
     *,
     specs: Mapping[str, ProductSpec],
     base_short_rate: float = 0.02,
-    short_rate_for_pricing: Optional[float] = None,
+    short_rate_for_pricing: float | None = None,
     # bumps
     sigma_rel_bump: float = 0.05,
     q_rel_bump: float = 0.01,
     rate_bump: float = 1e-4,
     # delta-by-age selection
-    ages_for_delta: Optional[Iterable[float]] = None,
+    ages_for_delta: Iterable[float] | None = None,
 ) -> AllSensitivities:
-    """
-    Compute prices + (sigma-scale vega) + (delta-by-age) + (rate sens) + (rate convexity)
+    """Compute prices + (sigma-scale vega) + (delta-by-age) + (rate sens) + (rate convexity)
     for all instruments provided in `specs`.
 
-    Notes
+    Notes:
     -----
     - Vega is computed by rebuilding scenarios at scale_sigma = 1±eps.
     - Delta-by-age, rate sensitivity, convexity are computed on ONE base scenario set

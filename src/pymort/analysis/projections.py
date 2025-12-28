@@ -1,5 +1,4 @@
-"""
-projections.py — Stochastic mortality projections with param + process uncertainty
+"""projections.py — Stochastic mortality projections with param + process uncertainty
 ===============================================================================
 
 This module produces forward mortality scenarios by combining:
@@ -41,7 +40,6 @@ If eps are None, innovations are drawn internally as before.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Type
 
 import numpy as np
 
@@ -52,10 +50,8 @@ from pymort.lifetables import m_to_q, validate_q
 class ProjectionResult:
     years: np.ndarray  # (H_out,)
     q_paths: np.ndarray  # (N, A, H_out)
-    m_paths: Optional[np.ndarray]  # (N, A, H_out) for log-m models, else None
-    k_paths: Optional[
-        np.ndarray
-    ]  # (N, H_out) for LC/APC, or (N, d_factors, H_out) for CBD
+    m_paths: np.ndarray | None  # (N, A, H_out) for log-m models, else None
+    k_paths: np.ndarray | None  # (N, H_out) for LC/APC, or (N, d_factors, H_out) for CBD
 
 
 def simulate_random_walk_paths(
@@ -67,10 +63,9 @@ def simulate_random_walk_paths(
     rng: np.random.Generator,
     include_last: bool = False,
 ) -> np.ndarray:
-    """
-    Vectorized RW+drift simulation:
+    """Vectorized RW+drift simulation:
 
-        k_t = k_{t-1} + mu + sigma * eps_t
+    k_t = k_{t-1} + mu + sigma * eps_t
     """
     H = int(horizon)
     n_sims = int(n_sims)
@@ -91,9 +86,7 @@ def simulate_random_walk_paths(
     paths = k_last + np.cumsum(steps, axis=1)
 
     if include_last:
-        paths = np.concatenate(
-            [np.full((n_sims, 1), k_last, dtype=float), paths], axis=1
-        )
+        paths = np.concatenate([np.full((n_sims, 1), k_last, dtype=float), paths], axis=1)
     return paths
 
 
@@ -104,9 +97,7 @@ def simulate_random_walk_paths_with_eps(
     eps: np.ndarray,
     include_last: bool = False,
 ) -> np.ndarray:
-    """
-    Same as simulate_random_walk_paths, but takes eps explicitly (CRN-friendly).
-    """
+    """Same as simulate_random_walk_paths, but takes eps explicitly (CRN-friendly)."""
     mu = float(mu)
     sigma = float(sigma)
     if sigma < 0:
@@ -122,34 +113,30 @@ def simulate_random_walk_paths_with_eps(
     paths = k_last + np.cumsum(steps, axis=1)
 
     if include_last:
-        paths = np.concatenate(
-            [np.full((paths.shape[0], 1), k_last, dtype=float), paths], axis=1
-        )
+        paths = np.concatenate([np.full((paths.shape[0], 1), k_last, dtype=float), paths], axis=1)
     return paths
 
 
 def project_mortality_from_bootstrap(
-    model_cls: Type,
+    model_cls: type,
     ages: np.ndarray,
     years: np.ndarray,
     m: np.ndarray,
     bootstrap_result,
     horizon: int = 50,
     n_process: int = 200,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     include_last: bool = False,
-    drift_overrides: Optional[np.ndarray] = None,
+    drift_overrides: np.ndarray | None = None,
     scale_sigma: float | np.ndarray = 1.0,
-    sigma_overrides: Optional[np.ndarray] = None,
+    sigma_overrides: np.ndarray | None = None,
     # --- CRN innovations (optional) ---
-    eps_rw: Optional[np.ndarray] = None,  # (B, n_process, H) for LC/APC
-    eps1: Optional[np.ndarray] = None,  # (B, n_process, H) for CBD
-    eps2: Optional[np.ndarray] = None,  # (B, n_process, H) for CBD
-    eps3: Optional[np.ndarray] = None,  # (B, n_process, H) for CBDM7 only
+    eps_rw: np.ndarray | None = None,  # (B, n_process, H) for LC/APC
+    eps1: np.ndarray | None = None,  # (B, n_process, H) for CBD
+    eps2: np.ndarray | None = None,  # (B, n_process, H) for CBD
+    eps3: np.ndarray | None = None,  # (B, n_process, H) for CBDM7 only
 ) -> ProjectionResult:
-    """
-    Forecast mortality by combining bootstrap parameter uncertainty and RW process risk.
-    """
+    """Forecast mortality by combining bootstrap parameter uncertainty and RW process risk."""
     rng_master = np.random.default_rng(seed)
 
     params_list = bootstrap_result.params_list
@@ -157,9 +144,7 @@ def project_mortality_from_bootstrap(
 
     B = len(params_list)
     if mu_sigma_mat.shape[0] != B:
-        raise ValueError(
-            "bootstrap_result.mu_sigma must have same length as params_list."
-        )
+        raise ValueError("bootstrap_result.mu_sigma must have same length as params_list.")
 
     A = len(ages)
     H = int(horizon)
@@ -240,7 +225,7 @@ def project_mortality_from_bootstrap(
             raise ValueError("sigma_overrides must be finite and > 0.")
 
     # --- CRN validation helpers ---
-    def _check_eps(name: str, arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
+    def _check_eps(name: str, arr: np.ndarray | None) -> np.ndarray | None:
         if arr is None:
             return None
         arr = np.asarray(arr, dtype=float)
@@ -295,20 +280,17 @@ def project_mortality_from_bootstrap(
             if eps1 is None:
                 eps1_b = rng_b.normal(size=(n_process, H))
                 eps2_b = rng_b.normal(size=(n_process, H))
-                eps3_b = (
-                    rng_b.normal(size=(n_process, H)) if mu_sigma.size == 6 else None
-                )
+                eps3_b = rng_b.normal(size=(n_process, H)) if mu_sigma.size == 6 else None
             else:
                 eps1_b = eps1[b]
                 eps2_b = eps2[b]
                 eps3_b = eps3[b] if (mu_sigma.size == 6) else None
                 if mu_sigma.size == 6 and eps3 is None:
                     raise ValueError("eps3 must be provided for CBDM7 when using CRN.")
+        elif eps_rw is None:
+            eps_rw_b = rng_b.normal(size=(n_process, H))
         else:
-            if eps_rw is None:
-                eps_rw_b = rng_b.normal(size=(n_process, H))
-            else:
-                eps_rw_b = eps_rw[b]
+            eps_rw_b = eps_rw[b]
 
         # CBD family: logit(q)
         if is_cbd:
@@ -330,9 +312,7 @@ def project_mortality_from_bootstrap(
                 )
 
                 z = ages - params.x_bar
-                logit_q_block = (
-                    k1_block[:, None, :] + z[None, :, None] * k2_block[:, None, :]
-                )
+                logit_q_block = k1_block[:, None, :] + z[None, :, None] * k2_block[:, None, :]
 
                 if hasattr(params, "gamma_for_age_at_last_year"):
                     gamma_last = np.array(
@@ -399,63 +379,60 @@ def project_mortality_from_bootstrap(
             raise RuntimeError("Unexpected mu_sigma length for CBD model.")
 
         # LC / APC family: log(m)
-        else:
-            if len(mu_sigma) != 2:
+        if len(mu_sigma) != 2:
+            raise ValueError("LC/APC bootstrap mu_sigma must have length 2 (mu, sigma).")
+        mu, sigma = mu_sigma
+
+        # LC-like
+        if hasattr(params, "k") and hasattr(params, "a") and hasattr(params, "b"):
+            k_last = params.k[-1]
+            a = params.a
+            b_age = params.b
+            if a.shape[0] != A:
                 raise ValueError(
-                    "LC/APC bootstrap mu_sigma must have length 2 (mu, sigma)."
-                )
-            mu, sigma = mu_sigma
-
-            # LC-like
-            if hasattr(params, "k") and hasattr(params, "a") and hasattr(params, "b"):
-                k_last = params.k[-1]
-                a = params.a
-                b_age = params.b
-                if a.shape[0] != A:
-                    raise ValueError(
-                        f"Projection: params have {a.shape[0]} ages but ages grid has {A}."
-                    )
-
-            # APC-like
-            elif hasattr(params, "kappa") and hasattr(params, "beta_age"):
-                k_last = params.kappa[-1]
-                a = params.beta_age
-                b_age = np.ones_like(a)
-                if a.shape[0] != A:
-                    raise ValueError(
-                        f"Projection: params have {a.shape[0]} ages but ages grid has {A}."
-                    )
-
-            else:
-                raise RuntimeError(
-                    "Unknown parameter structure: expected LC params (a,b,k) or APC params (beta_age,kappa)."
+                    f"Projection: params have {a.shape[0]} ages but ages grid has {A}."
                 )
 
-            if sigma_overrides is None:
-                sigma_eff = float(sigma) * float(scale_vec[0])
-            else:
-                sigma_eff = float(sigma_overrides[0])
+        # APC-like
+        elif hasattr(params, "kappa") and hasattr(params, "beta_age"):
+            k_last = params.kappa[-1]
+            a = params.beta_age
+            b_age = np.ones_like(a)
+            if a.shape[0] != A:
+                raise ValueError(
+                    f"Projection: params have {a.shape[0]} ages but ages grid has {A}."
+                )
 
-            k_block = simulate_random_walk_paths_with_eps(
-                k_last, mu, sigma_eff, eps_rw_b, include_last=include_last
+        else:
+            raise RuntimeError(
+                "Unknown parameter structure: expected LC params (a,b,k) or APC params (beta_age,kappa)."
             )
 
-            ln_m_block = a[None, :, None] + b_age[None, :, None] * k_block[:, None, :]
+        if sigma_overrides is None:
+            sigma_eff = float(sigma) * float(scale_vec[0])
+        else:
+            sigma_eff = float(sigma_overrides[0])
 
-            if hasattr(params, "gamma_for_age_at_last_year"):
-                gamma_last = np.array(
-                    [params.gamma_for_age_at_last_year(float(ax)) for ax in ages],
-                    dtype=float,
-                )
-                ln_m_block += gamma_last[None, :, None]
+        k_block = simulate_random_walk_paths_with_eps(
+            k_last, mu, sigma_eff, eps_rw_b, include_last=include_last
+        )
 
-            m_block = np.exp(ln_m_block)
-            q_block = m_to_q(m_block)
+        ln_m_block = a[None, :, None] + b_age[None, :, None] * k_block[:, None, :]
 
-            q_paths[out : out + n_process] = q_block
-            m_paths[out : out + n_process] = m_block
-            k_paths[out : out + n_process] = k_block
-            out += n_process
+        if hasattr(params, "gamma_for_age_at_last_year"):
+            gamma_last = np.array(
+                [params.gamma_for_age_at_last_year(float(ax)) for ax in ages],
+                dtype=float,
+            )
+            ln_m_block += gamma_last[None, :, None]
+
+        m_block = np.exp(ln_m_block)
+        q_block = m_to_q(m_block)
+
+        q_paths[out : out + n_process] = q_block
+        m_paths[out : out + n_process] = m_block
+        k_paths[out : out + n_process] = k_block
+        out += n_process
 
     validate_q(q_paths)
 

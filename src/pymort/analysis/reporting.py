@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Dict, Literal, Optional, Sequence, Tuple
+from typing import Literal
 
 import numpy as np
 
@@ -17,8 +18,7 @@ PVKind = Literal["cost", "value", "pnl"]
 
 @dataclass
 class RiskReport:
-    """
-    Structured risk summary for scenario PVs.
+    """Structured risk summary for scenario PVs.
 
     Convention
     ----------
@@ -49,22 +49,22 @@ class RiskReport:
     var: float  # VaR on losses
     cvar: float  # CVaR/ES on losses
 
-    quantiles_pv: Dict[float, float]
-    quantiles_loss: Dict[float, float]
+    quantiles_pv: dict[float, float]
+    quantiles_loss: dict[float, float]
 
     # Relative-to-reference analytics (optional)
-    hedge_var_reduction: Optional[float] = None
-    hedge_var_reduction_loss: Optional[float] = None
-    hedge_var_reduction_var: Optional[float] = None
-    hedge_var_reduction_cvar: Optional[float] = None
-    corr_with_ref: Optional[float] = None
-    beta_vs_ref: Optional[float] = None
-    tracking_error: Optional[float] = None
+    hedge_var_reduction: float | None = None
+    hedge_var_reduction_loss: float | None = None
+    hedge_var_reduction_var: float | None = None
+    hedge_var_reduction_cvar: float | None = None
+    corr_with_ref: float | None = None
+    beta_vs_ref: float | None = None
+    tracking_error: float | None = None
 
     # Extra metrics
-    extra: Dict[str, float] = field(default_factory=dict)
+    extra: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
@@ -90,18 +90,18 @@ def _pv_to_loss(pv: np.ndarray, pv_kind: PVKind) -> np.ndarray:
     raise ValueError(f"Unknown pv_kind: {pv_kind!r}")
 
 
-def _compute_var_cvar(loss_paths: np.ndarray, alpha: float) -> Tuple[float, float]:
+def _compute_var_cvar(loss_paths: np.ndarray, alpha: float) -> tuple[float, float]:
     if not (0.0 < alpha < 1.0):
         raise ValueError("var_level (alpha) must be in (0,1).")
 
     L = loss_paths
     var = float(np.quantile(L, alpha))
-    tail = L[L >= var]
+    tail = L[var <= L]
     cvar = float(tail.mean()) if tail.size > 0 else var
     return var, cvar
 
 
-def _skew_kurtosis(x: np.ndarray) -> Tuple[float, float]:
+def _skew_kurtosis(x: np.ndarray) -> tuple[float, float]:
     # population moments (ddof=0)
     mu = float(x.mean())
     s = float(x.std(ddof=0))
@@ -123,13 +123,12 @@ def generate_risk_report(
     *,
     name: str = "Portfolio",
     var_level: float = 0.99,
-    ref_pv_paths: Optional[np.ndarray] = None,
+    ref_pv_paths: np.ndarray | None = None,
     pv_kind: PVKind = "cost",
     quantile_grid: Sequence[float] = (0.01, 0.05, 0.50, 0.95, 0.99),
-    loss_threshold: Optional[float] = None,
+    loss_threshold: float | None = None,
 ) -> RiskReport:
-    """
-    Generate a pro-grade RiskReport from scenario PV paths.
+    """Generate a pro-grade RiskReport from scenario PV paths.
 
     Parameters
     ----------
@@ -177,9 +176,7 @@ def generate_risk_report(
     extra: dict[str, float] = {
         "skew_loss": float(skew_loss),
         "kurtosis_excess_loss": float(kurt_loss),
-        "downside_deviation_loss": float(
-            np.sqrt(np.mean(np.minimum(loss - mean_loss, 0.0) ** 2))
-        ),
+        "downside_deviation_loss": float(np.sqrt(np.mean(np.minimum(loss - mean_loss, 0.0) ** 2))),
     }
 
     if loss_threshold is not None:
@@ -198,16 +195,12 @@ def generate_risk_report(
     if ref_pv_paths is not None:
         ref_pv = _as_1d(ref_pv_paths, name="ref_pv_paths")
         if ref_pv.size != N:
-            raise ValueError(
-                "ref_pv_paths must have same number of scenarios as pv_paths."
-            )
+            raise ValueError("ref_pv_paths must have same number of scenarios as pv_paths.")
         ref_loss = _pv_to_loss(ref_pv, pv_kind)
 
         var_ref_pv = float(ref_pv.var(ddof=0))
         var_port_pv = float(pv.var(ddof=0))
-        hedge_var_reduction = (
-            (1.0 - var_port_pv / var_ref_pv) if var_ref_pv > 0.0 else None
-        )
+        hedge_var_reduction = (1.0 - var_port_pv / var_ref_pv) if var_ref_pv > 0.0 else None
 
         var_ref_loss = float(ref_loss.var(ddof=0))
         var_port_loss = float(loss.var(ddof=0))
@@ -266,7 +259,7 @@ def plot_survival_fan(
     age: float,
     *,
     ax=None,
-    quantiles: Tuple[float, ...] = (0.05, 0.25, 0.50, 0.75, 0.95),
+    quantiles: tuple[float, ...] = (0.05, 0.25, 0.50, 0.75, 0.95),
 ):
     try:
         import matplotlib.pyplot as plt
@@ -299,13 +292,9 @@ def plot_survival_fan(
 
     # Optional fills if the common bands exist
     if 0.25 in bands and 0.75 in bands:
-        ax.fill_between(
-            years, bands[0.25], bands[0.75], alpha=0.3, label="50% band (25–75%)"
-        )
+        ax.fill_between(years, bands[0.25], bands[0.75], alpha=0.3, label="50% band (25–75%)")
     if 0.05 in bands and 0.95 in bands:
-        ax.fill_between(
-            years, bands[0.05], bands[0.95], alpha=0.2, label="90% band (5–95%)"
-        )
+        ax.fill_between(years, bands[0.05], bands[0.95], alpha=0.2, label="90% band (5–95%)")
 
     ax.set_title(f"Survival fan – age {ages[idx_age]:.0f}")
     ax.set_xlabel("Calendar year")

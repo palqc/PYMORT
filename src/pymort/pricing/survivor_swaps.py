@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -16,8 +16,7 @@ from pymort.pricing.utils import (
 
 @dataclass
 class SurvivorSwapSpec:
-    """
-    Specification of a simple survivor swap on a single cohort.
+    """Specification of a simple survivor swap on a single cohort.
 
     At each payment date t = 1, ..., T (years from start):
 
@@ -33,7 +32,7 @@ class SurvivorSwapSpec:
 
     where S_x(t) is read from scen_set.S_paths at the chosen age.
 
-    Attributes
+    Attributes:
     ----------
     age : float
         Age of the cohort at valuation date (e.g. 65). The closest age
@@ -57,7 +56,7 @@ class SurvivorSwapSpec:
     - If provided: must be a 1D array of strictly positive integers (aligned with
       the mortality grid yearly steps), each <= maturity_years.
 
-    Examples
+    Examples:
     --------
     Annual: None  -> [1,2,...,T]
     Custom: np.array([1,3,5,10])  (pays only at these maturities)
@@ -66,21 +65,20 @@ class SurvivorSwapSpec:
     age: float
     maturity_years: int
     notional: float = 1.0
-    strike: Optional[float] = None
+    strike: float | None = None
     payer: str = "fixed"  # "fixed" or "floating"
-    payment_times: Optional[np.ndarray] = None
+    payment_times: np.ndarray | None = None
 
 
 def price_survivor_swap(
     scen_set: MortalityScenarioSet,
     spec: SurvivorSwapSpec,
     *,
-    short_rate: Optional[float] = None,
-    discount_factors: Optional[np.ndarray] = None,
+    short_rate: float | None = None,
+    discount_factors: np.ndarray | None = None,
     return_cf_paths: bool = False,
-) -> Dict[str, Any]:
-    """
-    Price a survivor swap using mortality scenarios.
+) -> dict[str, Any]:
+    """Price a survivor swap using mortality scenarios.
 
     Net cashflow at each payment date t = 1, ..., T:
 
@@ -102,10 +100,8 @@ def price_survivor_swap(
     T = int(spec.maturity_years)
     if T <= 0:
         raise ValueError("spec.maturity_years must be > 0.")
-    if T > H_full:
-        raise ValueError(
-            f"spec.maturity_years={T} exceeds available projection horizon {H_full}."
-        )
+    if H_full < T:
+        raise ValueError(f"spec.maturity_years={T} exceeds available projection horizon {H_full}.")
 
     # Payment schedule (indices in 1..T, aligned with yearly grid)
     if spec.payment_times is None:
@@ -115,9 +111,7 @@ def price_survivor_swap(
         if pay_times.size == 0:
             raise ValueError("spec.payment_times must be non-empty if provided.")
         if np.any(pay_times <= 0):
-            raise ValueError(
-                "spec.payment_times must contain strictly positive integers."
-            )
+            raise ValueError("spec.payment_times must contain strictly positive integers.")
         if np.any(pay_times > T):
             raise ValueError(
                 f"spec.payment_times must be <= maturity_years={T}. Got max={int(pay_times.max())}."
@@ -168,9 +162,7 @@ def price_survivor_swap(
             raise ValueError(
                 f"discount_factors must have first dim 1 or N={N}; got {df_full.shape}."
             )
-        df_full_eff = (
-            df_full if df_full.shape[0] == N else np.repeat(df_full, N, axis=0)
-        )
+        df_full_eff = df_full if df_full.shape[0] == N else np.repeat(df_full, N, axis=0)
     else:
         raise ValueError("discount_factors must be 1D or 2D.")
 
@@ -222,7 +214,7 @@ def price_survivor_swap(
     float_leg_expected = float(np.sum(spec.notional * S_age.mean(axis=0) * df_pay_mean))
     fixed_leg_expected = float(np.sum(spec.notional * K * df_pay_mean))
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "N_scenarios": int(N),
         "age": float(spec.age),
         "age_index": int(age_idx),
@@ -236,7 +228,7 @@ def price_survivor_swap(
         "fixed_leg_pv_expected": float(fixed_leg_expected),
     }
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,

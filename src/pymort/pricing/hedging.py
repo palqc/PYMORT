@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable, Optional
+from typing import Any
 
 import numpy as np
 from scipy.optimize import lsq_linear
@@ -12,8 +13,7 @@ from pymort.pricing.utils import pv_matrix_from_cf_paths
 
 @dataclass
 class HedgeResult:
-    """
-    Result of a scenario-based variance-minimising hedge.
+    """Result of a scenario-based variance-minimising hedge.
 
     We consider:
         - L_n : liability PV in scenario n
@@ -42,10 +42,9 @@ def _default_instrument_names(m: int) -> list[str]:
 def compute_min_variance_hedge(
     liability_pv_paths: np.ndarray,
     instruments_pv_paths: np.ndarray,
-    instrument_names: Optional[list[str]] = None,
+    instrument_names: list[str] | None = None,
 ) -> HedgeResult:
-    """
-    Solve:  min_w || L + H w ||^2   (OLS, no intercept),
+    """Solve:  min_w || L + H w ||^2   (OLS, no intercept),
     i.e.      H w ≈ -L
     """
     L = np.asarray(liability_pv_paths, dtype=float).reshape(-1)
@@ -73,9 +72,7 @@ def compute_min_variance_hedge(
         raise ValueError(f"len(instrument_names)={len(instrument_names)} != M={m}.")
 
     if n < m:
-        raise ValueError(
-            f"Not enough scenarios N={n} for M={m} instruments; need N >= M."
-        )
+        raise ValueError(f"Not enough scenarios N={n} for M={m} instruments; need N >= M.")
 
     w, _, rank, _ = np.linalg.lstsq(H, -L, rcond=None)
 
@@ -88,9 +85,7 @@ def compute_min_variance_hedge(
     std_net = float(net_pv_paths.std(ddof=0))
 
     corr_L_net = (
-        float(np.corrcoef(L, net_pv_paths)[0, 1])
-        if (std_L > 0.0 and std_net > 0.0)
-        else np.nan
+        float(np.corrcoef(L, net_pv_paths)[0, 1]) if (std_L > 0.0 and std_net > 0.0) else np.nan
     )
 
     var_L = std_L**2
@@ -122,13 +117,12 @@ def compute_min_variance_hedge(
 def compute_multihorizon_hedge(
     liability_cf_paths: np.ndarray,
     instruments_cf_paths: np.ndarray,
-    discount_factors: Optional[np.ndarray] = None,
-    time_weights: Optional[np.ndarray] = None,
-    instrument_names: Optional[list[str]] = None,
+    discount_factors: np.ndarray | None = None,
+    time_weights: np.ndarray | None = None,
+    instrument_names: list[str] | None = None,
     mode: str = "pv_by_horizon",
 ) -> HedgeResult:
-    """
-    Multi-horizon hedge based on cashflows by scenario and maturity:
+    """Multi-horizon hedge based on cashflows by scenario and maturity:
         min_w || L_flat + H_flat w ||^2
     where we flatten (scenario, time) pairs.
     """
@@ -145,9 +139,7 @@ def compute_multihorizon_hedge(
     if H_cf.shape[0] == n:
         n_h, m, t_h = H_cf.shape
         if t_h != t:
-            raise ValueError(
-                f"instruments_cf_paths has T={t_h} but liability has T={t}."
-            )
+            raise ValueError(f"instruments_cf_paths has T={t_h} but liability has T={t}.")
     elif H_cf.shape[1] == n:
         m, n_h, t_h = H_cf.shape
         if n_h != n or t_h != t:
@@ -169,9 +161,7 @@ def compute_multihorizon_hedge(
     if time_weights is not None:
         w_t = np.asarray(time_weights, dtype=float).reshape(-1)
         if w_t.shape[0] != t:
-            raise ValueError(
-                f"time_weights must have length T={t}, got {w_t.shape[0]}."
-            )
+            raise ValueError(f"time_weights must have length T={t}, got {w_t.shape[0]}.")
         if not np.all(np.isfinite(w_t)) or np.any(w_t < 0.0):
             raise ValueError("time_weights must be non-negative and finite.")
         W *= w_t[None, :]
@@ -181,27 +171,23 @@ def compute_multihorizon_hedge(
     # --- discount factors are REQUIRED for pv_by_horizon ---
     mode = mode.lower()
     if mode == "pv_by_horizon" and discount_factors is None:
-        raise ValueError(
-            "mode='pv_by_horizon' requires discount_factors (shape (T,) or (N,T))."
-        )
+        raise ValueError("mode='pv_by_horizon' requires discount_factors (shape (T,) or (N,T)).")
 
     if mode not in {"pv_by_horizon", "pv_cashflows"}:
         raise ValueError("mode must be one of {'pv_by_horizon', 'pv_cashflows'}.")
 
     # Normalize discount factors to (N,T) for consistent operations
-    df_pv: Optional[np.ndarray] = None
+    df_pv: np.ndarray | None = None
     if discount_factors is not None:
         df_arr = np.asarray(discount_factors, dtype=float)
         if df_arr.ndim == 1:
             if df_arr.shape[0] != t:
-                raise ValueError(
-                    f"discount_factors must have length T={t}, got {df_arr.shape[0]}."
-                )
+                raise ValueError(f"discount_factors must have length T={t}, got {df_arr.shape[0]}.")
             df_pv = np.repeat(df_arr[None, :], n, axis=0)  # (N,T)
         elif df_arr.ndim == 2:
             if df_arr.shape != (n, t):
                 raise ValueError(
-                    f"discount_factors must have shape (N,T)={(n,t)}, got {df_arr.shape}."
+                    f"discount_factors must have shape (N,T)={(n, t)}, got {df_arr.shape}."
                 )
             df_pv = df_arr
         else:
@@ -306,7 +292,7 @@ class GreekHedgeResult:
 def compute_greek_matching_hedge(
     liability_greeks: Iterable[float],
     instruments_greeks: np.ndarray,
-    instrument_names: Optional[list[str]] = None,
+    instrument_names: list[str] | None = None,
     *,
     method: str = "ols",
     alpha: float = 1.0,
@@ -326,9 +312,7 @@ def compute_greek_matching_hedge(
         m, _ = G.shape
         G = G.T
     else:
-        raise ValueError(
-            f"instruments_greeks has shape {G.shape}, incompatible with K={k}."
-        )
+        raise ValueError(f"instruments_greeks has shape {G.shape}, incompatible with K={k}.")
 
     if instrument_names is None:
         instrument_names = _default_instrument_names(m)
@@ -366,7 +350,7 @@ def compute_greek_matching_hedge(
 def compute_duration_matching_hedge(
     liability_dPdr: float,
     instruments_dPdr: Iterable[float],
-    instrument_names: Optional[list[str]] = None,
+    instrument_names: list[str] | None = None,
     *,
     method: str = "ols",
     alpha: float = 1.0,
@@ -393,7 +377,7 @@ def compute_duration_convexity_matching_hedge(
     liability_d2Pdr2: float,
     instruments_dPdr: Iterable[float],
     instruments_d2Pdr2: Iterable[float],
-    instrument_names: Optional[list[str]] = None,
+    instrument_names: list[str] | None = None,
     *,
     method: str = "ols",
     alpha: float = 1.0,
@@ -404,9 +388,7 @@ def compute_duration_convexity_matching_hedge(
     if d1.size == 0 or d2.size == 0:
         raise ValueError("Instrument greeks must contain at least one instrument.")
     if d1.shape != d2.shape:
-        raise ValueError(
-            "instruments_dPdr and instruments_d2Pdr2 must have same length."
-        )
+        raise ValueError("instruments_dPdr and instruments_d2Pdr2 must have same length.")
     if not np.all(np.isfinite(d1)) or not np.all(np.isfinite(d2)):
         raise ValueError("Instrument greeks must be finite.")
 
@@ -427,14 +409,13 @@ def compute_duration_convexity_matching_hedge(
 def compute_min_variance_hedge_constrained(
     liability_pv_paths: np.ndarray,
     instruments_pv_paths: np.ndarray,
-    instrument_names: Optional[list[str]] = None,
+    instrument_names: list[str] | None = None,
     *,
     lb: float = 0.0,
     ub: float = np.inf,
 ) -> HedgeResult:
-    """
-    Same as compute_min_variance_hedge but with bounds:
-        lb <= w_j <= ub
+    """Same as compute_min_variance_hedge but with bounds:
+    lb <= w_j <= ub
     """
     L = np.asarray(liability_pv_paths, dtype=float).reshape(-1)
 
@@ -466,9 +447,7 @@ def compute_min_variance_hedge_constrained(
     std_net = float(net_pv_paths.std(ddof=0))
 
     corr_L_net = (
-        float(np.corrcoef(L, net_pv_paths)[0, 1])
-        if (std_L > 0.0 and std_net > 0.0)
-        else np.nan
+        float(np.corrcoef(L, net_pv_paths)[0, 1]) if (std_L > 0.0 and std_net > 0.0) else np.nan
     )
 
     var_L = std_L**2

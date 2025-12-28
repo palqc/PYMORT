@@ -120,19 +120,13 @@ def test_cbdm5_class_fit_predict_simulate() -> None:
     assert np.isfinite(mu1) and np.isfinite(sigma1)
     assert np.isfinite(mu2) and np.isfinite(sigma2)
 
-    sims1 = model.simulate_kappa(
-        "kappa1", horizon=3, n_sims=2, seed=123, include_last=False
-    )
+    sims1 = model.simulate_kappa("kappa1", horizon=3, n_sims=2, seed=123, include_last=False)
     assert sims1.shape == (2, 3)
 
-    sims1_bis = model.simulate_kappa(
-        "kappa1", horizon=3, n_sims=2, seed=123, include_last=False
-    )
+    sims1_bis = model.simulate_kappa("kappa1", horizon=3, n_sims=2, seed=123, include_last=False)
     assert np.allclose(sims1, sims1_bis)
 
-    sims2 = model.simulate_kappa(
-        "kappa2", horizon=2, n_sims=1, seed=123, include_last=True
-    )
+    sims2 = model.simulate_kappa("kappa2", horizon=2, n_sims=1, seed=123, include_last=True)
     assert sims2.shape == (1, 3)
 
 

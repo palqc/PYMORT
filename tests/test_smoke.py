@@ -59,9 +59,7 @@ from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
 def main(argv: list[str] | None = None) -> int:
     default_excel = os.path.join(ROOT_DIR, "Data/data_france.xlsx")
     p = argparse.ArgumentParser(description="PYMORT smoke test (LC, CBD, CBD+cohort)")
-    p.add_argument(
-        "--excel", default=default_excel, help=f"Excel path (default: {default_excel})"
-    )
+    p.add_argument("--excel", default=default_excel, help=f"Excel path (default: {default_excel})")
     p.add_argument("--sex", default="Total", choices=["Total", "Female", "Male"])
     p.add_argument("--age-min", type=int, default=60)
     p.add_argument("--age-max", type=int, default=100)
@@ -84,12 +82,8 @@ def main(argv: list[str] | None = None) -> int:
         default=100,
         help="Number of MC sims for k_t / kappa_t forecasts (default: 100)",
     )
-    p.add_argument(
-        "--seed", type=int, default=None, help="Random seed (None = random each run)"
-    )
-    p.add_argument(
-        "--horizon", type=int, default=50, help="Forecast horizon (default: 50)"
-    )
+    p.add_argument("--seed", type=int, default=None, help="Random seed (None = random each run)")
+    p.add_argument("--horizon", type=int, default=50, help="Forecast horizon (default: 50)")
     p.add_argument(
         "--bootstraps",
         type=int,
@@ -112,15 +106,13 @@ def main(argv: list[str] | None = None) -> int:
         year_max=args.year_max,
     )
     ages, years, m = data["m"]
-    print(
-        f"m shape: {m.shape}  ages[{ages[0]}..{ages[-1]}]  years[{years[0]}..{years[-1]}]"
-    )
+    print(f"m shape: {m.shape}  ages[{ages[0]}..{ages[-1]}]  years[{years[0]}..{years[-1]}]")
     print(f"m min/max: {m.min():.6f} / {m.max():.6f}")
 
     # ================== LC backtest (explicit split) ===================
 
     if args.train_end < years[0] or args.train_end >= years[-1]:
-        raise ValueError(f"--train-end must be within [{years[0]}, {years[-1]-1}]")
+        raise ValueError(f"--train-end must be within [{years[0]}, {years[-1] - 1}]")
     te_start = args.train_end + 1
     if te_start not in years:
         raise ValueError(
@@ -160,9 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"k_paths shape: {k_paths.shape} (n_sims, horizon={H_mc})")
 
         a, b = model.params.a, model.params.b
-        ln_m_paths = (
-            a[:, None][None, :, :] + b[:, None][None, :, :] * k_paths[:, None, :]
-        )
+        ln_m_paths = a[:, None][None, :, :] + b[:, None][None, :, :] * k_paths[:, None, :]
         m_future_age0 = np.exp(ln_m_paths[:, 0, :])
         q = m_to_q(m_future_age0)
         validate_q(q)
@@ -175,9 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     print("\n=== LC diagnostic plots ===")
 
     age_star = 80
-    i_age = (
-        int(np.where(ages == age_star)[0][0]) if age_star in ages else len(ages) // 2
-    )
+    i_age = int(np.where(ages == age_star)[0][0]) if age_star in ages else len(ages) // 2
 
     q_full = m_to_q(m)
 
@@ -229,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
     q_m7_age = q_hat_m7_full[i_age, :]  # CBD M7
 
     # ========== 1) Fits complets pour lignes historiques (comparaison) ==========
-    
+
     par_lc_full = fit_lee_carter(m)
     q_lc_full = m_to_q(np.exp(reconstruct_log_m(par_lc_full)))
     q_lc_age = q_lc_full[i_age, :]
@@ -420,9 +408,7 @@ def main(argv: list[str] | None = None) -> int:
         ln_hat_lc = lcm1_full.predict_log_m()
         q_hat_lc = m_to_q(np.exp(ln_hat_lc))
 
-        rmse_lc_logm_full = float(
-            np.sqrt(np.mean((np.log(m_eval_surface) - ln_hat_lc) ** 2))
-        )
+        rmse_lc_logm_full = float(np.sqrt(np.mean((np.log(m_eval_surface) - ln_hat_lc) ** 2)))
         rmse_lc_logitq, aic_lc, bic_lc = rmse_aic_bic(
             logit_true,
             _logit(q_hat_lc),
@@ -637,9 +623,7 @@ def main(argv: list[str] | None = None) -> int:
         all_rows.extend(collect_metrics(lbl, m_fit_surface, m_eval_surface))
 
     comparison_df = pd.DataFrame(all_rows)
-    print(
-        "\n=== Model comparison (RMSE in-sample / forecast, AIC, BIC — raw vs smoothed) ===\n"
-    )
+    print("\n=== Model comparison (RMSE in-sample / forecast, AIC, BIC — raw vs smoothed) ===\n")
     print(comparison_df.to_string(index=False))
 
     # ------------------------- BOOTSTRAP --------------------------------
@@ -766,9 +750,7 @@ def main(argv: list[str] | None = None) -> int:
     print("Internal number of basis (k):", cp_model.k)
 
     # ================== Forecast M2 & M7 (CPsplines -> bootstrap -> projections -> plot) ===================
-    print(
-        "\n=== Forecast fan chart for LC+cohort (M2) and CBD M7 on CPsplines (age_star=80) ==="
-    )
+    print("\n=== Forecast fan chart for LC+cohort (M2) and CBD M7 on CPsplines (age_star=80) ===")
 
     if args.sims > 0 and args.bootstraps > 0:
         if age_star in ages:
@@ -800,9 +782,7 @@ def main(argv: list[str] | None = None) -> int:
         q_m7_hist_age = q_hat_m7_cp[idx_age, :]
 
         # ---------- 3) Bootstrap on CPsplines-fitted surfaces ----------
-        print(
-            f"Bootstrap on CPsplines data: B={args.bootstraps}, n_process={args.sims}"
-        )
+        print(f"Bootstrap on CPsplines data: B={args.bootstraps}, n_process={args.sims}")
 
         # LC+cohort (M2) bootstrap (on smoothed m)
         bs_lcm2_cp = bootstrap_from_m(
@@ -945,17 +925,13 @@ def main(argv: list[str] | None = None) -> int:
 
         plt.xlabel("Year")
         plt.ylabel("Death probability q")
-        plt.title(
-            f"Observed vs CPsplines-fitted M2 & M7 with bootstrap forecast\n(age={age_star})"
-        )
+        plt.title(f"Observed vs CPsplines-fitted M2 & M7 with bootstrap forecast\n(age={age_star})")
         plt.ylim(bottom=0)
         plt.legend(loc="upper right")
         plt.tight_layout()
         plt.show()
     else:
-        print(
-            "Skipping M2/M7 forecast fan chart: need positive --sims and --bootstraps."
-        )
+        print("Skipping M2/M7 forecast fan chart: need positive --sims and --bootstraps.")
 
     fitted_best, proj, scen_set = build_mortality_scenarios_for_pricing(
         ages=ages,
@@ -991,8 +967,7 @@ def main(argv: list[str] | None = None) -> int:
     H_out = proj.q_paths.shape[2]
 
     assert proj.q_paths.shape == (N_expected, A, H_out), (
-        "proj.q_paths has wrong shape: "
-        f"{proj.q_paths.shape} != ({N_expected}, {A}, {H_out})"
+        f"proj.q_paths has wrong shape: {proj.q_paths.shape} != ({N_expected}, {A}, {H_out})"
     )
 
     assert scen_set.q_paths.shape == (N_expected, A, H_out), (
@@ -1004,8 +979,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{scen_set.S_paths.shape} != ({N_expected}, {A}, {H_out})"
     )
     assert scen_set.years.shape[0] == H_out, (
-        "Length of scen_set.years inconsistent with horizon: "
-        f"{scen_set.years.shape[0]} != {H_out}"
+        f"Length of scen_set.years inconsistent with horizon: {scen_set.years.shape[0]} != {H_out}"
     )
 
     validate_q(scen_set.q_paths)
@@ -1013,9 +987,9 @@ def main(argv: list[str] | None = None) -> int:
 
     diff_S = np.diff(scen_set.S_paths, axis=2)  # (N, A, H-1)
     mask = np.isfinite(diff_S)
-    assert np.all(
-        diff_S[mask] <= 1e-10
-    ), "Survival curves must be non-increasing over time (ignoring NaNs)."
+    assert np.all(diff_S[mask] <= 1e-10), (
+        "Survival curves must be non-increasing over time (ignoring NaNs)."
+    )
 
     print("End-to-end pricing pipeline checks: OK ✅")
 
@@ -1030,9 +1004,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         # si 65 n'est pas dispo, on prend l'âge le plus proche
         issue_age_used = float(ages[np.argmin(np.abs(ages - issue_age))])
-        print(
-            f"Warning: issue_age={issue_age} not in ages; using nearest age {issue_age_used}."
-        )
+        print(f"Warning: issue_age={issue_age} not in ages; using nearest age {issue_age_used}.")
 
     spec = LongevityBondSpec(
         issue_age=issue_age_used,
@@ -1065,8 +1037,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 2) Nombre de chemins PV cohérent avec le nombre de scénarios
     assert pv_paths.shape[0] == scen_set.n_scenarios(), (
-        f"pv_paths has wrong length: {pv_paths.shape[0]} "
-        f"!= {scen_set.n_scenarios()} (n_scenarios)."
+        f"pv_paths has wrong length: {pv_paths.shape[0]} != {scen_set.n_scenarios()} (n_scenarios)."
     )
 
     # 3) Longueur des discount factors cohérente avec la maturité
@@ -1075,18 +1046,14 @@ def main(argv: list[str] | None = None) -> int:
     H_bond = spec.maturity_years or scen_set.horizon()
 
     if df.ndim == 1:
-        assert (
-            df.shape[0] == H_bond
-        ), f"discount_factors length mismatch: {df.shape[0]} != {H_bond}"
+        assert df.shape[0] == H_bond, f"discount_factors length mismatch: {df.shape[0]} != {H_bond}"
     elif df.ndim == 2:
         # accepte (H,) en colonne ou en ligne, ou (N,H) si DF par scénario
-        assert (df.shape[0] == H_bond) or (
-            df.shape[1] == H_bond
-        ), f"discount_factors shape mismatch: {df.shape} does not match H_bond={H_bond}"
-    else:
-        raise AssertionError(
-            f"discount_factors has unexpected ndim={df.ndim}, shape={df.shape}"
+        assert (df.shape[0] == H_bond) or (df.shape[1] == H_bond), (
+            f"discount_factors shape mismatch: {df.shape} does not match H_bond={H_bond}"
         )
+    else:
+        raise AssertionError(f"discount_factors has unexpected ndim={df.ndim}, shape={df.shape}")
 
     # 4) Survie moyenne de la cohorte décroissante (sanity check produit)
     age_idx = res["age_index"]
@@ -1096,15 +1063,13 @@ def main(argv: list[str] | None = None) -> int:
     validate_survival_monotonic(S_mean)
 
     diff_S_mean = np.diff(S_mean, axis=1)
-    assert np.all(
-        diff_S_mean <= 1e-10
-    ), "Mean survival curve for the cohort must be non-increasing."
+    assert np.all(diff_S_mean <= 1e-10), (
+        "Mean survival curve for the cohort must be non-increasing."
+    )
 
     # ================== Mortality derivatives pricing smoke tests ===================
 
-    print(
-        "\n=== Mortality derivatives smoke tests (q-forward, s-forward, survivor swap) ==="
-    )
+    print("\n=== Mortality derivatives smoke tests (q-forward, s-forward, survivor swap) ===")
 
     # On réutilise la cohorte issue_age_used et la maturité max disponible
     max_T = min(20, scen_set.horizon())
@@ -1133,8 +1098,7 @@ def main(argv: list[str] | None = None) -> int:
         # 1) ATM -> prix proche de 0 (tolérance MC)
         tol_qf = 0.05 * qf_spec_atm.notional
         assert abs(qf_price_atm) < tol_qf, (
-            f"ATM q-forward price too far from 0: {qf_price_atm:.6f}, "
-            f"tol={tol_qf:.6f}"
+            f"ATM q-forward price too far from 0: {qf_price_atm:.6f}, tol={tol_qf:.6f}"
         )
         # 2) Nombre de chemins cohérent
         assert qf_pv_paths.shape[0] == scen_set.n_scenarios(), (
@@ -1158,9 +1122,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Q-forward off-market price (higher strike): {qf_price_rich:.6f}")
 
         # On vérifie juste que le prix change bien quand on bouge le strike
-        assert (
-            qf_price_rich != qf_price_atm
-        ), "Q-forward price should move when strike changes."
+        assert qf_price_rich != qf_price_atm, "Q-forward price should move when strike changes."
 
         # ---------- S-forward ATM (s-index forward sur la survie) ----------
         sf_spec_atm = SForwardSpec(
@@ -1182,8 +1144,7 @@ def main(argv: list[str] | None = None) -> int:
 
         tol_sf = 0.05 * sf_spec_atm.notional
         assert abs(sf_price_atm) < tol_sf, (
-            f"ATM s-forward price too far from 0: {sf_price_atm:.6f}, "
-            f"tol={tol_sf:.6f}"
+            f"ATM s-forward price too far from 0: {sf_price_atm:.6f}, tol={tol_sf:.6f}"
         )
         assert sf_pv_paths.shape[0] == scen_set.n_scenarios(), (
             f"s-forward pv_paths length {sf_pv_paths.shape[0]} "
@@ -1205,9 +1166,7 @@ def main(argv: list[str] | None = None) -> int:
         sf_price_rich = sf_res_rich["price"]
         print(f"S-forward off-market price (lower strike): {sf_price_rich:.6f}")
 
-        assert (
-            sf_price_rich != sf_price_atm
-        ), "S-forward price should move when strike changes."
+        assert sf_price_rich != sf_price_atm, "S-forward price should move when strike changes."
 
         # ---------- Survivor swap ATM (K choisi pour PV=0) ----------
         swap_spec_atm = SurvivorSwapSpec(
@@ -1226,16 +1185,12 @@ def main(argv: list[str] | None = None) -> int:
         swap_pv_paths = swap_res_atm["pv_paths"]
         swap_strike_atm = swap_res_atm["strike"]
 
-        print(
-            f"Survivor swap ATM price: {swap_price_atm:.6f}, "
-            f"strike={swap_strike_atm:.6f}"
-        )
+        print(f"Survivor swap ATM price: {swap_price_atm:.6f}, strike={swap_strike_atm:.6f}")
 
         # ATM -> PV ≈ 0
         tol_swap = 0.05 * swap_spec_atm.notional
         assert abs(swap_price_atm) < tol_swap, (
-            f"ATM survivor swap price too far from 0: {swap_price_atm:.6f}, "
-            f"tol={tol_swap:.6f}"
+            f"ATM survivor swap price too far from 0: {swap_price_atm:.6f}, tol={tol_swap:.6f}"
         )
         assert swap_pv_paths.shape[0] == scen_set.n_scenarios(), (
             f"survivor swap pv_paths length {swap_pv_paths.shape[0]} "
@@ -1247,8 +1202,7 @@ def main(argv: list[str] | None = None) -> int:
             age=issue_age_used,
             maturity_years=max_T,
             notional=100.0,
-            strike=swap_strike_atm
-            - 0.05,  # on diminue le fixe -> payer fixed devient plus content
+            strike=swap_strike_atm - 0.05,  # on diminue le fixe -> payer fixed devient plus content
             payer="fixed",
         )
         swap_res_rich = price_survivor_swap(
@@ -1260,9 +1214,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Survivor swap off-market price (lower strike): {swap_price_rich:.6f}")
 
         # Ici, comme payer="fixed", baisser K (fixe) devrait augmenter la valeur pour le payer -> prix plus grand
-        assert (
-            swap_price_rich > swap_price_atm
-        ), "For payer='fixed', lowering strike should increase swap value."
+        assert swap_price_rich > swap_price_atm, (
+            "For payer='fixed', lowering strike should increase swap value."
+        )
 
         # ================== Cohort life annuity & Hedging smoke tests ===================
 
@@ -1281,10 +1235,7 @@ def main(argv: list[str] | None = None) -> int:
 
         liab_pv_paths = ann_res["pv_paths"]
         print(f"Cohort life annuity price (MC): {ann_res['price']:.4f}")
-        print(
-            f"Annuity PV paths: mean={liab_pv_paths.mean():.4f}, "
-            f"std={liab_pv_paths.std():.4f}"
-        )
+        print(f"Annuity PV paths: mean={liab_pv_paths.mean():.4f}, std={liab_pv_paths.std():.4f}")
 
         instruments_pv_paths = np.column_stack(
             [

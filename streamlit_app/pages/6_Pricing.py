@@ -26,9 +26,7 @@ from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
 
 st.set_page_config(page_title="Pricing", page_icon="💰", layout="wide")
 st.title("💰 Pricing")
-st.caption(
-    "Price instruments under P or Q scenarios and store results for hedging/risk reporting."
-)
+st.caption("Price instruments under P or Q scenarios and store results for hedging/risk reporting.")
 
 
 # -----------------------------
@@ -79,12 +77,8 @@ with st.sidebar:
     hw_cfg = HullWhiteConfig(enabled=False)
 
     if use_hw:
-        hw_a = st.number_input(
-            "HW mean reversion a", value=0.10, step=0.01, format="%.3f"
-        )
-        hw_sigma = st.number_input(
-            "HW vol sigma", value=0.01, step=0.001, format="%.4f"
-        )
+        hw_a = st.number_input("HW mean reversion a", value=0.10, step=0.01, format="%.3f")
+        hw_sigma = st.number_input("HW vol sigma", value=0.01, step=0.001, format="%.4f")
         hw_seed = st.number_input("HW seed", value=0, step=1)
 
         hw_cfg = HullWhiteConfig(
@@ -114,7 +108,7 @@ ages = np.asarray(scen.ages, dtype=float)
 years = np.asarray(scen.years, dtype=int)
 age_min, age_max = int(ages.min()), int(ages.max())
 age_default = int(round(float(np.median(ages))))
-H = int(len(years))
+H = len(years)
 max_maturity = max(1, min(60, H))
 
 st.subheader(f"Scenario set selected: {measure}-measure")
@@ -134,9 +128,7 @@ colA, colB = st.columns(2)
 with colA:
     if use_bond:
         st.markdown("### Longevity bond")
-        bond_age = st.slider(
-            "Issue age", age_min, age_max, age_default, 1, key="pr_bond_age"
-        )
+        bond_age = st.slider("Issue age", age_min, age_max, age_default, 1, key="pr_bond_age")
         bond_T = st.slider(
             "Maturity (years)",
             1,
@@ -145,9 +137,7 @@ with colA:
             1,
             key="pr_bond_T",
         )
-        bond_notional = st.number_input(
-            "Notional", value=100.0, step=10.0, key="pr_bond_notional"
-        )
+        bond_notional = st.number_input("Notional", value=100.0, step=10.0, key="pr_bond_notional")
         bond_include_principal = st.checkbox(
             "Include principal", value=True, key="pr_bond_include_principal"
         )
@@ -170,9 +160,7 @@ with colA:
             1,
             key="pr_qf_T",
         )
-        qf_notional = st.number_input(
-            "Notional", value=100.0, step=10.0, key="pr_qf_notional"
-        )
+        qf_notional = st.number_input("Notional", value=100.0, step=10.0, key="pr_qf_notional")
 
         specs["q_forward"] = QForwardSpec(
             age=float(qf_age),
@@ -184,9 +172,7 @@ with colA:
     # --- Cohort life annuity (liability) ---
     if use_ann:
         st.markdown("### Cohort life annuity (liability)")
-        ann_age = st.slider(
-            "Cohort age", age_min, age_max, age_default, 1, key="pr_ann_age"
-        )
+        ann_age = st.slider("Cohort age", age_min, age_max, age_default, 1, key="pr_ann_age")
         ann_T = st.slider(
             "Payment horizon (years)",
             1,
@@ -255,12 +241,8 @@ with colB:
             1,
             key="pr_swap_T",
         )
-        swap_notional = st.number_input(
-            "Notional", value=100.0, step=10.0, key="pr_swap_notional"
-        )
-        payer = st.selectbox(
-            "Payer", ["fixed", "floating"], index=0, key="pr_swap_payer"
-        )
+        swap_notional = st.number_input("Notional", value=100.0, step=10.0, key="pr_swap_notional")
+        payer = st.selectbox("Payer", ["fixed", "floating"], index=0, key="pr_swap_payer")
 
         specs["survivor_swap"] = SurvivorSwapSpec(
             age=float(swap_age),
@@ -281,9 +263,7 @@ with colB:
             1,
             key="pr_sf_T",
         )
-        sf_notional = st.number_input(
-            "Notional", value=100.0, step=10.0, key="pr_sf_notional"
-        )
+        sf_notional = st.number_input("Notional", value=100.0, step=10.0, key="pr_sf_notional")
 
         specs["s_forward"] = SForwardSpec(
             age=float(sf_age),
@@ -301,8 +281,7 @@ if not specs:
 # Pricing runner
 # -----------------------------
 def _try_price_single(kind: str, spec: object, scen_set, r: float) -> dict:
-    """
-    Optional richer output:
+    """Optional richer output:
     - If pricer returns float -> {"price": float}
     - If dict -> keep keys (price, pv_paths, cf_paths, ...)
     """
@@ -340,7 +319,7 @@ if run_price:
                 else scen
             )
 
-            H_full = int(len(scen_for_rich.years))
+            H_full = len(scen_for_rich.years)
             N = int(scen_for_rich.q_paths.shape[0])
 
             def _pad_cf(cf: np.ndarray, H: int) -> np.ndarray:
@@ -400,9 +379,7 @@ if run_price:
 
                 results_rich[name] = rich
                 pv_paths[name] = np.asarray(rich["pv_paths"], dtype=float).reshape(N)
-                cf_paths[name] = _pad_cf(
-                    np.asarray(rich["cf_paths"], dtype=float), H_full
-                )
+                cf_paths[name] = _pad_cf(np.asarray(rich["cf_paths"], dtype=float), H_full)
 
             # Store for next pages
             st.session_state["pv_paths"] = pv_paths
@@ -424,7 +401,7 @@ if run_price:
             st.session_state["cf_paths"] = cf_paths if cf_paths else None
             st.session_state["pricing_results_rich"] = results_rich  # debug if needed
             # After scen_for_rich is defined (scen or HW-discounted scen)
-            H = int(len(scen_for_rich.years))
+            H = len(scen_for_rich.years)
             t = np.arange(1, H + 1, dtype=float)
 
             df = scen_for_rich.discount_factors
@@ -455,9 +432,9 @@ if not prices:
     st.info("Set specs and click **Price**.")
     st.stop()
 
-df = pd.DataFrame(
-    [{"instrument": k, "price": float(v)} for k, v in prices.items()]
-).sort_values("instrument")
+df = pd.DataFrame([{"instrument": k, "price": float(v)} for k, v in prices.items()]).sort_values(
+    "instrument"
+)
 
 st.dataframe(df, use_container_width=True)
 

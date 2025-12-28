@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 
@@ -13,13 +12,12 @@ class LCM1Params:
     a: np.ndarray  # (A,)
     b: np.ndarray  # (A,)
     k: np.ndarray  # (T,)
-    mu: Optional[float] = None  # drift of k_t
-    sigma: Optional[float] = None  # volatility of k_t
+    mu: float | None = None  # drift of k_t
+    sigma: float | None = None  # volatility of k_t
 
 
 def fit_lee_carter(m: np.ndarray) -> LCM1Params:
-    """
-    Fit the Lee–Carter model to a mortality surface m[age, year].
+    """Fit the Lee–Carter model to a mortality surface m[age, year].
     Steps:
       1) Compute a_x = mean_t log(m_x,t),
       2) Apply SVD to the centered log-mortality matrix,
@@ -63,8 +61,7 @@ def fit_lee_carter(m: np.ndarray) -> LCM1Params:
 
 
 def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
-    """
-    Reconstruct the fitted log-mortality surface via:
+    """Reconstruct the fitted log-mortality surface via:
         log m_x,t = a_x + b_x * k_t
     Returns a matrix with shape (A, T).
     """
@@ -73,11 +70,10 @@ def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
 
 class LCM1:
     def __init__(self):
-        self.params: Optional[LCM1Params] = None
+        self.params: LCM1Params | None = None
 
-    def fit(self, m: np.ndarray) -> "LCM1":
-        """
-        Fit the Lee–Carter model on a mortality surface m[age, year]
+    def fit(self, m: np.ndarray) -> LCM1:
+        """Fit the Lee–Carter model on a mortality surface m[age, year]
         and store the resulting LC parameters.
         """
         self.params = fit_lee_carter(m)
@@ -91,9 +87,7 @@ class LCM1:
         return mu, sigma
 
     def predict_log_m(self) -> np.ndarray:
-        """
-        Reconstruct the log-mortality surface implied by the fitted LC parameters.
-        """
+        """Reconstruct the log-mortality surface implied by the fitted LC parameters."""
         if self.params is None:
             raise ValueError("Fit first.")
         return reconstruct_log_m(self.params)
@@ -105,20 +99,15 @@ class LCM1:
         seed: int | None = None,
         include_last: bool = False,
     ) -> np.ndarray:
-        """
-        Simulate RW paths for k_t using vectorized engine.
+        """Simulate RW paths for k_t using vectorized engine.
         This method is kept for backward compatibility and diagnostics.
 
-        Returns
+        Returns:
         -------
         np.ndarray
             Shape (n_sims, horizon) or (n_sims, horizon+1).
         """
-        if (
-            self.params is None
-            or self.params.mu is None
-            or self.params.sigma is None
-        ):
+        if self.params is None or self.params.mu is None or self.params.sigma is None:
             raise ValueError("Fit & estimate_rw first.")
 
         rng = np.random.default_rng(seed)

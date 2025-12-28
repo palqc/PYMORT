@@ -14,13 +14,13 @@ from pymort.analysis.scenario_analysis import apply_mortality_shock, generate_st
 from pymort.lifetables import survival_from_q
 from pymort.models.lc_m1 import LCM1, fit_lee_carter
 from pymort.models.lc_m2 import LCM2
+from pymort.pipeline import _derive_bootstrap_params, hedging_pipeline
 from pymort.pricing.risk_neutral import (
     CalibrationCache,
     apply_cohort_trend_shock_to_qpaths,
     build_scenarios_under_lambda_fast,
     esscher_shift_normal_rw,
 )
-from pymort.pipeline import _derive_bootstrap_params, hedging_pipeline
 
 
 def test_random_walk_helpers_shapes():
@@ -67,7 +67,9 @@ def test_scenario_analysis_shocks_preserve_shapes():
     years = np.array([2020, 2021, 2022], dtype=int)
     q = np.full((2, ages.size, years.size), 0.01, dtype=float)
     S = survival_from_q(q)
-    base = MortalityScenarioSet(years=years, ages=ages, q_paths=q, S_paths=S, metadata={"name": "base"})
+    base = MortalityScenarioSet(
+        years=years, ages=ages, q_paths=q, S_paths=S, metadata={"name": "base"}
+    )
     stressed = apply_mortality_shock(base, shock_type="short_life", magnitude=0.05)
     assert stressed.q_paths.shape == q.shape
     assert stressed.q_paths.mean() > q.mean()

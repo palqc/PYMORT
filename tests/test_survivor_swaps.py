@@ -19,7 +19,9 @@ def _toy_scenarios():
         dtype=float,
     )
     S_paths = survival_from_q(q_paths)
-    scen = MortalityScenarioSet(years=years, ages=ages, q_paths=q_paths, S_paths=S_paths, metadata={})
+    scen = MortalityScenarioSet(
+        years=years, ages=ages, q_paths=q_paths, S_paths=S_paths, metadata={}
+    )
     return scen
 
 
@@ -30,7 +32,12 @@ def test_survivor_swap_price_finite_and_payment_times():
     assert np.isfinite(res["price"])
     assert res["pv_paths"].shape[0] == scen.q_paths.shape[0]
     spec_custom = SurvivorSwapSpec(
-        age=60.0, maturity_years=3, notional=1.0, strike=None, payer="fixed", payment_times=np.array([2])
+        age=60.0,
+        maturity_years=3,
+        notional=1.0,
+        strike=None,
+        payer="fixed",
+        payment_times=np.array([2]),
     )
     res_custom = price_survivor_swap(scen, spec_custom, short_rate=0.01)
     assert np.isfinite(res_custom["price"])

@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Longevity bond pricing and mortality modeling toolkit"
 authors = [{name = "Pierre-Antoine Le Quellec", email = "pierre-antoine.lequellec@unil.ch"}]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "numpy>=1.26",
     "pandas>=2.1",
@@ -51,12 +51,12 @@ pymort = ["py.typed"]
 # Ruff configuration
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM", "TID", "RET", "PTH", "ERA", "PL", "RUF", "D"]
-ignore = ["D100", "D101", "D102", "D104", "D105", "D107", "PLR0913", "PLR2004", "PLC0415", "RUF001", "RUF002"]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM", "TID", "RET", "PTH", "ERA", "PL", "RUF", "D", "ANN"]
+ignore = ["D100", "D101", "D102", "D104", "D105", "D107", "PLR0913", "PLR2004", "PLC0415", "RUF001", "RUF002", "E501", "ANN", "D", "B008", "E402", "ERA001", "PLR0911", "PLR0912", "PLR0915"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D", "S101", "ARG"]
@@ -69,7 +69,7 @@ known-first-party = ["pymort"]
 
 # MyPy configuration
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_configs = true

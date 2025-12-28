@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -16,17 +16,16 @@ from pymort.lifetables import survival_from_q, validate_q, validate_survival_mon
 def clone_scen_set_with(
     scen_set: MortalityScenarioSet,
     *,
-    q_paths: Optional[np.ndarray] = None,
-    S_paths: Optional[np.ndarray] = None,
-    discount_factors: Optional[np.ndarray] = None,
-    metadata: Optional[Dict[str, object]] = None,
+    q_paths: np.ndarray | None = None,
+    S_paths: np.ndarray | None = None,
+    discount_factors: np.ndarray | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> MortalityScenarioSet:
-    """
-    Clone MortalityScenarioSet, en remplaçant éventuellement q_paths / S_paths /
+    """Clone MortalityScenarioSet, en remplaçant éventuellement q_paths / S_paths /
     discount_factors / metadata (si ces champs existent dans la dataclass).
     """
     field_names = list(MortalityScenarioSet.__dataclass_fields__.keys())  # type: ignore[attr-defined]
-    kwargs: Dict[str, object] = {}
+    kwargs: dict[str, object] = {}
 
     for name in field_names:
         if name == "q_paths" and q_paths is not None:
@@ -53,13 +52,12 @@ def apply_mortality_shock(
     *,
     shock_type: str = "long_life",
     magnitude: float = 0.10,
-    pandemic_year: Optional[int] = None,
+    pandemic_year: int | None = None,
     pandemic_duration: int = 1,
-    plateau_start_year: Optional[int] = None,
-    accel_start_year: Optional[int] = None,
+    plateau_start_year: int | None = None,
+    accel_start_year: int | None = None,
 ) -> MortalityScenarioSet:
-    """
-    Applique un choc de mortalité sur un ensemble de scénarios.
+    """Applique un choc de mortalité sur un ensemble de scénarios.
 
     Shock types supportés
     ---------------------
@@ -142,10 +140,7 @@ def apply_mortality_shock(
 
     if magnitude < 0:
         raise ValueError("magnitude must be >= 0.")
-    if (
-        shock_type in {"long_life", "short_life", "accel_improvement"}
-        and magnitude >= 1
-    ):
+    if shock_type in {"long_life", "short_life", "accel_improvement"} and magnitude >= 1:
         raise ValueError("magnitude must be < 1 for this shock_type.")
 
     if shock_type == "long_life":
@@ -158,9 +153,7 @@ def apply_mortality_shock(
 
     elif shock_type == "pandemic":
         if pandemic_year is None:
-            raise ValueError(
-                "pandemic_year must be provided for shock_type='pandemic'."
-            )
+            raise ValueError("pandemic_year must be provided for shock_type='pandemic'.")
         if pandemic_duration <= 0:
             raise ValueError("pandemic_duration must be > 0.")
 
@@ -178,9 +171,7 @@ def apply_mortality_shock(
 
     elif shock_type == "plateau":
         if plateau_start_year is None:
-            raise ValueError(
-                "plateau_start_year must be provided for shock_type='plateau'."
-            )
+            raise ValueError("plateau_start_year must be provided for shock_type='plateau'.")
 
         # index à partir duquel on fige
         idx_start = np.searchsorted(years, plateau_start_year)
@@ -228,10 +219,9 @@ def apply_mortality_shock(
 
 @dataclass
 class ScenarioBundle:
-    """
-    Petit conteneur pour un ensemble cohérent de scénarios.
+    """Petit conteneur pour un ensemble cohérent de scénarios.
 
-    Attributes
+    Attributes:
     ----------
     base : MortalityScenarioSet
         Scénarios de base (souvent Q-measure calibrés).
@@ -250,9 +240,9 @@ class ScenarioBundle:
     base: MortalityScenarioSet
     optimistic: MortalityScenarioSet
     pessimistic: MortalityScenarioSet
-    pandemic_stress: Optional[MortalityScenarioSet] = None
-    plateau: Optional[MortalityScenarioSet] = None
-    accel_improvement: Optional[MortalityScenarioSet] = None
+    pandemic_stress: MortalityScenarioSet | None = None
+    plateau: MortalityScenarioSet | None = None
+    accel_improvement: MortalityScenarioSet | None = None
 
 
 def generate_stressed_bundle(
@@ -260,15 +250,14 @@ def generate_stressed_bundle(
     *,
     long_life_bump: float = 0.10,
     short_life_bump: float = 0.10,
-    pandemic_year: Optional[int] = None,
+    pandemic_year: int | None = None,
     pandemic_severity: float = 1.00,
     pandemic_duration: int = 1,
-    plateau_start_year: Optional[int] = None,
+    plateau_start_year: int | None = None,
     accel_improvement_rate: float = 0.01,
-    accel_start_year: Optional[int] = None,
+    accel_start_year: int | None = None,
 ) -> ScenarioBundle:
-    """
-    Génère un bundle de scénarios stressés à partir d'un scénario de base.
+    """Génère un bundle de scénarios stressés à partir d'un scénario de base.
 
     Idée
     ----
@@ -376,8 +365,7 @@ def _life_expectancy_from_q(
     *,
     include_half_year: bool = True,
 ) -> float:
-    """
-    Approximate discrete remaining life expectancy on an annual grid.
+    """Approximate discrete remaining life expectancy on an annual grid.
 
     - q_1d[t] : 1-year death probability during year t
     - S[t]    : survival prob at END of year t
@@ -404,13 +392,12 @@ def apply_life_expectancy_shift(
     *,
     age: float,
     delta_years: float = 2.0,
-    year_start: Optional[int] = None,
-    bracket: Tuple[float, float] = (0.0, 0.5),
+    year_start: int | None = None,
+    bracket: tuple[float, float] = (0.0, 0.5),
     tol: float = 1e-4,
     max_iter: int = 60,
 ) -> MortalityScenarioSet:
-    """
-    Applique un choc de longévité calibré pour obtenir +delta_years d'espérance
+    """Applique un choc de longévité calibré pour obtenir +delta_years d'espérance
     de vie résiduelle à partir de la courbe moyenne (sur scénarios) à l'âge 'age'.
 
     On cherche α tel que, sur la fenêtre future (>= year_start):
@@ -507,8 +494,7 @@ def apply_cohort_trend_shock(
     direction: str = "favorable",
     ramp: bool = True,
 ) -> MortalityScenarioSet:
-    """
-    Applique un choc "cohort trends" : certaines générations (cohortes)
+    """Applique un choc "cohort trends" : certaines générations (cohortes)
     ont une mortalité systématiquement plus basse/haute que prévu.
 
     Définition cohorte
@@ -533,7 +519,7 @@ def apply_cohort_trend_shock(
     ramp : bool
         Si True, poids linéaire w entre start/end. Si False, choc uniforme.
 
-    Returns
+    Returns:
     -------
     MortalityScenarioSet
     """
@@ -598,7 +584,7 @@ def apply_cohort_trend_shock(
 class ShockSpec:
     name: str
     shock_type: str
-    params: Dict[str, Any]
+    params: dict[str, Any]
 
 
 def apply_shock_spec(
@@ -620,14 +606,13 @@ def apply_shock_spec(
 def generate_stressed_scenarios(
     base_scen_set: MortalityScenarioSet,
     *,
-    shock_list: Optional[list[ShockSpec]] = None,
-) -> Dict[str, MortalityScenarioSet]:
-    """
-    Retourne un dict {scenario_name: MortalityScenarioSet}.
+    shock_list: list[ShockSpec] | None = None,
+) -> dict[str, MortalityScenarioSet]:
+    """Retourne un dict {scenario_name: MortalityScenarioSet}.
     - Si shock_list est None, retourne juste {"base": base}
     - Sinon, applique chaque shock indépendamment à base.
     """
-    out: Dict[str, MortalityScenarioSet] = {"base": base_scen_set}
+    out: dict[str, MortalityScenarioSet] = {"base": base_scen_set}
     if not shock_list:
         return out
 

@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
 
 @dataclass
 class InterestRateScenarioSet:
-    """
-    Container for simulated short-rate and discount factor paths.
+    """Container for simulated short-rate and discount factor paths.
 
-    Attributes
+    Attributes:
     ----------
     r_paths : np.ndarray
         Short-rate paths, shape (N, T).
@@ -26,7 +25,7 @@ class InterestRateScenarioSet:
     r_paths: np.ndarray
     discount_factors: np.ndarray
     times: np.ndarray
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
     def n_scenarios(self) -> int:
         return int(self.r_paths.shape[0])
@@ -36,8 +35,7 @@ class InterestRateScenarioSet:
 
 
 def _fwd_from_zero(times: np.ndarray, zero_rates: np.ndarray) -> np.ndarray:
-    """
-    Approximate instantaneous forward f(0,t) from zero curve z(t).
+    """Approximate instantaneous forward f(0,t) from zero curve z(t).
     z(t) assumed continuous-compounded: P(0,t)=exp(-z(t)*t).
     """
     times = np.asarray(times, dtype=float)
@@ -57,8 +55,7 @@ def _fwd_from_zero(times: np.ndarray, zero_rates: np.ndarray) -> np.ndarray:
 def calibrate_theta_from_zero_curve(
     times: np.ndarray, zero_rates: np.ndarray, a: float, sigma: float
 ) -> np.ndarray:
-    """
-    Calibrate deterministic theta(t) to fit the initial zero curve under Hull–White.
+    """Calibrate deterministic theta(t) to fit the initial zero curve under Hull–White.
     Formula: theta(t) = f(0,t) + (1/a) * df/dt + (sigma^2/(2a^2)) * (1 - e^{-2 a t})
     using finite differences for df/dt.
     """
@@ -84,13 +81,12 @@ def simulate_hull_white_paths(
     r0: float,
     times: np.ndarray,
     n_scenarios: int,
-    seed: Optional[int] = None,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Simulate short-rate paths and discount factors under Hull–White (1-factor).
+    seed: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Simulate short-rate paths and discount factors under Hull–White (1-factor).
     Exact discretization (Gaussian).
 
-    Returns
+    Returns:
     -------
     r_paths : (N, T)
     discount_factors : (N, T)
@@ -145,11 +141,10 @@ def build_interest_rate_scenarios(
     a: float,
     sigma: float,
     n_scenarios: int,
-    r0: Optional[float] = None,
-    seed: Optional[int] = None,
+    r0: float | None = None,
+    seed: int | None = None,
 ) -> InterestRateScenarioSet:
-    """
-    Convenience wrapper: calibrate theta to zero curve, simulate HW paths,
+    """Convenience wrapper: calibrate theta to zero curve, simulate HW paths,
     and return an InterestRateScenarioSet.
     """
     times = np.asarray(times, dtype=float)
@@ -168,7 +163,7 @@ def build_interest_rate_scenarios(
         seed=seed,
     )
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "model": "Hull-White 1F",
         "a": float(a),
         "sigma": float(sigma),

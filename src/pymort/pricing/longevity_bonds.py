@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -16,14 +16,13 @@ from pymort.pricing.utils import (
 
 @dataclass
 class LongevityBondSpec:
-    """
-    Specification of a simple cohort-based longevity bond.
+    """Specification of a simple cohort-based longevity bond.
 
     This corresponds to structures similar to the EIB/BNP longevity bond:
     - coupons proportional to the survival of a given cohort (age x at issue),
     - principal repayment also scaled by survival at maturity.
 
-    Attributes
+    Attributes:
     ----------
     issue_age : float
         Age of the cohort at the valuation/issue date, e.g. 65.
@@ -42,19 +41,18 @@ class LongevityBondSpec:
     issue_age: float
     notional: float = 1.0
     include_principal: bool = True
-    maturity_years: Optional[int] = None
+    maturity_years: int | None = None
 
 
 def price_simple_longevity_bond(
     scen_set: MortalityScenarioSet,
     spec: LongevityBondSpec,
     *,
-    short_rate: Optional[float] = None,
-    discount_factors: Optional[np.ndarray] = None,
+    short_rate: float | None = None,
+    discount_factors: np.ndarray | None = None,
     return_cf_paths: bool = False,
-) -> Dict[str, Any]:
-    """
-    Price a simple cohort-based longevity bond from mortality scenarios.
+) -> dict[str, Any]:
+    """Price a simple cohort-based longevity bond from mortality scenarios.
 
     Structure:
         For a given cohort age x:
@@ -77,7 +75,7 @@ def price_simple_longevity_bond(
         Optional explicit discount factors D_t of shape (H,). If provided,
         these override scen_set.discount_factors and short_rate.
 
-    Returns
+    Returns:
     -------
     dict
         A dictionary with keys:
@@ -93,8 +91,7 @@ def price_simple_longevity_bond(
 
     if q_paths.shape != S_paths.shape:
         raise ValueError(
-            f"q_paths and S_paths must have the same shape; "
-            f"got {q_paths.shape} vs {S_paths.shape}."
+            f"q_paths and S_paths must have the same shape; got {q_paths.shape} vs {S_paths.shape}."
         )
 
     N, A, H_full = S_paths.shape
@@ -106,10 +103,9 @@ def price_simple_longevity_bond(
         H = int(spec.maturity_years)
         if H <= 0:
             raise ValueError("spec.maturity_years must be > 0.")
-        if H > H_full:
+        if H_full < H:
             raise ValueError(
-                f"spec.maturity_years={H} exceeds available "
-                f"projection horizon {H_full}."
+                f"spec.maturity_years={H} exceeds available projection horizon {H_full}."
             )
 
     # Choose cohort age index
@@ -146,9 +142,7 @@ def price_simple_longevity_bond(
         df_eff = df[None, :]  # (1,H) broadcast
     elif df.ndim == 2:
         if df.shape[0] not in (1, N):
-            raise ValueError(
-                f"discount_factors must have first dim 1 or N={N}; got {df.shape}."
-            )
+            raise ValueError(f"discount_factors must have first dim 1 or N={N}; got {df.shape}.")
         df_eff = df if df.shape[0] == N else np.repeat(df, N, axis=0)
     else:
         raise ValueError("discount_factors must be 1D or 2D.")
@@ -168,19 +162,17 @@ def price_simple_longevity_bond(
 
     times = np.asarray(scen_set.years[:H], dtype=int)
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "N_scenarios": int(N),
         "horizon_used": int(H),
         "issue_age": float(spec.issue_age),
         "age_index": int(age_idx),
         "notional": float(spec.notional),
         "include_principal": bool(spec.include_principal),
-        "maturity_years": (
-            None if spec.maturity_years is None else int(spec.maturity_years)
-        ),
+        "maturity_years": (None if spec.maturity_years is None else int(spec.maturity_years)),
     }
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,

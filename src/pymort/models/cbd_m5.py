@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -11,8 +10,7 @@ from pymort.models.utils import _estimate_rw_params
 
 @dataclass
 class CBDM5Params:
-    """
-    Parameters of the basic two–factor CBD model:
+    """Parameters of the basic two–factor CBD model:
 
         logit(q_{x,t}) = kappa1_t + kappa2_t * (x - x_bar)
 
@@ -25,10 +23,10 @@ class CBDM5Params:
     x_bar: float  # mean age used for centering
 
     # optional RW+drift parameters
-    mu1: Optional[float] = None
-    sigma1: Optional[float] = None
-    mu2: Optional[float] = None
-    sigma2: Optional[float] = None
+    mu1: float | None = None
+    sigma1: float | None = None
+    mu2: float | None = None
+    sigma2: float | None = None
 
 
 def _logit(p: np.ndarray) -> np.ndarray:
@@ -37,16 +35,15 @@ def _logit(p: np.ndarray) -> np.ndarray:
     return np.log(p_clipped / (1.0 - p_clipped))
 
 
-def _build_cbd_design(ages: np.ndarray) -> Tuple[np.ndarray, float]:
-    """
-    Build the CBD design matrix X = [1, x - x_bar] for given ages.
+def _build_cbd_design(ages: np.ndarray) -> tuple[np.ndarray, float]:
+    """Build the CBD design matrix X = [1, x - x_bar] for given ages.
 
     Parameters
     ----------
     ages : np.ndarray
         1D array of ages (A,).
 
-    Returns
+    Returns:
     -------
     X : np.ndarray
         Design matrix of shape (A, 2) with columns [1, x - x_bar].
@@ -62,8 +59,7 @@ def _build_cbd_design(ages: np.ndarray) -> Tuple[np.ndarray, float]:
 
 
 def fit_cbd(q: np.ndarray, ages: np.ndarray) -> CBDM5Params:
-    """
-    Fit the Cairns–Blake–Dowd (CBD) model to a mortality surface q[age, year].
+    """Fit the Cairns–Blake–Dowd (CBD) model to a mortality surface q[age, year].
     The model is only appropriate for higher ages (e.g. 60+); users should filter ages before calling this function.
 
     We assume:
@@ -114,8 +110,7 @@ def fit_cbd(q: np.ndarray, ages: np.ndarray) -> CBDM5Params:
 
 
 def reconstruct_logit_q(params: CBDM5Params) -> np.ndarray:
-    """
-    Reconstruct the logit mortality surface logit(q_{x,t}) from CBD parameters.
+    """Reconstruct the logit mortality surface logit(q_{x,t}) from CBD parameters.
     Returns an array of shape (A, T).
     """
     k1 = params.kappa1  # (T,)
@@ -129,8 +124,7 @@ def reconstruct_logit_q(params: CBDM5Params) -> np.ndarray:
 
 
 def reconstruct_q(params: CBDM5Params) -> np.ndarray:
-    """
-    Reconstruct mortality probabilities q_{x,t} from CBD parameters.
+    """Reconstruct mortality probabilities q_{x,t} from CBD parameters.
     Returns an array with shape (A, T).
     """
     logit_q = reconstruct_logit_q(params)
@@ -138,8 +132,7 @@ def reconstruct_q(params: CBDM5Params) -> np.ndarray:
 
 
 def estimate_rw_params_cbd(params: CBDM5Params) -> CBDM5Params:
-    """
-    Estimate RW+drift parameters for (kappa1_t, kappa2_t) and store them
+    """Estimate RW+drift parameters for (kappa1_t, kappa2_t) and store them
     in the CBDParams object.
     """
     mu1, sigma1 = _estimate_rw_params(params.kappa1)
@@ -151,19 +144,17 @@ def estimate_rw_params_cbd(params: CBDM5Params) -> CBDM5Params:
 
 class CBDM5:
     def __init__(self) -> None:
-        self.params: Optional[CBDM5Params] = None
+        self.params: CBDM5Params | None = None
 
-    def fit(self, q: np.ndarray, ages: np.ndarray) -> "CBDM5":
-        """
-        Fit the CBD model on a mortality surface q[age, year]
+    def fit(self, q: np.ndarray, ages: np.ndarray) -> CBDM5:
+        """Fit the CBD model on a mortality surface q[age, year]
         and store the resulting parameters in self.params.
         """
         self.params = fit_cbd(q, ages)
         return self
 
-    def estimate_rw(self) -> Tuple[float, float, float, float]:
-        """
-        Estimate RW+drift parameters for (kappa1_t, kappa2_t)
+    def estimate_rw(self) -> tuple[float, float, float, float]:
+        """Estimate RW+drift parameters for (kappa1_t, kappa2_t)
         and store them in self.params.
         """
         if self.params is None:
@@ -177,17 +168,13 @@ class CBDM5:
         )
 
     def predict_logit_q(self) -> np.ndarray:
-        """
-        Reconstruct the logit-mortality surface from fitted CBD parameters.
-        """
+        """Reconstruct the logit-mortality surface from fitted CBD parameters."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_logit_q(self.params)
 
     def predict_q(self) -> np.ndarray:
-        """
-        Reconstruct mortality probabilities q_{x,t} from fitted CBD parameters.
-        """
+        """Reconstruct mortality probabilities q_{x,t} from fitted CBD parameters."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_q(self.params)
@@ -197,13 +184,10 @@ class CBDM5:
         kappa_index: str,
         horizon: int,
         n_sims: int = 1000,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         include_last: bool = False,
     ) -> np.ndarray:
-        """
-        Simulate RW forecasts for kappa1_t or kappa2_t using the fitted drift/vol.
-        """
-
+        """Simulate RW forecasts for kappa1_t or kappa2_t using the fitted drift/vol."""
         if self.params is None:
             raise ValueError("Fit the model first.")
 

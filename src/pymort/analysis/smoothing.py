@@ -1,27 +1,25 @@
-from typing import TYPE_CHECKING, Dict, Optional, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:  # pragma: no cover
-    from cpsplines.fittings.fit_cpsplines import CPsplines
+    pass
 
 
 def smooth_mortality_with_cpsplines(
     m: np.ndarray,
     ages: np.ndarray,
     years: np.ndarray,
-    deg: Tuple[int, int] = (3, 3),
-    ord_d: Tuple[int, int] = (2, 2),
-    k: Tuple[int, int] | None = None,
+    deg: tuple[int, int] = (3, 3),
+    ord_d: tuple[int, int] = (2, 2),
+    k: tuple[int, int] | None = None,
     sp_method: str = "grid_search",
-    sp_args: Optional[dict] = None,
+    sp_args: dict | None = None,
     horizon: int = 50,
     verbose: bool = False,
-) -> Dict[str, object]:
-    """
-    Smooth log(m_x,t) with CPsplines on a 2D surface (Age * Year).
-    """
+) -> dict[str, object]:
+    """Smooth log(m_x,t) with CPsplines on a 2D surface (Age * Year)."""
     try:
         from cpsplines.fittings.fit_cpsplines import CPsplines
         from cpsplines.utils.rearrange_data import grid_to_scatter
@@ -65,9 +63,7 @@ def smooth_mortality_with_cpsplines(
 
     # OPTIONAL explicit guard (should never trigger now)
     if ord_d[0] >= deg[0] or ord_d[1] >= deg[1]:
-        raise ValueError(
-            f"CPsplines requires ord_d < deg, got deg={deg}, ord_d={ord_d}"
-        )
+        raise ValueError(f"CPsplines requires ord_d < deg, got deg={deg}, ord_d={ord_d}")
 
     if not np.isfinite(m).all():
         raise ValueError("m must contain finite values (no NaN/Inf).")

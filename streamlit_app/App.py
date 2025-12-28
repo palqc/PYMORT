@@ -81,9 +81,7 @@ def render_sidebar_state() -> None:
 
     st.sidebar.write(("✅" if _is_set("raw_df") else "❌") + " Data loaded")
     st.sidebar.write(("✅" if _is_set("m_slice") else "❌") + " Data sliced")
-    st.sidebar.write(
-        ("✅" if _is_set("fitted_model") else "❌") + " Model fitted/selected"
-    )
+    st.sidebar.write(("✅" if _is_set("fitted_model") else "❌") + " Model fitted/selected")
     st.sidebar.write(("✅" if _is_set("scen_P") else "❌") + " Scenarios P built")
     st.sidebar.write(("✅" if _is_set("scen_Q") else "❌") + " Scenarios Q built")
     st.sidebar.write(("✅" if _is_set("prices") else "❌") + " Pricing done")

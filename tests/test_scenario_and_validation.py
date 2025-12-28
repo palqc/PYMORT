@@ -25,7 +25,9 @@ def test_validate_scenario_set_and_metadata():
     assert scen.metadata["k"] == "v"
 
     # shape mismatch
-    scen_bad = MortalityScenarioSet(years=years, ages=ages, q_paths=q, S_paths=S[:, :1, :], metadata={})
+    scen_bad = MortalityScenarioSet(
+        years=years, ages=ages, q_paths=q, S_paths=S[:, :1, :], metadata={}
+    )
     with pytest.raises(ValueError):
         validate_scenario_set(scen_bad)
 

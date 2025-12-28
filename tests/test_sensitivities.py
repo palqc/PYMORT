@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from pymort.analysis.sensitivities import (
     mortality_delta_by_age,
@@ -45,7 +44,9 @@ def test_rate_sensitivity_sign_and_scale():
     spec = LongevityBondSpec(issue_age=60.0, maturity_years=4, include_principal=True, notional=1.0)
 
     def pricer(**kwargs: object) -> float:
-        res = price_simple_longevity_bond(scen_set=kwargs["scen_set"], spec=spec, short_rate=kwargs["short_rate"])
+        res = price_simple_longevity_bond(
+            scen_set=kwargs["scen_set"], spec=spec, short_rate=kwargs["short_rate"]
+        )
         return float(res["price"])
 
     sens = rate_sensitivity(pricer, scen, base_short_rate=0.02, bump=1e-4)
@@ -60,7 +61,9 @@ def test_rate_convexity_non_negative():
     spec = LongevityBondSpec(issue_age=60.0, maturity_years=3, include_principal=True, notional=1.0)
 
     def pricer(**kwargs: object) -> float:
-        res = price_simple_longevity_bond(scen_set=kwargs["scen_set"], spec=spec, short_rate=kwargs["short_rate"])
+        res = price_simple_longevity_bond(
+            scen_set=kwargs["scen_set"], spec=spec, short_rate=kwargs["short_rate"]
+        )
         return float(res["price"])
 
     conv = rate_convexity(pricer, scen, base_short_rate=0.03, bump=1e-4)
@@ -75,6 +78,7 @@ def test_mortality_delta_by_age_sign():
 
     def price_annuity(s: MortalityScenarioSet) -> float:
         from pymort.pricing.liabilities import price_cohort_life_annuity
+
         return float(price_cohort_life_annuity(scen_set=s, spec=spec, short_rate=0.02)["price"])
 
     # ✅ On ne calcule la delta que pour l’âge pertinent (issue_age)
@@ -89,7 +93,9 @@ def test_sensitivities_stability_no_nan():
     scen_base = _make_toy_scenarios()
     specs = {
         "bond": LongevityBondSpec(issue_age=60.0, maturity_years=4, include_principal=True),
-        "annuity": CohortLifeAnnuitySpec(issue_age=60.0, maturity_years=4, payment_per_survivor=1.0),
+        "annuity": CohortLifeAnnuitySpec(
+            issue_age=60.0, maturity_years=4, payment_per_survivor=1.0
+        ),
     }
 
     def build_scen(scale_sigma: float):
@@ -100,7 +106,12 @@ def test_sensitivities_stability_no_nan():
         scen_Q=scen_base,
         specs=specs,
         short_rate=0.02,
-        bumps={"build_scenarios_func": build_scen, "sigma_rel_bump": 0.05, "q_rel_bump": 0.01, "rate_bump": 1e-4},
+        bumps={
+            "build_scenarios_func": build_scen,
+            "sigma_rel_bump": 0.05,
+            "q_rel_bump": 0.01,
+            "rate_bump": 1e-4,
+        },
     )
 
     # No NaNs across outputs

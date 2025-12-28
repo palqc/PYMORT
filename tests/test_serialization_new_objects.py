@@ -5,10 +5,8 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from pymort.interest_rates.hull_white import (
-    InterestRateScenarioSet,
     build_interest_rate_scenarios,
     load_ir_scenarios_npz,
     save_ir_scenarios_npz,
@@ -69,27 +67,17 @@ def test_calibration_cache_round_trip(tmp_path: Path):
     with path.open("rb") as f:
         cache_loaded = pickle.load(f)
     # Light downstream usage: build scenarios
-    scen_q = build_scenarios_under_lambda_fast(
-        cache_loaded, lambda_esscher=0.0, scale_sigma=1.0
-    )
+    scen_q = build_scenarios_under_lambda_fast(cache_loaded, lambda_esscher=0.0, scale_sigma=1.0)
     expected_n = cache_loaded.bs_res.mu_sigma.shape[0] * cache_loaded.n_process
     assert scen_q.q_paths.shape[0] == expected_n
 
 
 def test_spec_dataclasses_json_round_trip():
     specs = [
-        LongevityBondSpec(
-            issue_age=60.0, notional=1.0, include_principal=True, maturity_years=5
-        ),
-        SurvivorSwapSpec(
-            age=60.0, maturity_years=5, payer="fixed", strike=0.2, notional=1.0
-        ),
-        QForwardSpec(
-            age=60.0, maturity_years=2, strike=0.01, settlement_years=2, notional=1.0
-        ),
-        SForwardSpec(
-            age=60.0, maturity_years=2, strike=0.8, settlement_years=2, notional=1.0
-        ),
+        LongevityBondSpec(issue_age=60.0, notional=1.0, include_principal=True, maturity_years=5),
+        SurvivorSwapSpec(age=60.0, maturity_years=5, payer="fixed", strike=0.2, notional=1.0),
+        QForwardSpec(age=60.0, maturity_years=2, strike=0.01, settlement_years=2, notional=1.0),
+        SForwardSpec(age=60.0, maturity_years=2, strike=0.8, settlement_years=2, notional=1.0),
         CohortLifeAnnuitySpec(
             issue_age=60.0,
             maturity_years=5,
@@ -109,9 +97,7 @@ def test_spec_dataclasses_json_round_trip():
 
 def test_multi_instrument_quote_pickle_round_trip(tmp_path: Path):
     bond = LongevityBondSpec(issue_age=60.0, maturity_years=3, include_principal=True)
-    q = MultiInstrumentQuote(
-        kind="longevity_bond", spec=bond, market_price=12.3, weight=1.0
-    )
+    q = MultiInstrumentQuote(kind="longevity_bond", spec=bond, market_price=12.3, weight=1.0)
     path = tmp_path / "quote.pkl"
     with path.open("wb") as f:
         pickle.dump(q, f)

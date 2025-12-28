@@ -33,9 +33,7 @@ def _simple_scenario():
 def test_pricing_utils_discount_factors_priority_and_errors():
     scen = _simple_scenario()
     # explicit discount factors
-    df = build_discount_factors(
-        scen, short_rate=None, discount_factors=np.array([1.0, 0.9]), H=2
-    )
+    df = build_discount_factors(scen, short_rate=None, discount_factors=np.array([1.0, 0.9]), H=2)
     assert np.allclose(df, np.array([1.0, 0.9]))
     # scenario-provided discount factors
     scen_df = scen
@@ -47,9 +45,7 @@ def test_pricing_utils_discount_factors_priority_and_errors():
     assert np.all(df_flat > 0) and df_flat.shape == (3,)
     # invalid inputs
     with pytest.raises(ValueError):
-        build_discount_factors(
-            scen, short_rate=None, discount_factors=np.array([-1.0, 0.9]), H=2
-        )
+        build_discount_factors(scen, short_rate=None, discount_factors=np.array([-1.0, 0.9]), H=2)
     with pytest.raises(ValueError):
         build_discount_factors(scen, short_rate=None, discount_factors=None, H=5)
 
@@ -62,9 +58,7 @@ def test_find_nearest_age_index():
 
 def test_life_annuity_price_monotonic_with_survival():
     scen_low = _simple_scenario()
-    spec = CohortLifeAnnuitySpec(
-        issue_age=60.0, maturity_years=3, payment_per_survivor=1.0
-    )
+    spec = CohortLifeAnnuitySpec(issue_age=60.0, maturity_years=3, payment_per_survivor=1.0)
     res_low = price_cohort_life_annuity(scen_low, spec, short_rate=0.01)
     # create higher survival by scaling down q
     scen_high = _simple_scenario()
@@ -167,9 +161,7 @@ def test_life_annuity_terminal_and_exposure_scaling_increases_price():
 
     base = price_cohort_life_annuity(
         scen,
-        CohortLifeAnnuitySpec(
-            issue_age=60.0, maturity_years=3, payment_per_survivor=1.0
-        ),
+        CohortLifeAnnuitySpec(issue_age=60.0, maturity_years=3, payment_per_survivor=1.0),
         short_rate=r,
     )["price"]
 
@@ -201,9 +193,7 @@ def test_life_annuity_terminal_and_exposure_scaling_increases_price():
 
 def test_life_annuity_discount_factors_2d_first_dim_1_repeats_and_NxH_ok():
     scen = _simple_scenario_N(N=4, H=3)
-    spec = CohortLifeAnnuitySpec(
-        issue_age=60.0, maturity_years=3, payment_per_survivor=1.0
-    )
+    spec = CohortLifeAnnuitySpec(issue_age=60.0, maturity_years=3, payment_per_survivor=1.0)
 
     df_1xH = np.array([[1.0, 0.97, 0.94]], dtype=float)
     out1 = price_cohort_life_annuity(scen, spec, discount_factors=df_1xH)

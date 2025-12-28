@@ -9,9 +9,7 @@ from pymort.pipeline import hedging_pipeline
 
 st.set_page_config(page_title="Hedging", page_icon="🛡️", layout="wide")
 st.title("🛡️ Hedging")
-st.caption(
-    "Build hedge weights from scenario PV/CF paths computed on the Pricing page."
-)
+st.caption("Build hedge weights from scenario PV/CF paths computed on the Pricing page.")
 
 
 # -----------------------------
@@ -27,9 +25,7 @@ if prices is None or specs is None:
     st.stop()
 
 if pv_paths is None or not isinstance(pv_paths, dict) or len(pv_paths) == 0:
-    st.warning(
-        "No pv_paths found. In Pricing, make sure you store per-scenario pv_paths."
-    )
+    st.warning("No pv_paths found. In Pricing, make sure you store per-scenario pv_paths.")
     st.stop()
 
 # cf_paths is optional (only needed for multihorizon)
@@ -153,7 +149,9 @@ with st.sidebar:
     st.subheader("2) Select hedging instruments")
     hedge_candidates = [x for x in all_names if x != liability_name]
     default_hedges = [
-        x for x in hedge_candidates if x in ("longevity_bond", "survivor_swap", "q_forward", "s_forward")
+        x
+        for x in hedge_candidates
+        if x in ("longevity_bond", "survivor_swap", "q_forward", "s_forward")
     ]
     selected_hedges = st.multiselect(
         "Hedge set",
@@ -181,9 +179,7 @@ with st.sidebar:
         constraints = {"lb": float(lb), "ub": float(ub)}
 
     if method == "multihorizon (CF)":
-        mode = st.selectbox(
-            "Multihorizon mode", options=["pv_by_horizon", "pv_cashflows"], index=0
-        )
+        mode = st.selectbox("Multihorizon mode", options=["pv_by_horizon", "pv_cashflows"], index=0)
         constraints["mode"] = mode
 
         use_time_weights = st.checkbox("Use time weights", value=False)
@@ -227,9 +223,7 @@ if run:
     try:
         if method.startswith("min_variance"):
             hedge_method = (
-                "min_variance"
-                if "constrained" not in method
-                else "min_variance_constrained"
+                "min_variance" if "constrained" not in method else "min_variance_constrained"
             )
             res = hedging_pipeline(
                 liability_pv_paths=L,
@@ -296,9 +290,9 @@ st.success("Hedge computed ✅")
 
 # Weights table
 weights = np.asarray(res.weights, dtype=float).reshape(-1)
-df_w = pd.DataFrame(
-    {"instrument": list(selected_hedges), "weight": weights}
-).sort_values("instrument")
+df_w = pd.DataFrame({"instrument": list(selected_hedges), "weight": weights}).sort_values(
+    "instrument"
+)
 
 st.subheader("Hedge weights")
 st.dataframe(df_w, use_container_width=True)
@@ -361,9 +355,7 @@ st.dataframe(stats_df, use_container_width=True)
 with st.expander("Session debug (hedging)"):
     st.write("Available session keys:", list(st.session_state.keys()))
     st.write("pv_paths instruments:", list(pv_paths.keys()))
-    st.write(
-        "cf_paths instruments:", None if cf_paths is None else list(cf_paths.keys())
-    )
+    st.write("cf_paths instruments:", None if cf_paths is None else list(cf_paths.keys()))
     st.write("Selected liability:", liability_name)
     st.write("Selected hedges:", selected_hedges)
     st.write("Method:", method)

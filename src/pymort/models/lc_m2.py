@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 
-from pymort.models.utils import estimate_rw_params
 from pymort.models.lc_m1 import fit_lee_carter
+from pymort.models.utils import estimate_rw_params
 
 
 @dataclass
 class LCM2Params:
-    """
-    Parameters of the Lee–Carter with cohort effect (LC M2) :
+    """Parameters of the Lee–Carter with cohort effect (LC M2) :
 
         log m_{x,t} = a_x + b_x k_t + gamma_{t-x}
 
@@ -33,8 +31,8 @@ class LCM2Params:
     years: np.ndarray  # (T,)
 
     # RW+drift on k_t
-    mu: Optional[float] = None
-    sigma: Optional[float] = None
+    mu: float | None = None
+    sigma: float | None = None
 
     # convenience helper
     def gamma_for_age_at_last_year(self, age: float) -> float:
@@ -53,8 +51,7 @@ class LCM2Params:
 
 
 def _compute_cohort_index(ages: np.ndarray, years: np.ndarray) -> np.ndarray:
-    """
-    Compute the cohort index c = t - x on the (age, year) grid.
+    """Compute the cohort index c = t - x on the (age, year) grid.
 
     Returns an array C with shape (A, T) where C[x,t] = years[t] - ages[x].
     """
@@ -68,8 +65,7 @@ def fit_lee_carter_cohort(
     ages: np.ndarray,
     years: np.ndarray,
 ) -> LCM2Params:
-    """
-    Fit the Lee–Carter model with cohort effect:
+    """Fit the Lee–Carter model with cohort effect:
 
         log m_{x,t} = a_x + b_x k_t + gamma_{t-x}.
 
@@ -133,9 +129,7 @@ def fit_lee_carter_cohort(
 
 
 def reconstruct_log_m_cohort(params: LCM2Params) -> np.ndarray:
-    """
-    Reconstruct log m_{x,t} for LC with cohort on the original grid (ages, years).
-    """
+    """Reconstruct log m_{x,t} for LC with cohort on the original grid (ages, years)."""
     a = params.a
     b = params.b
     k = params.k
@@ -157,38 +151,32 @@ def reconstruct_log_m_cohort(params: LCM2Params) -> np.ndarray:
 
 
 def reconstruct_m_cohort(params: LCM2Params) -> np.ndarray:
-    """
-    Reconstruit m_{x,t} pour le modèle LC+cohorte.
-    """
+    """Reconstruit m_{x,t} pour le modèle LC+cohorte."""
     ln_m = reconstruct_log_m_cohort(params)
     return np.exp(ln_m)
 
 
 class LCM2:
-    """
-    Lee–Carter with cohort effect:
+    """Lee–Carter with cohort effect:
 
-        log m_{x,t} = a_x + b_x k_t + gamma_{t-x}.
+    log m_{x,t} = a_x + b_x k_t + gamma_{t-x}.
     """
 
     def __init__(self) -> None:
-        self.params: Optional[LCM2Params] = None
+        self.params: LCM2Params | None = None
 
     def fit(
         self,
         m: np.ndarray,
         ages: np.ndarray,
         years: np.ndarray,
-    ) -> "LCM2":
-        """
-        Fit LC with cohort on a surface m[age, year] and store the parameters.
-        """
+    ) -> LCM2:
+        """Fit LC with cohort on a surface m[age, year] and store the parameters."""
         self.params = fit_lee_carter_cohort(m, ages, years)
         return self
 
     def estimate_rw(self) -> tuple[float, float]:
-        """
-        Estimate RW+drift parameters for k_t and store them in params.
+        """Estimate RW+drift parameters for k_t and store them in params.
         Gamma_c is treated as fixed (no dynamics).
         """
         if self.params is None:
@@ -198,17 +186,13 @@ class LCM2:
         return mu, sigma
 
     def predict_log_m(self) -> np.ndarray:
-        """
-        Reconstruct log m_{x,t} from LC with cohort parameters.
-        """
+        """Reconstruct log m_{x,t} from LC with cohort parameters."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_log_m_cohort(self.params)
 
     def predict_m(self) -> np.ndarray:
-        """
-        Reconstruct m_{x,t} from LC with cohort parameters.
-        """
+        """Reconstruct m_{x,t} from LC with cohort parameters."""
         if self.params is None:
             raise ValueError("Fit the model first.")
         return reconstruct_m_cohort(self.params)
@@ -220,8 +204,7 @@ class LCM2:
         seed: int | None = None,
         include_last: bool = False,
     ) -> np.ndarray:
-        """
-        Simulate RW-drift paths of k_t using the central vectorized function.
+        """Simulate RW-drift paths of k_t using the central vectorized function.
         Gamma_c stays fixed.
         """
         if self.params is None or self.params.mu is None or self.params.sigma is None:

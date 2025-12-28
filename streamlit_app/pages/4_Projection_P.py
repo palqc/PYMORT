@@ -8,9 +8,7 @@ from pymort.pipeline import project_from_fitted_model
 
 st.set_page_config(page_title="Projection P", page_icon="📈", layout="wide")
 st.title("📈 Projections (P-measure)")
-st.caption(
-    "Bootstrap + process risk mortality projections under the physical measure P."
-)
+st.caption("Bootstrap + process risk mortality projections under the physical measure P.")
 
 # -----------------------------
 # Guard: need data loaded
@@ -90,9 +88,7 @@ if run:
     with st.spinner("Building P-measure scenarios..."):
         try:
             if fitted is None:
-                st.error(
-                    "No fitted model found. Go to **Fit & Model Selection** first."
-                )
+                st.error("No fitted model found. Go to **Fit & Model Selection** first.")
                 st.stop()
             B_eff = int(B_bootstrap) if B_bootstrap is not None else 50
             nproc_eff = int(n_process) if n_process is not None else 200
@@ -209,8 +205,7 @@ def _cohort_survival_full_horizon_from_q(
     age_fit_max: int = 95,
     m_floor: float = 1e-12,
 ) -> np.ndarray:
-    """
-    Build cohort survival S(t) for a cohort aged age0 at projection start,
+    """Build cohort survival S(t) for a cohort aged age0 at projection start,
     for the FULL horizon even if age0+k exceeds the last age in `ages`.
 
     Uses:
@@ -295,7 +290,7 @@ xlim_full = (years_full[0], years_full[-1])
 def _pad_to_horizon(y2d: np.ndarray, H_target: int, *, fill_value=np.nan) -> np.ndarray:
     # y2d shape (N, H_current)
     N0, H0 = y2d.shape
-    if H0 >= H_target:
+    if H_target <= H0:
         out = y2d[:, :H_target].copy()
     else:
         out = np.full((N0, H_target), fill_value, dtype=float)

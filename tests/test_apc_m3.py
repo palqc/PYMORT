@@ -12,7 +12,6 @@ from pymort.models.apc_m3 import (
     reconstruct_m_apc,
 )
 
-
 _BETA_TRUE = np.log(np.array([0.0105, 0.0155], dtype=float))
 _KAPPA_TRUE = np.array([-0.05, 0.0, 0.06], dtype=float)
 

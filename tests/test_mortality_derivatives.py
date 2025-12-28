@@ -4,7 +4,12 @@ import numpy as np
 import pytest
 
 from pymort.analysis.scenario import MortalityScenarioSet
-from pymort.pricing.mortality_derivatives import QForwardSpec, SForwardSpec, price_q_forward, price_s_forward
+from pymort.pricing.mortality_derivatives import (
+    QForwardSpec,
+    SForwardSpec,
+    price_q_forward,
+    price_s_forward,
+)
 
 
 def _make_scenario_set(N: int = 3, T: int = 6) -> MortalityScenarioSet:
@@ -72,21 +77,29 @@ def test_q_forward_input_validation_errors():
         price_q_forward(scen, QForwardSpec(age=60.0, maturity_years=10), short_rate=0.0)
 
     with pytest.raises(ValueError):
-        price_q_forward(scen, QForwardSpec(age=60.0, maturity_years=3, settlement_years=2), short_rate=0.0)
+        price_q_forward(
+            scen, QForwardSpec(age=60.0, maturity_years=3, settlement_years=2), short_rate=0.0
+        )
 
     with pytest.raises(ValueError):
-        price_q_forward(scen, QForwardSpec(age=60.0, maturity_years=3, settlement_years=10), short_rate=0.0)
+        price_q_forward(
+            scen, QForwardSpec(age=60.0, maturity_years=3, settlement_years=10), short_rate=0.0
+        )
 
 
 def test_s_forward_discount_factor_bad_shape_raises():
     scen = _make_scenario_set(N=3, T=5)
     bad = np.ones((2, 5))  # first dim neither 1 nor N
     with pytest.raises(ValueError):
-        price_s_forward(scen, SForwardSpec(age=60.0, maturity_years=2), short_rate=None, discount_factors=bad)
+        price_s_forward(
+            scen, SForwardSpec(age=60.0, maturity_years=2), short_rate=None, discount_factors=bad
+        )
 
     bad3d = np.ones((1, 1, 5))
     with pytest.raises(ValueError):
-        price_s_forward(scen, SForwardSpec(age=60.0, maturity_years=2), short_rate=None, discount_factors=bad3d)
+        price_s_forward(
+            scen, SForwardSpec(age=60.0, maturity_years=2), short_rate=None, discount_factors=bad3d
+        )
 
 
 def test_q_forward_non_finite_measurement_values_raise():

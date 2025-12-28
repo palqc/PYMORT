@@ -23,15 +23,11 @@ scen_Q = st.session_state.get("scen_Q")
 scen_P = st.session_state.get("scen_P")
 
 if not specs or not isinstance(specs, dict):
-    st.info(
-        "Run **Pricing** first (select products → Price) so `pricing_specs` exists."
-    )
+    st.info("Run **Pricing** first (select products → Price) so `pricing_specs` exists.")
     st.stop()
 
 if scen_Q is None and scen_P is None:
-    st.warning(
-        "No scenario set found in session (`scen_Q` / `scen_P`). Run **Pricing** first."
-    )
+    st.warning("No scenario set found in session (`scen_Q` / `scen_P`). Run **Pricing** first.")
     st.stop()
 
 
@@ -48,9 +44,7 @@ with st.sidebar:
     )
     base_scen = scen_Q if base_measure.startswith("Q") else scen_P
     if base_scen is None:
-        st.error(
-            "Selected base measure is not available in session. Build it in Pricing first."
-        )
+        st.error("Selected base measure is not available in session. Build it in Pricing first.")
         st.stop()
 
     # Rate used for repricing
@@ -92,7 +86,7 @@ with st.sidebar:
         if use_long:
             shock_list.append(
                 ShockSpec(
-                    name=f"long_life_{int(long_bump*100)}pct",
+                    name=f"long_life_{int(long_bump * 100)}pct",
                     shock_type="long_life",
                     params={"magnitude": float(long_bump)},
                 )
@@ -105,7 +99,7 @@ with st.sidebar:
         if use_short:
             shock_list.append(
                 ShockSpec(
-                    name=f"short_life_{int(short_bump*100)}pct",
+                    name=f"short_life_{int(short_bump * 100)}pct",
                     shock_type="short_life",
                     params={"magnitude": float(short_bump)},
                 )
@@ -122,13 +116,11 @@ with st.sidebar:
         pandemic_duration = st.number_input(
             "Pandemic duration (years)", value=1, step=1, min_value=1
         )
-        pandemic_severity = st.slider(
-            "Pandemic severity (q *= 1 + severity)", 0.0, 5.0, 1.0, 0.1
-        )
+        pandemic_severity = st.slider("Pandemic severity (q *= 1 + severity)", 0.0, 5.0, 1.0, 0.1)
     if use_pand:
         shock_list.append(
             ShockSpec(
-                name=f"pandemic_{pandemic_year}_{int(pandemic_severity*100)}bp_{pandemic_duration}y",
+                name=f"pandemic_{pandemic_year}_{int(pandemic_severity * 100)}bp_{pandemic_duration}y",
                 shock_type="pandemic",
                 params={
                     "magnitude": float(pandemic_severity),
@@ -156,13 +148,9 @@ with st.sidebar:
         )
 
     # 5) Acceleration of improvement
-    use_accel = st.checkbox(
-        "Accel improvement (extra improvement over time)", value=False
-    )
+    use_accel = st.checkbox("Accel improvement (extra improvement over time)", value=False)
     if use_accel:
-        accel_rate = st.slider(
-            "Accel rate (annual extra improvement)", 0.0, 0.05, 0.01, 0.001
-        )
+        accel_rate = st.slider("Accel rate (annual extra improvement)", 0.0, 0.05, 0.01, 0.001)
         accel_start_year = st.number_input(
             "Accel start year (optional)",
             value=int(np.asarray(base_scen.years, dtype=int)[0]),
@@ -212,9 +200,7 @@ with st.sidebar:
         cohort_start = st.number_input("Cohort start (birth year)", value=1960, step=1)
         cohort_end = st.number_input("Cohort end (birth year)", value=1970, step=1)
         cohort_mag = st.slider("Cohort magnitude", 0.0, 0.30, 0.05, 0.01)
-        cohort_dir = st.selectbox(
-            "Direction", options=["favorable", "adverse"], index=0
-        )
+        cohort_dir = st.selectbox("Direction", options=["favorable", "adverse"], index=0)
         cohort_ramp = st.checkbox("Ramp (tilt across band)", value=True)
     if use_cohort:
         shock_list.append(
@@ -261,9 +247,7 @@ if run:
         )
 
         for scen_name, scen in scen_dict.items():
-            prices = price_all_products(
-                scen, specs=sel_specs, short_rate=float(short_rate)
-            )
+            prices = price_all_products(scen, specs=sel_specs, short_rate=float(short_rate))
             for inst, p in prices.items():
                 EPS = 1e-8
 

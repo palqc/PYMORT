@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -17,8 +17,7 @@ from pymort.pricing.utils import (
 
 @dataclass
 class CohortLifeAnnuitySpec:
-    """
-    Specification of a cohort-based life annuity.
+    """Specification of a cohort-based life annuity.
 
     Structure (discrete yearly times):
 
@@ -37,7 +36,7 @@ class CohortLifeAnnuitySpec:
     `payment_per_survivor` per surviving member each year, scaled
     by `exposure_at_issue`.
 
-    Attributes
+    Attributes:
     ----------
     issue_age : float
         Age of the cohort at the valuation / issue date, e.g. 65.
@@ -74,7 +73,7 @@ class CohortLifeAnnuitySpec:
 
     issue_age: float
     payment_per_survivor: float = 1.0
-    maturity_years: Optional[int] = None
+    maturity_years: int | None = None
 
     defer_years: int = 0
     exposure_at_issue: float = 1.0
@@ -86,12 +85,11 @@ def price_cohort_life_annuity(
     scen_set: MortalityScenarioSet,
     spec: CohortLifeAnnuitySpec,
     *,
-    short_rate: Optional[float] = None,
-    discount_factors: Optional[np.ndarray] = None,
+    short_rate: float | None = None,
+    discount_factors: np.ndarray | None = None,
     return_cf_paths: bool = False,
-) -> Dict[str, Any]:
-    """
-    Price a cohort-based life annuity from mortality scenarios.
+) -> dict[str, Any]:
+    """Price a cohort-based life annuity from mortality scenarios.
 
     Expected cashflow at year t (on the projection grid):
 
@@ -123,7 +121,7 @@ def price_cohort_life_annuity(
         Optional explicit discount factors D_t of shape (H,). If provided,
         these override scen_set.discount_factors and short_rate.
 
-    Returns
+    Returns:
     -------
     dict
         A dictionary with keys:
@@ -140,8 +138,7 @@ def price_cohort_life_annuity(
 
     if q_paths.shape != S_paths.shape:
         raise ValueError(
-            f"q_paths and S_paths must have the same shape; "
-            f"got {q_paths.shape} vs {S_paths.shape}."
+            f"q_paths and S_paths must have the same shape; got {q_paths.shape} vs {S_paths.shape}."
         )
 
     N, A, H_full = S_paths.shape
@@ -153,10 +150,9 @@ def price_cohort_life_annuity(
         H = int(spec.maturity_years)
         if H <= 0:
             raise ValueError("spec.maturity_years must be > 0.")
-        if H > H_full:
+        if H_full < H:
             raise ValueError(
-                f"spec.maturity_years={H} exceeds available "
-                f"projection horizon {H_full}."
+                f"spec.maturity_years={H} exceeds available projection horizon {H_full}."
             )
 
     # Deferral sanity checks
@@ -201,9 +197,7 @@ def price_cohort_life_annuity(
         df_eff = df[None, :]  # (1,H)
     elif df.ndim == 2:
         if df.shape[0] not in (1, N):
-            raise ValueError(
-                f"discount_factors must have first dim 1 or N={N}; got {df.shape}."
-            )
+            raise ValueError(f"discount_factors must have first dim 1 or N={N}; got {df.shape}.")
         df_eff = df if df.shape[0] == N else np.repeat(df, N, axis=0)
     else:
         raise ValueError("discount_factors must be 1D or 2D.")
@@ -232,22 +226,20 @@ def price_cohort_life_annuity(
     expected_cashflows = cashflows.mean(axis=0)  # (H,)
     times = np.arange(1, H + 1, dtype=int)
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "N_scenarios": int(N),
         "horizon_used": int(H),
         "issue_age": float(spec.issue_age),
         "age_index": int(age_idx),
         "payment_per_survivor": float(spec.payment_per_survivor),
-        "maturity_years": (
-            None if spec.maturity_years is None else int(spec.maturity_years)
-        ),
+        "maturity_years": (None if spec.maturity_years is None else int(spec.maturity_years)),
         "defer_years": defer,
         "exposure_at_issue": float(spec.exposure_at_issue),
         "include_terminal": bool(spec.include_terminal),
         "terminal_notional": float(spec.terminal_notional),
     }
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,

@@ -12,7 +12,6 @@ from pymort.models.lc_m2 import (
     reconstruct_m_cohort,
 )
 
-
 _A_TRUE = np.array([-4.8, -4.4], dtype=float)
 _B_TRUE = np.array([0.55, 0.45], dtype=float)  # sum=1
 _K_TRUE = np.array([-0.06, 0.0, 0.07], dtype=float)

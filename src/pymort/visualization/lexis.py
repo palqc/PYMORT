@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Iterable, Literal, Optional
+from collections.abc import Iterable
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,11 +21,10 @@ def plot_lexis(
     scen_set: MortalityScenarioSet,
     value: Literal["m", "q", "S"] = "q",
     statistic: Literal["mean", "median"] = "median",
-    cohorts: Optional[Iterable[int]] = None,
+    cohorts: Iterable[int] | None = None,
     ax=None,
 ):
-    """
-    Lexis-style heatmap for mortality scenario summaries.
+    """Lexis-style heatmap for mortality scenario summaries.
 
     Parameters
     ----------
@@ -70,7 +70,9 @@ def plot_lexis(
     # cohort lines: year - age = birth year
     if cohorts:
         for coh in cohorts:
-            ax.plot(years, years - coh, ls="--", lw=1.0, color="cyan", alpha=0.8, label=f"cohort {coh}")
+            ax.plot(
+                years, years - coh, ls="--", lw=1.0, color="cyan", alpha=0.8, label=f"cohort {coh}"
+            )
         # Avoid duplicate legend entries
         handles, labels = ax.get_legend_handles_labels()
         if handles:

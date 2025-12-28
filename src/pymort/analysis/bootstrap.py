@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, Type
+from typing import Any, Literal
 
 import numpy as np
 
@@ -18,10 +18,9 @@ ResampleMode = Literal["cell", "year_block"]
 
 @dataclass
 class BootstrapResult:
-    """
-    Container for bootstrap outputs.
+    """Container for bootstrap outputs.
 
-    Attributes
+    Attributes:
     ----------
     params_list : list
         List of fitted params objects, one per bootstrap replication.
@@ -44,8 +43,7 @@ def _resample_residuals(
     mode: ResampleMode,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    """
-    Resample residual matrix resid[A,T] into resid_star[A,T].
+    """Resample residual matrix resid[A,T] into resid_star[A,T].
 
     - cell: iid resampling of all A*T residuals
     - year_block: resampling whole years (columns) with replacement
@@ -64,17 +62,16 @@ def _resample_residuals(
 
 
 def bootstrap_logm_model(
-    model_cls: Type,
+    model_cls: type,
     m: np.ndarray,
     ages: np.ndarray,
     years: np.ndarray,
     B: int = 500,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     resample: ResampleMode = "year_block",
-    fit_kwargs: Optional[dict] = None,
+    fit_kwargs: dict | None = None,
 ) -> BootstrapResult:
-    """
-    Residual bootstrap for models fitted on log m (LCM1/LCM2/APCM3).
+    """Residual bootstrap for models fitted on log m (LCM1/LCM2/APCM3).
 
     Parameters
     ----------
@@ -98,7 +95,7 @@ def bootstrap_logm_model(
     fit_kwargs : dict | None
         Extra kwargs for fit, if any.
 
-    Returns
+    Returns:
     -------
     BootstrapResult
     """
@@ -118,16 +115,12 @@ def bootstrap_logm_model(
             "Expected LCM1, LCM2 or APCM3."
         )
     if model0.params is None:
-        raise RuntimeError(
-            f"{model_cls.__name__}.fit() returned None params on original data"
-        )
+        raise RuntimeError(f"{model_cls.__name__}.fit() returned None params on original data")
 
     ln_hat0 = model0.predict_log_m()
     m = np.asarray(m, dtype=float)
     if not np.all(np.isfinite(m)) or (m <= 0).any():
-        raise ValueError(
-            "bootstrap_logm_model: m must be strictly positive and finite."
-        )
+        raise ValueError("bootstrap_logm_model: m must be strictly positive and finite.")
     ln_true = np.log(m)
 
     resid0 = ln_true - ln_hat0
@@ -164,17 +157,16 @@ def bootstrap_logm_model(
 
 
 def bootstrap_logitq_model(
-    model_cls: Type,
+    model_cls: type,
     q: np.ndarray,
     ages: np.ndarray,
     years: np.ndarray,
     B: int = 500,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     resample: ResampleMode = "year_block",
-    fit_kwargs: Optional[dict] = None,
+    fit_kwargs: dict | None = None,
 ) -> BootstrapResult:
-    """
-    Residual bootstrap for models fitted on logit(q) (CBDM5/M6/M7).
+    """Residual bootstrap for models fitted on logit(q) (CBDM5/M6/M7).
 
     model_cls must implement:
         - fit(q, ages, years?)
@@ -199,9 +191,7 @@ def bootstrap_logitq_model(
             "Expected CBDM5, CBDM6 or CBDM7."
         )
     if model0.params is None:
-        raise RuntimeError(
-            f"{model_cls.__name__}.fit() returned None params on original data"
-        )
+        raise RuntimeError(f"{model_cls.__name__}.fit() returned None params on original data")
 
     logit_hat0 = model0.predict_logit_q()
     logit_true = _logit(q)
@@ -245,26 +235,20 @@ def bootstrap_logitq_model(
 
 
 def bootstrap_from_m(
-    model_cls: Type,
+    model_cls: type,
     m: np.ndarray,
     ages: np.ndarray,
     years: np.ndarray,
     B: int = 500,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     resample: ResampleMode = "year_block",
 ) -> BootstrapResult:
-    """
-    Convenience wrapper.
+    """Convenience wrapper.
     - If model is CBD family, converts to q and bootstraps on logit(q).
     - Else bootstraps on log m.
     """
     name = model_cls.__name__.lower()
     if "cbd" in name:
         q = m_to_q(m)
-        return bootstrap_logitq_model(
-            model_cls, q, ages, years, B=B, seed=seed, resample=resample
-        )
-    else:
-        return bootstrap_logm_model(
-            model_cls, m, ages, years, B=B, seed=seed, resample=resample
-        )
+        return bootstrap_logitq_model(model_cls, q, ages, years, B=B, seed=seed, resample=resample)
+    return bootstrap_logm_model(model_cls, m, ages, years, B=B, seed=seed, resample=resample)

@@ -1,5 +1,4 @@
-"""
-Lightweight import shim for mortality models.
+"""Lightweight import shim for mortality models.
 
 This module intentionally avoids importing model implementations at import
 time to prevent circular imports between ``pymort.models`` and analysis
@@ -12,34 +11,34 @@ import importlib
 from typing import TYPE_CHECKING, Any, Dict
 
 __all__ = [
-    "LCM1Params",
+    "APCM3",
+    "CBDM5",
+    "CBDM6",
+    "CBDM7",
     "LCM1",
+    "LCM2",
+    "APCM3Params",
+    "CBDM5Params",
+    "CBDM6Params",
+    "CBDM7Params",
+    "LCM1Params",
+    "LCM2Params",
+    "LeeCarterM1",
+    "_logit",
+    "estimate_rw_params",
+    "estimate_rw_params_cbd",
+    "fit_cbd",
+    "fit_cbd_cohort",
+    "fit_cbd_m7",
     "fit_lee_carter",
     "reconstruct_log_m",
-    "estimate_rw_params",
-    "LeeCarterM1",
-    "CBDM5Params",
-    "CBDM5",
-    "fit_cbd",
     "reconstruct_logit_q",
-    "reconstruct_q",
-    "estimate_rw_params_cbd",
-    "_logit",
-    "CBDM6",
-    "CBDM6Params",
-    "CBDM7",
-    "CBDM7Params",
-    "fit_cbd_cohort",
     "reconstruct_logit_q_cbd_cohort",
-    "fit_cbd_m7",
     "reconstruct_logit_q_m7",
-    "LCM2Params",
-    "LCM2",
-    "APCM3",
-    "APCM3Params",
+    "reconstruct_q",
 ]
 
-_ATTR_MAP: Dict[str, tuple[str, str]] = {
+_ATTR_MAP: dict[str, tuple[str, str]] = {
     # Lee–Carter family
     "LCM1Params": ("pymort.models.lc_m1", "LCM1Params"),
     "LCM1": ("pymort.models.lc_m1", "LCM1"),
@@ -94,7 +93,12 @@ if TYPE_CHECKING:  # pragma: no cover
         reconstruct_logit_q,
         reconstruct_q,
     )
-    from pymort.models.cbd_m6 import CBDM6, CBDM6Params, fit_cbd_cohort, reconstruct_logit_q_cbd_cohort
+    from pymort.models.cbd_m6 import (
+        CBDM6,
+        CBDM6Params,
+        fit_cbd_cohort,
+        reconstruct_logit_q_cbd_cohort,
+    )
     from pymort.models.cbd_m7 import CBDM7, CBDM7Params, fit_cbd_m7, reconstruct_logit_q_m7
     from pymort.models.lc_m1 import LCM1, LCM1Params, fit_lee_carter, reconstruct_log_m
     from pymort.models.lc_m2 import LCM2, LCM2Params

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -17,14 +17,13 @@ from pymort.lifetables import (
 
 @dataclass
 class MortalityScenarioSet:
-    """
-    Container for stochastic mortality scenarios, ready for pricing.
+    """Container for stochastic mortality scenarios, ready for pricing.
 
     This is the standard interface between the mortality modeling
     layer (fit + projections) and the pricing layer (longevity bonds,
     survivor swaps, q-forwards, etc.).
 
-    Attributes
+    Attributes:
     ----------
     years : np.ndarray
         Future calendar years of shape (H_out,).
@@ -67,8 +66,8 @@ class MortalityScenarioSet:
     q_paths: np.ndarray
     S_paths: np.ndarray
 
-    m_paths: Optional[np.ndarray] = None
-    discount_factors: Optional[np.ndarray] = None
+    m_paths: np.ndarray | None = None
+    discount_factors: np.ndarray | None = None
 
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -83,8 +82,7 @@ class MortalityScenarioSet:
 
 
 def validate_scenario_set(scen_set: MortalityScenarioSet) -> None:
-    """
-    Lightweight validation of a MortalityScenarioSet.
+    """Lightweight validation of a MortalityScenarioSet.
     Raises ValueError on any detected inconsistency.
     """
     years = np.asarray(scen_set.years)
@@ -99,9 +97,7 @@ def validate_scenario_set(scen_set: MortalityScenarioSet) -> None:
 
     N, A, T = q.shape
     if S.shape != (N, A, T):
-        raise ValueError(
-            f"S_paths shape {S.shape} incompatible with q_paths {q.shape}."
-        )
+        raise ValueError(f"S_paths shape {S.shape} incompatible with q_paths {q.shape}.")
     if ages.shape != (A,):
         raise ValueError(f"ages must have shape ({A},); got {ages.shape}.")
     if years.shape != (T,):
@@ -138,9 +134,7 @@ def validate_scenario_set(scen_set: MortalityScenarioSet) -> None:
 
 
 def save_scenario_set_npz(scen_set: MortalityScenarioSet, path: Path | str) -> None:
-    """
-    Persist a MortalityScenarioSet to disk as compressed NPZ.
-    """
+    """Persist a MortalityScenarioSet to disk as compressed NPZ."""
     target = Path(path)
     payload: dict[str, Any] = {
         "q_paths": scen_set.q_paths,
@@ -158,9 +152,7 @@ def save_scenario_set_npz(scen_set: MortalityScenarioSet, path: Path | str) -> N
 
 
 def load_scenario_set_npz(path: Path | str) -> MortalityScenarioSet:
-    """
-    Load a MortalityScenarioSet saved by ``save_scenario_set_npz``.
-    """
+    """Load a MortalityScenarioSet saved by ``save_scenario_set_npz``."""
     data = np.load(Path(path), allow_pickle=True)
     metadata_raw = data.get("metadata", "{}")
     try:
@@ -173,9 +165,7 @@ def load_scenario_set_npz(path: Path | str) -> MortalityScenarioSet:
         q_paths=np.asarray(data["q_paths"]),
         S_paths=np.asarray(data["S_paths"]),
         m_paths=data["m_paths"] if "m_paths" in data else None,
-        discount_factors=(
-            data["discount_factors"] if "discount_factors" in data else None
-        ),
+        discount_factors=(data["discount_factors"] if "discount_factors" in data else None),
         metadata=metadata,
     )
     return scen_set
@@ -184,11 +174,10 @@ def load_scenario_set_npz(path: Path | str) -> MortalityScenarioSet:
 def build_scenario_set_from_projection(
     proj: ProjectionResult,
     ages: np.ndarray,
-    discount_factors: Optional[np.ndarray] = None,
-    metadata: Optional[dict[str, Any]] = None,
+    discount_factors: np.ndarray | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> MortalityScenarioSet:
-    """
-    Build a MortalityScenarioSet from a ProjectionResult.
+    """Build a MortalityScenarioSet from a ProjectionResult.
 
     Parameters
     ----------
@@ -204,7 +193,7 @@ def build_scenario_set_from_projection(
     metadata : dict | None
         Optional metadata (e.g. {"model": "LCM2", "measure": "P"}).
 
-    Returns
+    Returns:
     -------
     MortalityScenarioSet
         Ready-to-use mortality scenario container for pricing.
@@ -213,19 +202,14 @@ def build_scenario_set_from_projection(
     validate_q(q_paths)
     ages = np.asarray(ages, dtype=float)
     if q_paths.ndim != 3:
-        raise ValueError(
-            f"proj.q_paths must have shape (N, A, H), got {q_paths.shape}."
-        )
+        raise ValueError(f"proj.q_paths must have shape (N, A, H), got {q_paths.shape}.")
 
     N, A, H = q_paths.shape
-    if A != ages.shape[0]:
+    if ages.shape[0] != A:
+        raise ValueError(f"Age dimension mismatch: q_paths has A={A}, ages has {ages.shape[0]}.")
+    if proj.years.shape[0] != H:
         raise ValueError(
-            f"Age dimension mismatch: q_paths has A={A}, ages has {ages.shape[0]}."
-        )
-    if H != proj.years.shape[0]:
-        raise ValueError(
-            f"Time dimension mismatch: q_paths has H={H}, proj.years has "
-            f"{proj.years.shape[0]}."
+            f"Time dimension mismatch: q_paths has H={H}, proj.years has {proj.years.shape[0]}."
         )
     S_paths = cohort_survival_from_q_paths(q_paths)
     validate_survival_monotonic(S_paths)
@@ -241,8 +225,7 @@ def build_scenario_set_from_projection(
         elif df.ndim == 2:
             if df.shape[1] != proj.years.shape[0]:
                 raise ValueError(
-                    "discount_factors must have shape (N,H) with H=len(proj.years); "
-                    f"got {df.shape}"
+                    f"discount_factors must have shape (N,H) with H=len(proj.years); got {df.shape}"
                 )
         else:
             raise ValueError("discount_factors must be 1D or 2D.")
