@@ -6,7 +6,12 @@ from typing import Any, Dict, Optional
 import numpy as np
 
 from pymort.analysis import MortalityScenarioSet
-from pymort.pricing.utils import build_discount_factors, find_nearest_age_index
+from pymort.pricing.utils import (
+    build_discount_factors,
+    cohort_survival_full_horizon_from_q,
+    find_nearest_age_index,
+    pv_from_cf_paths,
+)
 
 
 @dataclass
@@ -49,6 +54,7 @@ def price_q_forward(
     *,
     short_rate: Optional[float] = None,
     discount_factors: Optional[np.ndarray] = None,
+    return_cf_paths: bool = False,
 ) -> Dict[str, Any]:
     """
     Price a q-forward using mortality scenarios, with optional separate
@@ -99,32 +105,31 @@ def price_q_forward(
     # Strike: user-provided or ATM on measurement date
     K = float(q_Tm.mean()) if spec.strike is None else float(spec.strike)
 
-    # Discount factor at settlement date Ts
-    df_vec = build_discount_factors(
+    payoff_paths = spec.notional * (q_Tm - K)  # (N,)
+
+    # Build full-grid CF paths (N,Ts): all zeros, payoff at settlement (last column)
+    cf_paths = np.zeros((N, Ts), dtype=float)
+    cf_paths[:, ts_idx] = payoff_paths
+
+    # Use full discount factors up to Ts
+    df_full = build_discount_factors(
         scen_set=scen_set,
         short_rate=short_rate,
         discount_factors=discount_factors,
         H=Ts,
     )
-    if df_vec.ndim == 1:
-        D_Ts = float(df_vec[ts_idx])
-    elif df_vec.ndim == 2:
-        if df_vec.shape[0] not in (1, N):
-            raise ValueError(
-                f"discount_factors must have first dim 1 or N={N}; got {df_vec.shape}."
-            )
-        df_eff = df_vec if df_vec.shape[0] == N else np.repeat(df_vec, N, axis=0)
-        D_Ts = df_eff[:, ts_idx]
-    else:
-        raise ValueError("discount_factors must be 1D or 2D.")
 
-    payoff_paths = spec.notional * (q_Tm - K)  # measured at Tm
-    if np.ndim(D_Ts) == 0:
-        pv_paths = payoff_paths * D_Ts
-    else:
-        pv_paths = payoff_paths * D_Ts
+    pv_paths = pv_from_cf_paths(cf_paths, df_full)  # (N,)
     price = float(pv_paths.mean())
-    df_settle = float(D_Ts) if np.ndim(D_Ts) == 0 else float(np.mean(D_Ts))
+
+    times = np.arange(1, Ts + 1, dtype=int)
+    expected_cashflows = cf_paths.mean(axis=0)  # (Ts,)
+
+    # For metadata convenience
+    df_arr = np.asarray(df_full, dtype=float)
+    df_settle = (
+        float(df_arr[ts_idx]) if df_arr.ndim == 1 else float(df_arr[:, ts_idx].mean())
+    )
 
     metadata: Dict[str, Any] = {
         "N_scenarios": int(N),
@@ -139,16 +144,23 @@ def price_q_forward(
         "discount_factor_settlement": float(df_settle),
     }
 
-    return {
+    payload: Dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,
         "measurement_index": tm_idx,
         "settlement_index": ts_idx,
         "strike": K,
-        "discount_factor_settlement": D_Ts,
+        "discount_factors": df_full,
+        "expected_cashflows": expected_cashflows,
         "metadata": metadata,
     }
+
+    if return_cf_paths:
+        payload["cf_paths"] = cf_paths
+        payload["times"] = times
+
+    return payload
 
 
 def price_s_forward(
@@ -157,6 +169,7 @@ def price_s_forward(
     *,
     short_rate: Optional[float] = None,
     discount_factors: Optional[np.ndarray] = None,
+    return_cf_paths: bool = False,
 ) -> Dict[str, Any]:
     """
     Price an s-forward (survival forward) using mortality scenarios, with optional
@@ -175,6 +188,8 @@ def price_s_forward(
         raise ValueError(f"Expected S_paths with shape (N, A, H), got {S_paths.shape}.")
 
     N, A, H_full = S_paths.shape
+
+    q_paths = np.asarray(scen_set.q_paths, dtype=float)
 
     # Measurement date (Tm)
     Tm = int(spec.maturity_years)
@@ -199,38 +214,50 @@ def price_s_forward(
     # Age index
     age_idx = find_nearest_age_index(scen_set.ages, spec.age)
 
-    # Survival measured at Tm: (N,)
     S_Tm = S_paths[:, age_idx, tm_idx]
     if not np.isfinite(S_Tm).all():
-        raise ValueError("Some S_Tm values are not finite.")
+        # Fallback: rebuild diagonal cohort survival up to Tm using q_paths + Gompertz tail
+        S_curve = cohort_survival_full_horizon_from_q(
+            q_paths=q_paths,
+            ages=np.asarray(scen_set.ages, dtype=float),
+            age0=float(spec.age),
+            horizon=Tm,
+            age_fit_min=80,
+            age_fit_max=95,
+        )
+
+        S_Tm = S_curve[:, -1]
+
+        if not np.isfinite(S_Tm).all():
+            raise ValueError(
+                "Some S_Tm values are not finite (even after Gompertz fallback)."
+            )
 
     # Strike: user-provided or ATM on measurement date
     K = float(S_Tm.mean()) if spec.strike is None else float(spec.strike)
 
-    # Discount factor at settlement date Ts
-    df_vec = build_discount_factors(
+    df_full = build_discount_factors(
         scen_set=scen_set,
         short_rate=short_rate,
         discount_factors=discount_factors,
         H=Ts,
     )
-    if df_vec.ndim == 1:
-        D_Ts = float(df_vec[ts_idx])
-    elif df_vec.ndim == 2:
-        if df_vec.shape[0] not in (1, N):
-            raise ValueError(
-                f"discount_factors must have first dim 1 or N={N}; got {df_vec.shape}."
-            )
-        df_eff = df_vec if df_vec.shape[0] == N else np.repeat(df_vec, N, axis=0)
-        D_Ts = df_eff[:, ts_idx]
-    else:
-        raise ValueError("discount_factors must be 1D or 2D.")
 
-    payoff_paths = spec.notional * (S_Tm - K)  # measured at Tm
-    pv_paths = payoff_paths * D_Ts
+    payoff_paths = spec.notional * (S_Tm - K)  # (N,)
+
+    cf_paths = np.zeros((N, Ts), dtype=float)
+    cf_paths[:, ts_idx] = payoff_paths
+
+    pv_paths = pv_from_cf_paths(cf_paths, df_full)  # (N,)
     price = float(pv_paths.mean())
 
-    df_settle = float(D_Ts) if np.ndim(D_Ts) == 0 else float(np.mean(D_Ts))
+    times = np.arange(1, Ts + 1, dtype=int)
+    expected_cashflows = cf_paths.mean(axis=0)
+
+    df_arr = np.asarray(df_full, dtype=float)
+    df_settle = (
+        float(df_arr[ts_idx]) if df_arr.ndim == 1 else float(df_arr[:, ts_idx].mean())
+    )
 
     metadata: Dict[str, Any] = {
         "N_scenarios": int(N),
@@ -245,13 +272,20 @@ def price_s_forward(
         "discount_factor_settlement": float(df_settle),
     }
 
-    return {
+    payload: Dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,
         "measurement_index": tm_idx,
         "settlement_index": ts_idx,
         "strike": K,
-        "discount_factor_settlement": D_Ts,
+        "discount_factors": df_full,
+        "expected_cashflows": expected_cashflows,
         "metadata": metadata,
     }
+
+    if return_cf_paths:
+        payload["cf_paths"] = cf_paths
+        payload["times"] = times
+
+    return payload

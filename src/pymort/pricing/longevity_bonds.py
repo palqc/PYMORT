@@ -6,7 +6,12 @@ from typing import Any, Dict, Optional
 import numpy as np
 
 from pymort.analysis import MortalityScenarioSet
-from pymort.pricing.utils import build_discount_factors, find_nearest_age_index
+from pymort.pricing.utils import (
+    build_discount_factors,
+    cohort_survival_full_horizon_from_q,
+    find_nearest_age_index,
+    pv_from_cf_paths,
+)
 
 
 @dataclass
@@ -46,6 +51,7 @@ def price_simple_longevity_bond(
     *,
     short_rate: Optional[float] = None,
     discount_factors: Optional[np.ndarray] = None,
+    return_cf_paths: bool = False,
 ) -> Dict[str, Any]:
     """
     Price a simple cohort-based longevity bond from mortality scenarios.
@@ -109,8 +115,22 @@ def price_simple_longevity_bond(
     # Choose cohort age index
     age_idx = find_nearest_age_index(scen_set.ages, spec.issue_age)
 
-    # Slice survival for this age and horizon: (N, H)
     S_age = S_paths[:, age_idx, :H]
+
+    if not np.isfinite(S_age).all():
+        ages_grid = np.asarray(scen_set.ages, dtype=float)
+
+        S_age = cohort_survival_full_horizon_from_q(
+            q_paths=q_paths,
+            ages=ages_grid,
+            age0=float(spec.issue_age),
+            horizon=int(H),
+            age_fit_min=80,
+            age_fit_max=min(95, int(ages_grid.max())),
+        )
+
+        if not np.isfinite(S_age).all():
+            raise ValueError("Some S_age values are not finite even after fallback.")
 
     # Build discount factors D_t, shape (H,)
     df = build_discount_factors(
@@ -141,10 +161,12 @@ def price_simple_longevity_bond(
         # Ajoute le nominal à la dernière colonne des coupons
         coupons[:, -1] += spec.notional * S_age[:, -1]
 
-    # Present value per scenario
-    pv_paths = (coupons * df_eff).sum(axis=1)  # (N,)
+    # Present value per scenario (consistent PV <-> CF)
+    pv_paths = pv_from_cf_paths(coupons, df_eff)  # (N,)
     expected_cashflows = coupons.mean(axis=0)  # (H,)
     price = float(pv_paths.mean())
+
+    times = np.asarray(scen_set.years[:H], dtype=int)
 
     metadata: Dict[str, Any] = {
         "N_scenarios": int(N),
@@ -158,11 +180,17 @@ def price_simple_longevity_bond(
         ),
     }
 
-    return {
+    payload: Dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,
-        "discount_factors": df,
+        "discount_factors": df_eff,
         "expected_cashflows": expected_cashflows,
         "metadata": metadata,
     }
+
+    if return_cf_paths:
+        payload["cf_paths"] = coupons  # (N,H)
+        payload["times"] = times  # (H,)
+
+    return payload

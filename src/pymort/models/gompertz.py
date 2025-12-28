@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
+import numpy as np
+
+
+@dataclass
+class GompertzFitResult:
+    """
+    Per-year Gompertz fit on central death rates m_x,t:
+
+        m_x,t = exp(a_t + b_t * x)
+
+    Stored as arrays over time (years):
+        a_t, b_t shape (T,)
+
+    Also stores the fitted surface on the full (ages, years) grid if requested.
+    """
+
+    ages: np.ndarray  # (A,)
+    years: np.ndarray  # (T,)
+    a_t: np.ndarray  # (T,)
+    b_t: np.ndarray  # (T,)
+    age_fit_min: int
+    age_fit_max: int
+    m_floor: float
+    m_fitted: Optional[np.ndarray] = None  # (A,T) if computed
+    meta: dict = None
+
+
+def _safe_log_m(m: np.ndarray, m_floor: float) -> np.ndarray:
+    m = np.asarray(m, dtype=float)
+    m = np.clip(m, float(m_floor), None)
+    return np.log(m)
+
+
+def fit_gompertz_per_year(
+    ages: np.ndarray,
+    years: np.ndarray,
+    m: np.ndarray,
+    *,
+    age_fit_min: int = 80,
+    age_fit_max: int = 100,
+    m_floor: float = 1e-12,
+    compute_fitted_surface: bool = True,
+) -> GompertzFitResult:
+    """
+    Fit Gompertz per calendar year using OLS on log(m):
+        log(m_x,t) = a_t + b_t * x
+
+    Parameters
+    ----------
+    ages : (A,)
+    years : (T,)
+    m : (A,T) central death rates
+    age_fit_min, age_fit_max : fit window (inclusive)
+    m_floor : clip floor before log
+    compute_fitted_surface : if True, returns m_fitted on full age grid
+
+    Returns
+    -------
+    GompertzFitResult
+    """
+    ages = np.asarray(ages, dtype=float).reshape(-1)
+    years = np.asarray(years, dtype=int).reshape(-1)
+    m = np.asarray(m, dtype=float)
+
+    if m.ndim != 2:
+        raise ValueError(f"m must be 2D (A,T), got {m.shape}.")
+    A, T = m.shape
+    if ages.shape[0] != A:
+        raise ValueError(f"ages length {ages.shape[0]} != A={A}.")
+    if years.shape[0] != T:
+        raise ValueError(f"years length {years.shape[0]} != T={T}.")
+
+    # fit window mask
+    a_min = int(age_fit_min)
+    a_max = int(age_fit_max)
+    if a_min >= a_max:
+        raise ValueError("age_fit_min must be < age_fit_max.")
+    mask = (ages >= a_min) & (ages <= a_max)
+    if not np.any(mask):
+        raise ValueError(
+            f"No ages in fit window [{a_min},{a_max}] within ages range "
+            f"[{int(ages.min())},{int(ages.max())}]."
+        )
+
+    x = ages[mask]  # (Af,)
+    Af = x.shape[0]
+    # Design matrix [1, x]
+    X = np.column_stack([np.ones(Af, dtype=float), x])  # (Af,2)
+
+    logm = _safe_log_m(m[mask, :], m_floor=m_floor)  # (Af,T)
+
+    a_t = np.empty(T, dtype=float)
+    b_t = np.empty(T, dtype=float)
+
+    # OLS per year
+    # beta_hat = (X'X)^{-1} X' y
+    XtX_inv = np.linalg.inv(X.T @ X)  # (2,2)
+    Xt = X.T  # (2,Af)
+
+    for t in range(T):
+        y = logm[:, t]  # (Af,)
+        beta = XtX_inv @ (Xt @ y)  # (2,)
+        a_t[t] = float(beta[0])
+        b_t[t] = float(beta[1])
+
+    m_fitted = None
+    if compute_fitted_surface:
+        # mhat[a,t] = exp(a_t + b_t * age_a)
+        m_fitted = np.exp(a_t[None, :] + b_t[None, :] * ages[:, None])
+
+    return GompertzFitResult(
+        ages=ages,
+        years=years,
+        a_t=a_t,
+        b_t=b_t,
+        age_fit_min=a_min,
+        age_fit_max=a_max,
+        m_floor=float(m_floor),
+        m_fitted=m_fitted,
+        meta={
+            "model": "gompertz_per_year",
+            "fit_window": [a_min, a_max],
+            "note": "Fitted per-year on log(m) via OLS.",
+        },
+    )
+
+
+def extrapolate_gompertz_surface(
+    fit: GompertzFitResult,
+    *,
+    age_max: int,
+    age_min: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Extrapolate/extend the fitted Gompertz surface to a new age grid.
+
+    Returns (ages_ext, years, m_ext) where m_ext is Gompertz-implied.
+    """
+    years = np.asarray(fit.years, dtype=int)
+    a_t = np.asarray(fit.a_t, dtype=float)
+    b_t = np.asarray(fit.b_t, dtype=float)
+
+    if age_min is None:
+        age_min = int(fit.ages.min())
+    age_min = int(age_min)
+    age_max = int(age_max)
+    if age_max <= age_min:
+        raise ValueError("age_max must be > age_min.")
+
+    ages_ext = np.arange(age_min, age_max + 1, dtype=float)
+    m_ext = np.exp(a_t[None, :] + b_t[None, :] * ages_ext[:, None])
+    return ages_ext, years, m_ext

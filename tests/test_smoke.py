@@ -1011,10 +1011,11 @@ def main(argv: list[str] | None = None) -> int:
     validate_q(scen_set.q_paths)
     validate_survival_monotonic(scen_set.S_paths)
 
-    diff_S = np.diff(scen_set.S_paths, axis=2)  # (N, A, H_out-1)
+    diff_S = np.diff(scen_set.S_paths, axis=2)  # (N, A, H-1)
+    mask = np.isfinite(diff_S)
     assert np.all(
-        diff_S <= 1e-10
-    ), "Survival curves must be non-increasing over time in each scenario."
+        diff_S[mask] <= 1e-10
+    ), "Survival curves must be non-increasing over time (ignoring NaNs)."
 
     print("End-to-end pricing pipeline checks: OK ✅")
 
@@ -1069,10 +1070,23 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # 3) Longueur des discount factors cohérente avec la maturité
+    df = np.asarray(res["discount_factors"])
+
     H_bond = spec.maturity_years or scen_set.horizon()
-    assert (
-        df.shape[0] == H_bond
-    ), f"discount_factors length mismatch: {df.shape[0]} != {H_bond}."
+
+    if df.ndim == 1:
+        assert (
+            df.shape[0] == H_bond
+        ), f"discount_factors length mismatch: {df.shape[0]} != {H_bond}"
+    elif df.ndim == 2:
+        # accepte (H,) en colonne ou en ligne, ou (N,H) si DF par scénario
+        assert (df.shape[0] == H_bond) or (
+            df.shape[1] == H_bond
+        ), f"discount_factors shape mismatch: {df.shape} does not match H_bond={H_bond}"
+    else:
+        raise AssertionError(
+            f"discount_factors has unexpected ndim={df.ndim}, shape={df.shape}"
+        )
 
     # 4) Survie moyenne de la cohorte décroissante (sanity check produit)
     age_idx = res["age_index"]

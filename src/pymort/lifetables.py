@@ -55,7 +55,8 @@ Users must preprocess such datasets externally before using PYMORT.
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, Literal, Optional, Tuple
+import io
+from typing import Any, Dict, Iterable, Literal, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -336,45 +337,189 @@ def validate_q(q: np.ndarray) -> None:
 
 def validate_survival_monotonic(S: np.ndarray) -> None:
     """
-    Check that survival curves S_x(t) are non-increasing over time.
-    Raises an AssertionError if any survival path increases.
+    Check that survival curves are non-increasing over time.
+    Ignores comparisons where either side is not finite (e.g. NaN tails).
     """
     S = np.asarray(S, dtype=float)
     if S.ndim < 1:
         raise ValueError(f"S must have at least 1 dimension, got shape {S.shape}.")
-    if np.any(np.diff(S, axis=-1) > 1e-12):
+
+    dS = np.diff(S, axis=-1)
+    finite_pairs = np.isfinite(S[..., :-1]) & np.isfinite(S[..., 1:])
+    if np.any(finite_pairs & (dS > 1e-12)):
         raise AssertionError("S_x(t) must be non-increasing in t.")
 
 
-def survival_paths_from_q_paths(q_paths: np.ndarray) -> np.ndarray:
+def cohort_survival_from_q_paths(q_paths: np.ndarray) -> np.ndarray:
     """
-    Convert multiple stochastic paths of q_{x,t} into survival functions S_{x,t}.
+    Cohort survival surfaces from q_paths.
+
+    Builds S_cohort[n, a, k] = Π_{j=0..k} (1 - q_paths[n, a+j, j])
+    for every starting age index a.
 
     Parameters
     ----------
     q_paths : np.ndarray
-        Array of shape (N, A, H) where:
-        - N = number of stochastic scenarios (bootstrap * process risk)
-        - A = number of ages
-        - H = number of forecast years
-        Each q_paths[n, a, :] is a mortality trajectory over time.
+        Shape (N, A, H)
 
     Returns
     -------
     np.ndarray
-        Array of shape (N, A, H) containing survival probabilities S_{x,t}
-        computed along the time axis, i.e. for each (n, a):
-            S[n, a, k] = ∏_{j=0}^{k} (1 - q[n, a, j]),  k = 0..H-1.
+        Shape (N, A, H). Entries that are not reachable because a+k >= A
+        are filled with NaN.
     """
-    q_paths = np.asarray(q_paths, dtype=float)
+    q = np.asarray(q_paths, dtype=float)
+    if q.ndim != 3:
+        raise ValueError(f"q_paths must be (N,A,H), got {q.shape}.")
+    validate_q(q)
 
-    if q_paths.ndim != 3:
-        raise ValueError(f"Expected q_paths of shape (N, A, H), got {q_paths.shape}.")
+    N, A, H = q.shape
+    S = np.full((N, A, H), np.nan, dtype=float)
 
-    N, A, H = q_paths.shape
+    for a in range(A):
+        K = min(H, A - a)  # max horizon possible for this starting age
+        if K <= 0:
+            continue
+        idx = np.arange(K)
+        q_diag = q[:, a + idx, idx]  # (N, K)
+        S[:, a, :K] = np.cumprod(1.0 - q_diag, axis=1)
 
-    q_flat = q_paths.reshape(N * A, H)  # (N*A, H)
-    S_flat = survival_from_q(q_flat)  # (N*A, H)
-    S_paths = S_flat.reshape(N, A, H)  # (N, A, H)
+    return np.clip(S, 1e-12, 1.0)
 
-    return S_paths
+
+def load_m_from_excel_any(
+    source: Union[str, bytes, bytearray, Any],
+    *,
+    sex: Sex = "Total",
+    age_min: int = 60,
+    age_max: int = 100,
+    year_min: int | None = None,
+    year_max: int | None = None,
+    m_floor: float = 1e-12,
+    drop_years: Iterable[int] | None = None,
+) -> Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """
+    Streamlit-friendly loader.
+
+    Accepts:
+      - str path
+      - bytes / bytearray
+      - file-like object (has .read())
+      - Streamlit UploadedFile (has .getbuffer() or .read())
+
+    Returns the same payload as load_m_from_excel(): {"m": (ages, years, m)}.
+    """
+    # --- Normalize to something pandas.read_excel can read ---
+    excel_obj: Any = source
+
+    # Streamlit UploadedFile: prefer getbuffer() to avoid consuming the stream
+    if hasattr(source, "getbuffer"):
+        excel_obj = io.BytesIO(source.getbuffer())  # type: ignore[arg-type]
+    # bytes-like
+    elif isinstance(source, (bytes, bytearray)):
+        excel_obj = io.BytesIO(source)
+    # file-like: ensure we're at start if possible
+    elif hasattr(source, "read") and not isinstance(source, str):
+        try:
+            source.seek(0)
+        except Exception:
+            pass
+        excel_obj = source
+
+    # Read all sheets raw (no header) to allow header detection
+    xls_dict = pd.read_excel(excel_obj, sheet_name=None, header=None, engine="openpyxl")
+
+    found_df: Optional[pd.DataFrame] = None
+    found_cols: Dict[str, int] = {}
+    found_sheet: Optional[str] = None
+    header_row: Optional[int] = None
+
+    # Try each sheet until we find Year & Age & (Total/Female/Male)
+    for sheet_name, df in xls_dict.items():
+        hrow, cmap = _find_header_and_map(df)
+        if hrow is None:
+            continue
+
+        table = _read_table_with_header(df, hrow, cmap)
+
+        if {"Year", "Age"} - set(table.columns):
+            continue
+        if not ({"Total", "Female", "Male"} & set(table.columns)):
+            continue
+
+        if found_df is None:
+            found_df, found_cols, found_sheet, header_row = (
+                table,
+                cmap,
+                sheet_name,
+                hrow,
+            )
+
+        if (
+            (sex in table.columns)
+            and (found_df is not None)
+            and (sex not in found_df.columns)
+        ):
+            found_df, found_cols, found_sheet, header_row = (
+                table,
+                cmap,
+                sheet_name,
+                hrow,
+            )
+
+    if found_df is None:
+        raise ValueError(
+            "Could not find a sheet with Year & Age & (Total/Female/Male). "
+            f"Scanned sheets: {list(xls_dict.keys())}."
+        )
+
+    df = found_df
+
+    # Choose the rate column to use
+    rate_col = (
+        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    )
+    if rate_col is None:
+        rate_col = "Female" if "Female" in df.columns else "Male"
+
+    # Filter ranges
+    if year_min is not None:
+        df = df[df["Year"] >= year_min]
+    if year_max is not None:
+        df = df[df["Year"] <= year_max]
+    df = df[(df["Age"] >= age_min) & (df["Age"] <= age_max)]
+
+    if df.empty:
+        raise ValueError("No rows left after filtering age/year. Check filters.")
+
+    # Build regular grids
+    ages = np.arange(df["Age"].min(), df["Age"].max() + 1, dtype=int)
+    years = np.arange(df["Year"].min(), df["Year"].max() + 1, dtype=int)
+
+    # Pivot to (A, T)
+    pivot = df.pivot(index="Age", columns="Year", values=rate_col).reindex(
+        index=ages, columns=years
+    )
+    m = pivot.to_numpy(dtype=float)
+
+    if drop_years is not None:
+        mask = ~np.isin(years, np.array(list(drop_years)))
+        years = years[mask]
+        m = m[:, mask]
+
+    # Simple imputation if gaps exist (ffill/bfill along time then age)
+    if np.isnan(m).any():
+        m = (
+            pd.DataFrame(m, index=ages, columns=years)
+            .ffill(axis=1)
+            .bfill(axis=1)
+            .ffill(axis=0)
+            .bfill(axis=0)
+            .to_numpy()
+        )
+        if np.isnan(m).any():
+            raise ValueError("Missing values remain after simple imputation.")
+
+    m = np.clip(m, m_floor, None)
+
+    return {"m": (ages, years, m)}

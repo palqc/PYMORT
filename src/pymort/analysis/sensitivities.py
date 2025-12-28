@@ -489,6 +489,7 @@ def make_single_product_pricer(
         "longevitybond": "longevity_bond",
         "longevity-bond": "longevity_bond",
         "annuity": "life_annuity",
+        "swap": "survivor_swap",
         "lifeannuity": "life_annuity",
         "life-annuity": "life_annuity",
     }

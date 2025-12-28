@@ -18,6 +18,7 @@ building blocks:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Literal, Mapping, Optional, Sequence
 
 import numpy as np
@@ -37,17 +38,27 @@ from pymort.analysis.projections import (
     project_mortality_from_bootstrap,
 )
 from pymort.analysis.reporting import RiskReport, generate_risk_report
-from pymort.analysis.scenario_analysis import ShockSpec, generate_stressed_scenarios
+from pymort.analysis.scenario_analysis import (
+    ShockSpec,
+    clone_scen_set_with,
+    generate_stressed_scenarios,
+)
 from pymort.analysis.sensitivities import (
     AllSensitivities,
     compute_all_sensitivities,
     make_single_product_pricer,
+    mortality_delta_by_age_all_products,
+    mortality_vega_all_products,
     price_all_products,
+    rate_convexity_all_products,
+    rate_sensitivity_all_products,
 )
 from pymort.interest_rates.hull_white import (
     InterestRateScenarioSet,
     build_interest_rate_scenarios,
 )
+from pymort.lifetables import m_to_q
+from pymort.models.gompertz import extrapolate_gompertz_surface, fit_gompertz_per_year
 from pymort.pricing.hedging import (
     GreekHedgeResult,
     HedgeResult,
@@ -62,6 +73,7 @@ from pymort.pricing.liabilities import CohortLifeAnnuitySpec
 from pymort.pricing.longevity_bonds import LongevityBondSpec
 from pymort.pricing.mortality_derivatives import QForwardSpec, SForwardSpec
 from pymort.pricing.risk_neutral import (
+    CalibrationCache,
     MultiInstrumentQuote,
     build_calibration_cache,
     build_scenarios_under_lambda_fast,
@@ -248,7 +260,7 @@ def build_mortality_scenarios_for_pricing(
     n_process: int = 200,
     seed: Optional[int] = None,
     include_last: bool = True,
-) -> tuple[FittedModel, ProjectionResult, MortalityScenarioSet]:
+) -> tuple[FittedModel, ProjectionResult, MortalityScenarioSet, CalibrationCache]:
     """
     Legacy end-to-end fit + projection pipeline used by earlier CLI code.
     """
@@ -316,7 +328,20 @@ def build_mortality_scenarios_for_pricing(
         metadata=metadata,
     )
 
-    return fitted_best, proj, scen_set
+    cache = build_calibration_cache(
+        ages=ages,
+        years=years,
+        m=m_smooth,
+        model_name=str(fitted_best.name),
+        B_bootstrap=int(B_bootstrap),
+        n_process=int(n_process),
+        horizon=int(horizon),
+        seed=seed,  # seed used HERE (good)
+        include_last=bool(include_last),
+    )
+    scen_set.metadata["calibration_cache"] = cache
+
+    return fitted_best, proj, scen_set, cache
 
 
 def project_from_fitted_model(
@@ -328,7 +353,12 @@ def project_from_fitted_model(
     seed: Optional[int] = None,
     include_last: bool = True,
     resample: Literal["cell", "year_block"] = "year_block",
-) -> tuple[ProjectionResult, MortalityScenarioSet]:
+    ages_raw: np.ndarray | None = None,
+    years_raw: np.ndarray | None = None,
+    m_raw: np.ndarray | None = None,
+    plot_age_start: int = 95,
+    plot_age_max: int = 200,
+) -> tuple[ProjectionResult, MortalityScenarioSet, CalibrationCache]:
     """
     Bootstrap + stochastic projection starting from an existing fitted model.
     """
@@ -383,8 +413,33 @@ def project_from_fitted_model(
         discount_factors=None,
         metadata=metadata,
     )
+    try:
+        _attach_plot_extension_gompertz(
+            scen_set,
+            ages_raw=ages_raw,
+            years_raw=years_raw,
+            m_raw=m_raw,
+            plot_age_start=plot_age_start,
+            plot_age_max=plot_age_max,
+            age_fit_min=80,
+            age_fit_max=100,
+        )
+    except Exception as exc:
+        scen_set.metadata["plot_extension_error"] = str(exc)
+    cache = build_calibration_cache(
+        ages=ages,
+        years=years,
+        m=m_smooth,
+        model_name=str(fitted.name),
+        B_bootstrap=int(B_bootstrap),
+        n_process=int(n_process),
+        horizon=int(horizon),
+        seed=seed,
+        include_last=bool(include_last),
+    )
+    scen_set.metadata["calibration_cache"] = cache
 
-    return proj, scen_set
+    return proj, scen_set, cache
 
 
 # ---------------------------------------------------------------------------
@@ -411,7 +466,12 @@ def build_projection_pipeline(
     cpsplines_kwargs: Optional[dict] = None,
     bootstrap_kwargs: dict | None = None,
     seed: int | None = None,
-) -> MortalityScenarioSet:
+    ages_raw: np.ndarray | None = None,
+    years_raw: np.ndarray | None = None,
+    m_raw: np.ndarray | None = None,
+    plot_age_start: int = 95,
+    plot_age_max: int = 200,
+) -> tuple[MortalityScenarioSet, CalibrationCache]:
     """
     End-to-end P-measure mortality projection pipeline.
 
@@ -429,7 +489,7 @@ def build_projection_pipeline(
     include_last = bool(
         bootstrap_kwargs.get("include_last", True) if bootstrap_kwargs else True
     )
-    fitted, proj, scen = build_mortality_scenarios_for_pricing(
+    fitted, proj, scen, cache = build_mortality_scenarios_for_pricing(
         ages=ages,
         years=years,
         m=m,
@@ -451,10 +511,8 @@ def build_projection_pipeline(
     if N != target:
         rng = np.random.default_rng(seed)
         if N > target:
-            idx = np.arange(N)[:target]
-
+            idx = rng.choice(N, size=target, replace=False)
         else:
-
             idx = rng.choice(N, size=target, replace=True)
 
         scen = MortalityScenarioSet(
@@ -473,7 +531,26 @@ def build_projection_pipeline(
     scen.metadata.setdefault("target_n_scenarios", int(n_scenarios))
     scen.metadata["resample"] = resample
     scen.metadata["fitted_model_name"] = fitted.name
-    return scen
+
+    # ------------------------------------------------------------------
+    # Plot-only extension beyond plot_age_start using Gompertz on RAW data
+    # ------------------------------------------------------------------
+    try:
+        _attach_plot_extension_gompertz(
+            scen,
+            ages_raw=ages_raw,
+            years_raw=years_raw,
+            m_raw=m_raw,
+            plot_age_start=plot_age_start,
+            plot_age_max=plot_age_max,
+            age_fit_min=80,
+            age_fit_max=100,
+        )
+    except Exception as _exc:
+        # Don't kill the pipeline for plot-only features.
+        scen.metadata["plot_extension_error"] = str(_exc)
+
+    return scen, cache
 
 
 def build_risk_neutral_pipeline(
@@ -536,6 +613,12 @@ def build_risk_neutral_pipeline(
         )
 
     quotes = _build_multi_instrument_quotes(instruments, market_prices)
+    B_bootstrap = getattr(cache.bs_res, "B", None)
+    if B_bootstrap is None:
+        if hasattr(cache.bs_res, "params_list"):
+            B_bootstrap = len(cache.bs_res.params_list)
+        else:
+            B_bootstrap = int(getattr(cache.bs_res, "mu_sigma").shape[0])
     lam_res = calibrate_lambda_least_squares(
         quotes=quotes,
         ages=cache.ages,
@@ -587,7 +670,8 @@ def pricing_pipeline(
     scen_Q: MortalityScenarioSet,
     *,
     specs: Mapping[str, object],
-    short_rate: float,
+    short_rate: Optional[float] = 0.02,
+    hull_white: Optional[HullWhiteConfig] = None,
 ) -> dict[str, float]:
     """
     Price a set of longevity instruments on Q-measure scenarios.
@@ -596,6 +680,10 @@ def pricing_pipeline(
       - Supports longevity bonds, survivor swaps, q-/s-forwards, life annuities.
       - Returns {instrument_name: price}.
     """
+    if scen_Q is None:
+        raise ValueError("pricing_pipeline: scen_Q is None (no scenario set provided).")
+    hw = hull_white or HullWhiteConfig(enabled=False)
+    scen_used = apply_hull_white_discounting(scen_Q, hw=hw, short_rate=short_rate)
     normalized_specs: dict[str, object] = {}
     for name, spec_obj in specs.items():
         normalized_specs[name] = _normalize_spec(spec_obj)
@@ -603,7 +691,7 @@ def pricing_pipeline(
     for name, spec in normalized_specs.items():
         kind = _infer_kind(spec)
         pricer = make_single_product_pricer(kind=kind, spec=spec, short_rate=short_rate)
-        prices[name] = float(pricer(scen_Q))
+        prices[name] = float(pricer(scen_used))
     return prices
 
 
@@ -655,6 +743,105 @@ def risk_analysis_pipeline(
         rate_bump=bumps.get("rate_bump", 1e-4),
         ages_for_delta=bumps.get("ages_for_delta"),
     )
+
+
+def sensitivities_pipeline(
+    scen: MortalityScenarioSet,
+    *,
+    specs: Mapping[str, object],
+    short_rate: float,
+    compute_rate: bool = True,
+    compute_convexity: bool = False,
+    compute_delta_by_age: bool = False,
+    compute_vega: bool = False,
+    bumps: dict | None = None,
+) -> dict[str, Any]:
+    """
+    UI-friendly sensitivities pipeline:
+    - always returns base prices
+    - optionally returns rate sensitivity, convexity, delta-by-age, vega
+    - vega requires a scenario builder (or cache+lambda)
+    """
+    bumps = bumps or {}
+
+    # normalize specs
+    normalized_specs: dict[str, object] = {}
+    for name, spec_obj in specs.items():
+        normalized_specs[name] = _normalize_spec(spec_obj)
+
+    out: dict[str, Any] = {}
+    out["prices_base"] = price_all_products(
+        scen, specs=normalized_specs, short_rate=float(short_rate)
+    )
+
+    # rate sens
+    if compute_rate:
+        out["rate_sensitivity"] = rate_sensitivity_all_products(
+            scen,
+            specs=normalized_specs,
+            base_short_rate=float(short_rate),
+            bump=float(bumps.get("rate_bump", 1e-4)),
+        )
+
+    # convexity
+    if compute_convexity:
+        out["rate_convexity"] = rate_convexity_all_products(
+            scen,
+            specs=normalized_specs,
+            base_short_rate=float(short_rate),
+            bump=float(bumps.get("rate_bump", 1e-4)),
+        )
+
+    # delta by age
+    if compute_delta_by_age:
+        out["delta_by_age"] = mortality_delta_by_age_all_products(
+            scen,
+            specs=normalized_specs,
+            short_rate=float(short_rate),
+            ages=bumps.get("ages_for_delta"),
+            rel_bump=float(bumps.get("q_rel_bump", 0.01)),
+        )
+
+    # vega
+    if compute_vega:
+        # 1) direct builder
+        build_scen_func = bumps.get("build_scenarios_func")
+
+        # 2) or infer builder from cache + lambda
+        if build_scen_func is None and (
+            "calibration_cache" in bumps and "lambda_esscher" in bumps
+        ):
+            cache = bumps["calibration_cache"]
+            lam = bumps["lambda_esscher"]
+
+            def build_scen_func(scale_sigma: float) -> MortalityScenarioSet:
+                return build_scenarios_under_lambda_fast(
+                    cache=cache,
+                    lambda_esscher=lam,
+                    scale_sigma=scale_sigma,
+                )
+
+        if build_scen_func is None:
+            raise ValueError(
+                "compute_vega=True but no builder provided. "
+                "Pass bumps['build_scenarios_func'] or (calibration_cache + lambda_esscher)."
+            )
+
+        out["vega_sigma_scale"] = mortality_vega_all_products(
+            build_scen_func,
+            specs=normalized_specs,
+            short_rate=float(short_rate),
+            rel_bump=float(bumps.get("sigma_rel_bump", 0.05)),
+        )
+
+    out["meta"] = {
+        "short_rate": float(short_rate),
+        "rate_bump": float(bumps.get("rate_bump", 1e-4)),
+        "q_rel_bump": float(bumps.get("q_rel_bump", 0.01)),
+        "sigma_rel_bump": float(bumps.get("sigma_rel_bump", 0.05)),
+        "ages_for_delta": bumps.get("ages_for_delta"),
+    }
+    return out
 
 
 def stress_testing_pipeline(
@@ -797,9 +984,12 @@ def hedging_pipeline(
     *,
     liability_pv_paths: np.ndarray,
     hedge_pv_paths: np.ndarray,
+    liability_cf_paths: np.ndarray | None = None,
+    hedge_cf_paths: np.ndarray | None = None,
     hedge_greeks: dict | None = None,
     method: str = "min_variance",
     constraints: dict | None = None,
+    discount_factors: np.ndarray | None = None,
 ) -> HedgeResult | GreekHedgeResult:
     """
     Compute hedge weights using various strategies.
@@ -825,11 +1015,26 @@ def hedging_pipeline(
         )
 
     if m == "multihorizon":
+        if liability_cf_paths is None or hedge_cf_paths is None:
+            raise ValueError(
+                "For method='multihorizon', provide liability_cf_paths (N,T) and hedge_cf_paths (N,M,T)."
+            )
+
+        mode = str(constraints.get("mode", "pv_by_horizon"))
+        df = constraints.get("discount_factors", discount_factors)
+        if mode == "pv_by_horizon" and df is None:
+            raise ValueError(
+                "mode='pv_by_horizon' requires constraints['discount_factors'] "
+                "(shape (T,) or (N,T))."
+            )
+
         return compute_multihorizon_hedge(
-            liability_cf_paths=liability_pv_paths,
-            instruments_cf_paths=hedge_pv_paths,
-            discount_factors=constraints.get("discount_factors"),
+            liability_cf_paths=liability_cf_paths,
+            instruments_cf_paths=hedge_cf_paths,
+            discount_factors=df,
             time_weights=constraints.get("time_weights"),
+            instrument_names=constraints.get("instrument_names"),
+            mode=mode,
         )
 
     if m == "greek":
@@ -896,3 +1101,147 @@ def reporting_pipeline(
         var_level=var_level,
         ref_pv_paths=ref_pv_paths,
     )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _attach_plot_extension_gompertz(
+    scen: MortalityScenarioSet,
+    *,
+    ages_raw: np.ndarray | None,
+    years_raw: np.ndarray | None,
+    m_raw: np.ndarray | None,
+    plot_age_start: int,
+    plot_age_max: int,
+    age_fit_min: int = 80,
+    age_fit_max: int = 100,
+) -> None:
+    """
+    Plot-only extension beyond plot_age_start using Gompertz fitted on RAW observed m.
+    Writes into scen.metadata["plot_extension"].
+    Never raises (swallows errors into scen.metadata["plot_extension_error"]).
+    """
+    try:
+        if ages_raw is None or years_raw is None or m_raw is None:
+            return
+
+        ages_raw = np.asarray(ages_raw, dtype=float)
+        years_raw = np.asarray(years_raw, dtype=int)
+        m_raw = np.asarray(m_raw, dtype=float)
+
+        gfit = fit_gompertz_per_year(
+            ages=ages_raw,
+            years=years_raw,
+            m=m_raw,
+            age_fit_min=age_fit_min,
+            age_fit_max=age_fit_max,
+            m_floor=1e-12,
+            compute_fitted_surface=False,
+        )
+
+        ages_ext_raw, years_ext_raw, m_ext_raw = extrapolate_gompertz_surface(
+            gfit,
+            age_min=int(np.min(ages_raw)),
+            age_max=int(plot_age_max),
+        )
+
+        q_ext_raw = m_to_q(m_ext_raw)  # (A_ext, T_raw)
+
+        years_proj = np.asarray(scen.years, dtype=int)  # (H_out,)
+        y0, y1 = int(years_ext_raw[0]), int(years_ext_raw[-1])
+        years_clamped = np.clip(years_proj, y0, y1)
+        year_index = (years_clamped - y0).astype(int)
+
+        q_ext_on_proj = q_ext_raw[:, year_index]  # (A_ext, H_out)
+
+        A_ext, H_out = q_ext_on_proj.shape
+        S_cohort = np.full((A_ext, H_out), np.nan, dtype=float)
+
+        for a_idx in range(A_ext):
+            K = min(H_out, A_ext - a_idx)
+            if K <= 0:
+                continue
+            j = np.arange(K)
+            q_diag = q_ext_on_proj[a_idx + j, j]
+            S_cohort[a_idx, :K] = np.cumprod(1.0 - q_diag)
+
+        astart = max(int(plot_age_start), int(ages_ext_raw.min()))
+        start_idx = int(astart - int(ages_ext_raw.min()))
+
+        scen.metadata["plot_extension"] = {
+            "method": "gompertz_per_year_on_raw",
+            "fit_window": [int(age_fit_min), int(age_fit_max)],
+            "plot_age_start": int(plot_age_start),
+            "plot_age_max": int(plot_age_max),
+            "ages_ext": ages_ext_raw[start_idx:].astype(float).tolist(),
+            "years": years_proj.astype(int).tolist(),
+            "q_ext": q_ext_on_proj[start_idx:, :].astype(float).tolist(),
+            "S_ext": S_cohort[start_idx:, :].astype(float).tolist(),
+        }
+
+    except Exception as exc:
+        scen.metadata["plot_extension_error"] = str(exc)
+
+
+@dataclass(frozen=True)
+class HullWhiteConfig:
+    enabled: bool = False
+    a: float = 0.05
+    sigma: float = 0.01
+    seed: Optional[int] = 0
+    # zéro-courbe: soit array (H,), soit float (plat), soit None -> on fallback sur short_rate
+    zero_rates: Optional[np.ndarray] = None
+    r0: Optional[float] = None  # si None, prend zero_rates[0]
+
+
+def apply_hull_white_discounting(
+    scen: MortalityScenarioSet,
+    *,
+    hw: HullWhiteConfig,
+    short_rate: Optional[float],
+) -> MortalityScenarioSet:
+    if not hw.enabled:
+        return scen
+
+    H = int(len(scen.years))
+    times = np.arange(1, H + 1, dtype=float)
+
+    # --- construire la zero curve ---
+    if hw.zero_rates is None:
+        if short_rate is None:
+            raise ValueError(
+                "Hull–White enabled but no zero curve provided and short_rate is None."
+            )
+        zero_rates = np.full(H, float(short_rate), dtype=float)
+    else:
+        zr = np.asarray(hw.zero_rates, dtype=float).reshape(-1)
+        if zr.size == 1:
+            zero_rates = np.full(H, float(zr[0]), dtype=float)
+        else:
+            if zr.size < H:
+                raise ValueError(
+                    f"zero_rates must have length >= H={H}, got {zr.size}."
+                )
+            zero_rates = zr[:H]
+
+    # --- simulate rate paths + DF paths ---
+    ir_set = build_interest_rate_scenarios(
+        times=times,
+        zero_rates=zero_rates,
+        a=float(hw.a),
+        sigma=float(hw.sigma),
+        n_scenarios=int(np.asarray(scen.q_paths).shape[0]),
+        r0=hw.r0,
+        seed=hw.seed,
+    )
+
+    scen_hw = clone_scen_set_with(scen, discount_factors=ir_set.discount_factors)
+
+    md = dict(getattr(scen_hw, "metadata", {}) or {})
+    md["interest_rate_model"] = ir_set.metadata
+    scen_hw = clone_scen_set_with(scen_hw, metadata=md)
+
+    return scen_hw

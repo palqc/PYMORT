@@ -9,7 +9,7 @@ import numpy as np
 
 from pymort.analysis.projections import ProjectionResult
 from pymort.lifetables import (
-    survival_paths_from_q_paths,
+    cohort_survival_from_q_paths,
     validate_q,
     validate_survival_monotonic,
 )
@@ -173,7 +173,9 @@ def load_scenario_set_npz(path: Path | str) -> MortalityScenarioSet:
         q_paths=np.asarray(data["q_paths"]),
         S_paths=np.asarray(data["S_paths"]),
         m_paths=data["m_paths"] if "m_paths" in data else None,
-        discount_factors=data["discount_factors"] if "discount_factors" in data else None,
+        discount_factors=(
+            data["discount_factors"] if "discount_factors" in data else None
+        ),
         metadata=metadata,
     )
     return scen_set
@@ -225,7 +227,7 @@ def build_scenario_set_from_projection(
             f"Time dimension mismatch: q_paths has H={H}, proj.years has "
             f"{proj.years.shape[0]}."
         )
-    S_paths = survival_paths_from_q_paths(q_paths)
+    S_paths = cohort_survival_from_q_paths(q_paths)
     validate_survival_monotonic(S_paths)
 
     if discount_factors is not None:

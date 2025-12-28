@@ -18,11 +18,12 @@ def clone_scen_set_with(
     *,
     q_paths: Optional[np.ndarray] = None,
     S_paths: Optional[np.ndarray] = None,
+    discount_factors: Optional[np.ndarray] = None,
+    metadata: Optional[Dict[str, object]] = None,
 ) -> MortalityScenarioSet:
     """
-    Clone un MortalityScenarioSet, en remplaçant éventuellement q_paths / S_paths.
-
-    On reste robuste à l'évolution de la dataclass en introspectant ses champs.
+    Clone MortalityScenarioSet, en remplaçant éventuellement q_paths / S_paths /
+    discount_factors / metadata (si ces champs existent dans la dataclass).
     """
     field_names = list(MortalityScenarioSet.__dataclass_fields__.keys())  # type: ignore[attr-defined]
     kwargs: Dict[str, object] = {}
@@ -32,6 +33,10 @@ def clone_scen_set_with(
             kwargs[name] = q_paths
         elif name == "S_paths" and S_paths is not None:
             kwargs[name] = S_paths
+        elif name == "discount_factors" and discount_factors is not None:
+            kwargs[name] = discount_factors
+        elif name == "metadata" and metadata is not None:
+            kwargs[name] = metadata
         else:
             kwargs[name] = getattr(scen_set, name)
 

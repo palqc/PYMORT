@@ -6,7 +6,12 @@ from typing import Any, Dict, Optional
 import numpy as np
 
 from pymort.analysis import MortalityScenarioSet
-from pymort.pricing.utils import build_discount_factors, find_nearest_age_index
+from pymort.pricing.utils import (
+    build_discount_factors,
+    cohort_survival_full_horizon_from_q,
+    find_nearest_age_index,
+    pv_from_cf_paths,
+)
 
 
 @dataclass
@@ -72,6 +77,7 @@ def price_survivor_swap(
     *,
     short_rate: Optional[float] = None,
     discount_factors: Optional[np.ndarray] = None,
+    return_cf_paths: bool = False,
 ) -> Dict[str, Any]:
     """
     Price a survivor swap using mortality scenarios.
@@ -127,6 +133,25 @@ def price_survivor_swap(
 
     # Survival for this cohort at payment dates: shape (N, P)
     S_age = S_paths[:, age_idx, pay_idx]  # (N, P)
+
+    if not np.isfinite(S_age).all():
+        q_paths = np.asarray(scen_set.q_paths, dtype=float)
+        ages_grid = np.asarray(scen_set.ages, dtype=float)
+
+        S_full = cohort_survival_full_horizon_from_q(
+            q_paths=q_paths,
+            ages=ages_grid,
+            age0=float(spec.age),
+            horizon=int(T),
+            age_fit_min=80,
+            age_fit_max=min(95, int(ages_grid.max())),
+        )  # (N, T)
+
+        S_age = S_full[:, pay_idx]
+
+        if not np.isfinite(S_age).all():
+            raise ValueError("Some S_age values are not finite even after fallback.")
+
     P = S_age.shape[1]
 
     # Discount factors for payment dates: shape (P,)
@@ -143,7 +168,9 @@ def price_survivor_swap(
             raise ValueError(
                 f"discount_factors must have first dim 1 or N={N}; got {df_full.shape}."
             )
-        df_full_eff = df_full if df_full.shape[0] == N else np.repeat(df_full, N, axis=0)
+        df_full_eff = (
+            df_full if df_full.shape[0] == N else np.repeat(df_full, N, axis=0)
+        )
     else:
         raise ValueError("discount_factors must be 1D or 2D.")
 
@@ -177,13 +204,23 @@ def price_survivor_swap(
         # Pays floating, receives fixed: CF_t = N(K - S)
         cf = spec.notional * (K - S_age)  # (N, P)
 
-    # Present value per scenario
-    pv_paths = (cf * df).sum(axis=1)  # (N,)
+    # Build full-grid cashflow paths on annual grid (N,T), with zeros off-schedule
+    cf_paths_full = np.zeros((N, T), dtype=float)  # (N,T)
+    cf_paths_full[:, pay_idx] = cf  # insert scheduled CFs
+
+    # Discount factors on full grid: (1,T) or (N,T)
+    if df_full_eff.shape[1] != T:
+        raise RuntimeError("Internal error: df_full_eff horizon mismatch.")
+    pv_paths = pv_from_cf_paths(cf_paths_full, df_full_eff)  # (N,)
     price = float(pv_paths.mean())
 
+    times = np.arange(1, T + 1, dtype=int)
+    expected_cashflows = cf_paths_full.mean(axis=0)  # (T,)
+
     # Expected legs (useful diagnostics)
-    float_leg_expected = (spec.notional * S_age.mean(axis=0) * df).sum()
-    fixed_leg_expected = (spec.notional * K * df).sum()
+    df_pay_mean = df_full_eff[:, pay_idx].mean(axis=0)  # (P,)
+    float_leg_expected = float(np.sum(spec.notional * S_age.mean(axis=0) * df_pay_mean))
+    fixed_leg_expected = float(np.sum(spec.notional * K * df_pay_mean))
 
     metadata: Dict[str, Any] = {
         "N_scenarios": int(N),
@@ -199,12 +236,19 @@ def price_survivor_swap(
         "fixed_leg_pv_expected": float(fixed_leg_expected),
     }
 
-    return {
+    payload: Dict[str, Any] = {
         "price": price,
         "pv_paths": pv_paths,
         "age_index": age_idx,
-        "discount_factors": df,
-        "discount_factors_full": df_full,
+        "discount_factors": df_full_eff,  # (1,T) or (N,T)
+        "discount_factors_input": df_full,
         "strike": K,
+        "expected_cashflows": expected_cashflows,
         "metadata": metadata,
     }
+
+    if return_cf_paths:
+        payload["cf_paths"] = cf_paths_full  # (N,T)
+        payload["times"] = times  # (T,)
+
+    return payload
