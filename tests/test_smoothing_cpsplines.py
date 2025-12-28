@@ -5,6 +5,8 @@ import pytest
 
 from pymort.analysis.smoothing import smooth_mortality_with_cpsplines
 
+pytest.importorskip("cpsplines")
+
 
 def _toy_surface(A: int = 6, T: int = 8):
     ages = np.arange(60, 60 + A, dtype=float)

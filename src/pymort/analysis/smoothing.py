@@ -1,9 +1,10 @@
-from typing import Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from cpsplines.fittings.fit_cpsplines import CPsplines
-from cpsplines.utils.rearrange_data import grid_to_scatter
+
+if TYPE_CHECKING:  # pragma: no cover
+    from cpsplines.fittings.fit_cpsplines import CPsplines
 
 
 def smooth_mortality_with_cpsplines(
@@ -21,6 +22,13 @@ def smooth_mortality_with_cpsplines(
     """
     Smooth log(m_x,t) with CPsplines on a 2D surface (Age * Year).
     """
+    try:
+        from cpsplines.fittings.fit_cpsplines import CPsplines
+        from cpsplines.utils.rearrange_data import grid_to_scatter
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "cpsplines is required for CPsplines smoothing. Install with `pip install .[cpsplines]`."
+        ) from exc
     m = np.asarray(m, dtype=float)
     ages = np.asarray(ages, dtype=float)
     years = np.asarray(years, dtype=int)

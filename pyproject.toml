@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pymort"
-version = "0.1.0"
+version = "1.0.0"
 description = "Longevity bond pricing and mortality modeling toolkit"
 authors = [{name = "Pierre-Antoine Le Quellec", email = "pierre-antoine.lequellec@unil.ch"}]
 readme = "README.md"
@@ -15,6 +15,7 @@ dependencies = [
     "scipy>=1.11",
     "statsmodels>=0.14",
     "typer>=0.12",
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]
@@ -29,9 +30,13 @@ dev = [
     "pandas-stubs>=2.1.4.240218",
     "types-setuptools>=69.0",
     "types-PyYAML>=6.0",
+    "matplotlib>=3.8",
     "build>=1.1",
     "twine>=5.0",
-    "cpsplines @ git+https://github.com/ManuelNavarroGarcia/cpsplines.git@89c3cf8",
+]
+
+cpsplines = [
+  "cpsplines @ https://github.com/ManuelNavarroGarcia/cpsplines/archive/89c3cf8.zip ; python_version >= \"3.12\"",
 ]
 
 [project.scripts]
@@ -86,7 +91,15 @@ disallow_untyped_defs = false
 disallow_any_unimported = false
 
 [[tool.mypy.overrides]]
-module = ["hypothesis.*", "typer.*", "numpy.*", "scipy.*", "statsmodels.*"]
+module = [
+    "hypothesis.*",
+    "typer.*",
+    "numpy.*",
+    "scipy.*",
+    "statsmodels.*",
+    "matplotlib.*",
+    "cpsplines.*",
+]
 ignore_missing_imports = true
 
 # Pytest configuration

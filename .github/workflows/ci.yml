@@ -38,7 +38,7 @@ jobs:
 
       - name: MyPy (types)
         run: |
-          mypy pymort
+          mypy src/pymort
 
       - name: Pytest
         run: |

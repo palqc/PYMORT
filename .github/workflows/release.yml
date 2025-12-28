@@ -40,8 +40,15 @@ jobs:
       - name: Extract version
         id: get_version
         run: |
-          python -c "import importlib.metadata as m; print(m.version('pymort'))" > VERSION.txt
-          echo "version=$(cat VERSION.txt)" >> $GITHUB_OUTPUT
+          version=$(python - <<'PY'
+from pathlib import Path
+import tomllib
+
+data = tomllib.loads(Path("pyproject.toml").read_text())
+print(data["project"]["version"])
+PY
+          )
+          echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Upload dist artifacts
         uses: actions/upload-artifact@v4
@@ -51,7 +58,7 @@ jobs:
 
   publish-testpypi:
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.TEST_PYPI_API_TOKEN != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -71,7 +78,7 @@ jobs:
 
   publish-pypi:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && secrets.PYPI_API_TOKEN != ''
     runs-on: ubuntu-latest
 
     steps:
