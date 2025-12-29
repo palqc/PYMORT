@@ -7,10 +7,11 @@ Note:
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Literal
+from typing import Literal, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
@@ -29,9 +30,9 @@ def _agg_stat(arr: FloatArray, statistic: Literal["mean", "median"]) -> FloatArr
         Aggregated surface with shape (A, T).
     """
     if statistic == "mean":
-        return np.mean(arr, axis=0)
+        return cast(FloatArray, np.mean(arr, axis=0))
     if statistic == "median":
-        return np.median(arr, axis=0)
+        return cast(FloatArray, np.median(arr, axis=0))
     raise ValueError("statistic must be 'mean' or 'median'.")
 
 
@@ -40,8 +41,8 @@ def plot_lexis(
     value: Literal["m", "q", "S"] = "q",
     statistic: Literal["mean", "median"] = "median",
     cohorts: Iterable[int] | None = None,
-    ax=None,
-):
+    ax: Axes | None = None,
+) -> Axes:
     """Plot a Lexis-style heatmap for scenario summaries.
 
     Args:

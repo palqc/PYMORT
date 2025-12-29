@@ -13,7 +13,7 @@ from __future__ import annotations
 import io
 from collections.abc import Iterable
 from contextlib import suppress
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -124,8 +124,10 @@ def _read_table_with_header(
         sub = sub[sub["Age"] != "110+"]
 
     # Coerce numerics
-    sub["Year"] = pd.to_numeric(sub.get("Year"), errors="coerce")
-    sub["Age"] = pd.to_numeric(sub.get("Age"), errors="coerce")
+    year_col = cast("pd.Series[Any]", sub.get("Year"))
+    age_col = cast("pd.Series[Any]", sub.get("Age"))
+    sub["Year"] = pd.to_numeric(year_col, errors="coerce")
+    sub["Age"] = pd.to_numeric(age_col, errors="coerce")
     for sx in ("Total", "Female", "Male"):
         if sx in sub.columns:
             sub[sx] = pd.to_numeric(sub[sx], errors="coerce")
@@ -201,7 +203,11 @@ def load_m_from_excel(
                 hrow,
             )
         # Prefer sheet where requested sex is available
-        if (sex in table.columns) and (found_df is not None) and (sex not in found_df.columns):
+        if (
+            (sex in table.columns)
+            and (found_df is not None)
+            and (sex not in found_df.columns)
+        ):
             found_df, _found_cols, _found_sheet, _header_row = (
                 table,
                 cmap,
@@ -218,7 +224,9 @@ def load_m_from_excel(
     df = found_df
 
     # Choose the rate column to use
-    rate_col = sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    rate_col = (
+        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    )
     if rate_col is None:
         # If requested sex not present and no Total, fallback to Female or Male (whichever exists)
         rate_col = "Female" if "Female" in df.columns else "Male"
@@ -440,7 +448,7 @@ def load_m_from_excel_any(
 
     # Streamlit UploadedFile: prefer getbuffer() to avoid consuming the stream
     if hasattr(source, "getbuffer"):
-        excel_obj = io.BytesIO(source.getbuffer())  # type: ignore[arg-type]
+        excel_obj = io.BytesIO(source.getbuffer())
     # bytes-like
     elif isinstance(source, (bytes, bytearray)):
         excel_obj = io.BytesIO(source)
@@ -479,7 +487,11 @@ def load_m_from_excel_any(
                 hrow,
             )
 
-        if (sex in table.columns) and (found_df is not None) and (sex not in found_df.columns):
+        if (
+            (sex in table.columns)
+            and (found_df is not None)
+            and (sex not in found_df.columns)
+        ):
             found_df, _found_cols, _found_sheet, _header_row = (
                 table,
                 cmap,
@@ -496,7 +508,9 @@ def load_m_from_excel_any(
     df = found_df
 
     # Choose the rate column to use
-    rate_col = sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    rate_col = (
+        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
+    )
     if rate_col is None:
         rate_col = "Female" if "Female" in df.columns else "Male"
 

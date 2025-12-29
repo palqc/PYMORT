@@ -23,7 +23,7 @@ def smooth_mortality_with_cpsplines(
     ord_d: tuple[int, int] = (2, 2),
     k: tuple[int, int] | None = None,
     sp_method: str = "grid_search",
-    sp_args: dict | None = None,
+    sp_args: dict[str, object] | None = None,
     horizon: int = 50,
     verbose: bool = False,
 ) -> dict[str, object]:

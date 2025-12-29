@@ -42,7 +42,7 @@ def clone_scen_set_with(
     Returns:
         New MortalityScenarioSet with requested fields replaced.
     """
-    field_names = list(MortalityScenarioSet.__dataclass_fields__.keys())  # type: ignore[attr-defined]
+    field_names = list(MortalityScenarioSet.__dataclass_fields__.keys())
     kwargs: dict[str, object] = {}
 
     for name in field_names:
@@ -554,13 +554,13 @@ def apply_shock_spec(
     st = spec.shock_type.lower()
 
     if st == "cohort":
-        return apply_cohort_trend_shock(scen_set, **spec.params)  # type: ignore[arg-type]
+        return apply_cohort_trend_shock(scen_set, **spec.params)
 
     if st == "life_expectancy":
-        return apply_life_expectancy_shift(scen_set, **spec.params)  # type: ignore[arg-type]
+        return apply_life_expectancy_shift(scen_set, **spec.params)
 
     # sinon, shocks “q-based” gérés par apply_mortality_shock
-    return apply_mortality_shock(scen_set, shock_type=st, **spec.params)  # type: ignore[arg-type]
+    return apply_mortality_shock(scen_set, shock_type=st, **spec.params)
 
 
 def generate_stressed_scenarios(

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
@@ -19,6 +19,8 @@ from pymort.analysis import MortalityScenarioSet
 
 PVKind = Literal["cost", "value", "pnl"]
 
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 # =============================================================================
 # 1) Core dataclass
@@ -262,9 +264,9 @@ def plot_survival_fan(
     scen_set: MortalityScenarioSet,
     age: float,
     *,
-    ax=None,
+    ax: Axes | None = None,
     quantiles: tuple[float, ...] = (0.05, 0.25, 0.50, 0.75, 0.95),
-):
+) -> Axes:
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:
@@ -311,11 +313,11 @@ def plot_survival_fan(
 def plot_price_distribution(
     pv_paths: np.ndarray,
     *,
-    ax=None,
+    ax: Axes | None = None,
     bins: int = 50,
     density: bool = True,
     label: str = "PV distribution",
-):
+) -> Axes:
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:
@@ -340,10 +342,10 @@ def plot_hedge_performance(
     liability_pv_paths: np.ndarray,
     net_pv_paths: np.ndarray,
     *,
-    ax=None,
+    ax: Axes | None = None,
     label_liability: str = "Liability PV",
     label_net: str = "Net (Liability + Hedge) PV",
-):
+) -> Axes:
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:

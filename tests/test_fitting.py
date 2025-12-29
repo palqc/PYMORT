@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -157,7 +159,7 @@ def test_fit_single_model_lcm2_params_none_raises(monkeypatch):
     _patch_rmse(monkeypatch)
     _patch_models(monkeypatch, lcm2_params_none=True)
     ages, years, m = _toy_m()
-    with pytest.raises(RuntimeError, match=r"LCM2.fit\\(\\) returned None params"):
+    with pytest.raises(RuntimeError, match=re.escape("LCM2.fit() returned None params")):
         fitmod._fit_single_model("LCM2", ages, years, m_fit=m, m_eval=m)
 
 
@@ -165,7 +167,7 @@ def test_fit_single_model_apcm3_params_none_raises(monkeypatch):
     _patch_rmse(monkeypatch)
     _patch_models(monkeypatch, apc_params_none=True)
     ages, years, m = _toy_m()
-    with pytest.raises(RuntimeError, match=r"APCM3.fit\\(\\) returned None params"):
+    with pytest.raises(RuntimeError, match=re.escape("APCM3.fit() returned None params")):
         fitmod._fit_single_model("APCM3", ages, years, m_fit=m, m_eval=m)
 
 
@@ -173,7 +175,7 @@ def test_fit_single_model_cbdm6_params_none_raises(monkeypatch):
     _patch_rmse(monkeypatch)
     _patch_models(monkeypatch, cbd6_params_none=True)
     ages, years, m = _toy_m()
-    with pytest.raises(RuntimeError, match=r"CBDM6.fit\\(\\) returned None params"):
+    with pytest.raises(RuntimeError, match=re.escape("CBDM6.fit() returned None params")):
         fitmod._fit_single_model("CBDM6", ages, years, m_fit=m, m_eval=m)
 
 
@@ -181,7 +183,7 @@ def test_fit_single_model_cbdm7_params_none_raises(monkeypatch):
     _patch_rmse(monkeypatch)
     _patch_models(monkeypatch, cbd7_params_none=True)
     ages, years, m = _toy_m()
-    with pytest.raises(RuntimeError, match=r"CBDM7.fit\\(\\) returned None params"):
+    with pytest.raises(RuntimeError, match=re.escape("CBDM7.fit() returned None params")):
         fitmod._fit_single_model("CBDM7", ages, years, m_fit=m, m_eval=m)
 
 

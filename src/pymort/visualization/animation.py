@@ -6,12 +6,13 @@ Note:
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation
+from matplotlib.artist import Artist
 from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
@@ -67,7 +68,7 @@ def animate_mortality_surface(
     ax.set_xlabel("Year")
     ax.set_ylabel("Age")
 
-    def update(frame: int):
+    def update(frame: int) -> Sequence[Artist]:
         pcm.set_array(surf[:, frame].ravel())
         ax.set_title(f"{value} {statistic} | year={years[frame]}")
         return (pcm,)
@@ -127,7 +128,7 @@ def animate_survival_curves(
     ax.set_ylabel("Survival probability")
     ax.legend()
 
-    def update(frame: int):
+    def update(frame: int) -> Sequence[Artist]:
         for ln, i in zip(lines, idx, strict=True):
             ln.set_data(years[: frame + 1], S_agg[i, : frame + 1])
         ax.set_title(f"Survival curves up to year={years[frame]}")

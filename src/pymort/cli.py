@@ -9,10 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import pickle
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -39,6 +39,8 @@ from pymort.analysis.sensitivities import (
 )
 from pymort.lifetables import m_to_q
 from pymort.pipeline import (
+    BumpsConfig,
+    HedgeConstraints,
     _derive_bootstrap_params,
     _infer_kind,
     _normalize_spec,
@@ -100,15 +102,15 @@ def _load_config(path: Path | None) -> dict[str, Any]:
         raise typer.BadParameter(f"Config file {path} does not exist.")
     text = path.read_text()
     try:
-        return json.loads(text)
+        return cast(dict[str, Any], json.loads(text))
     except json.JSONDecodeError:
         try:
-            import yaml  # type: ignore
+            import yaml
         except Exception as exc:
             raise typer.BadParameter(
                 f"Could not parse config {path} as JSON; install pyyaml for YAML support."
             ) from exc
-        return yaml.safe_load(text)
+        return cast(dict[str, Any], yaml.safe_load(text))
 
 
 def _ensure_outdir(path: Path, overwrite: bool) -> None:
@@ -171,7 +173,7 @@ def _slice_surface(
 def _read_numeric_series(path: Path) -> np.ndarray:
     ext = path.suffix.lower()
     if ext == ".npy":
-        return np.load(path)
+        return cast(np.ndarray, np.load(path))
     if ext == ".npz":
         data = np.load(path)
         first_key = next(iter(data.keys()))
@@ -385,7 +387,7 @@ def _normalize_model_flag(model: str) -> ModelName:
         return "CBDM6"
     if alias in {"cbd-m7", "cbdm7"}:
         return "CBDM7"
-    return model.upper()  # fallback to raw ModelName
+    return cast(ModelName, model.upper())  # fallback to raw ModelName
 
 
 def _price_paths_for_spec(
@@ -397,16 +399,35 @@ def _price_paths_for_spec(
     spec = _normalize_spec(spec_obj)
     kind = _infer_kind(spec)
     if kind == "longevity_bond":
-        res = price_simple_longevity_bond(scen_set=scen_set, spec=spec, short_rate=short_rate)
+        res = price_simple_longevity_bond(
+            scen_set=scen_set,
+            spec=cast(LongevityBondSpec, spec),
+            short_rate=short_rate,
+        )
     elif kind == "s_forward":
-        res = price_s_forward(scen_set=scen_set, spec=spec, short_rate=short_rate)
+        res = price_s_forward(
+            scen_set=scen_set,
+            spec=cast(SForwardSpec, spec),
+            short_rate=short_rate,
+        )
     elif kind == "q_forward":
-        res = price_q_forward(scen_set=scen_set, spec=spec, short_rate=short_rate)
+        res = price_q_forward(
+            scen_set=scen_set,
+            spec=cast(QForwardSpec, spec),
+            short_rate=short_rate,
+        )
     elif kind == "survivor_swap":
-        res = price_survivor_swap(scen_set=scen_set, spec=spec, short_rate=short_rate)
+        res = price_survivor_swap(
+            scen_set=scen_set,
+            spec=cast(SurvivorSwapSpec, spec),
+            short_rate=short_rate,
+        )
     elif kind == "life_annuity":
         res = price_cohort_life_annuity(
-            scen_set=scen_set, spec=spec, short_rate=short_rate, discount_factors=None
+            scen_set=scen_set,
+            spec=cast(CohortLifeAnnuitySpec, spec),
+            short_rate=short_rate,
+            discount_factors=None,
         )
     else:
         raise typer.BadParameter(f"Unsupported instrument kind '{kind}'.")
@@ -588,11 +609,11 @@ def smooth_cpsplines_cmd(
 ) -> None:
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
-    deg_tuple = tuple(int(x) for x in deg.split(","))
-    ord_tuple = tuple(int(x) for x in ord_d.split(","))
-    k_tuple = None
+    deg_tuple = cast(tuple[int, int], tuple(int(x) for x in deg.split(",")))
+    ord_tuple = cast(tuple[int, int], tuple(int(x) for x in ord_d.split(",")))
+    k_tuple: tuple[int, int] | None = None
     if k not in (None, "auto"):
-        k_tuple = tuple(int(x) for x in str(k).split(","))
+        k_tuple = cast(tuple[int, int], tuple(int(x) for x in str(k).split(",")))
     sp_kwargs = json.loads(sp_args) if sp_args else None
     res = smooth_mortality_with_cpsplines(
         m=m,
@@ -721,12 +742,13 @@ def fit_one_cmd(
         if smoothing == "cpsplines"
         else None
     )
+    smoothing_mode = cast(Literal["none", "cpsplines"], smoothing)
     fitted = fit_mortality_model(
         model_name=model,
         ages=ages_arr,
         years=years_arr,
         m=m,
-        smoothing=smoothing,
+        smoothing=smoothing_mode,
         cpsplines_kwargs=cps_kwargs,
         eval_on_raw=eval_on_raw,
     )
@@ -753,7 +775,7 @@ def fit_select_cmd(
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
     model_names: Sequence[ModelName] = (
-        tuple(name.upper() for name in models)
+        tuple(cast(ModelName, name.upper()) for name in models)
         if models
         else (
             "LCM1",
@@ -762,15 +784,16 @@ def fit_select_cmd(
             "CBDM5",
             "CBDM6",
             "CBDM7",
-        )  # type: ignore[assignment]
+        )
     )
+    metric_mode = cast(Literal["log_m", "logit_q"], metric)
     df, best = model_selection_by_forecast_rmse(
         ages=ages_arr,
         years=years_arr,
         m=m,
         train_end=train_end,
         model_names=model_names,
-        metric=metric,
+        metric=metric_mode,
     )
     out = output or c.outdir / "model_selection.csv"
     _save_table(df, out, c.output_format)
@@ -796,7 +819,7 @@ def fit_select_and_fit_cmd(
     c = _ctx(ctx)
     ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
     model_names: Sequence[ModelName] = (
-        tuple(name.upper() for name in models)
+        tuple(cast(ModelName, name.upper()) for name in models)
         if models
         else (
             "LCM1",
@@ -805,16 +828,17 @@ def fit_select_and_fit_cmd(
             "CBDM5",
             "CBDM6",
             "CBDM7",
-        )  # type: ignore[assignment]
+        )
     )
     cp_kwargs = {"k": cpsplines_k, "horizon": cpsplines_horizon, "verbose": c.verbose}
+    metric_mode = cast(Literal["log_m", "logit_q"], metric)
     selection_df, fitted = select_and_fit_best_model_for_pricing(
         ages=ages_arr,
         years=years_arr,
         m=m,
         train_end=train_end,
         model_names=model_names,
-        metric=metric,
+        metric=metric_mode,
         cpsplines_kwargs=cp_kwargs,
     )
     sel_out = selection_output or c.outdir / "model_selection.csv"
@@ -876,21 +900,24 @@ def scen_build_p_cmd(
         if models
         else ("LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7")
     )
-    scen_set = build_projection_pipeline(
-        ages=ages_arr,
-        years=years_arr,
-        m=m,
-        train_end=train_end,
-        horizon=horizon,
-        n_scenarios=n_scenarios,
-        model_names=model_names,
-        cpsplines_kwargs={
-            "k": cpsplines_k,
-            "horizon": cpsplines_horizon,
-            "verbose": c.verbose,
-        },
-        bootstrap_kwargs={"include_last": True},
-        seed=seed if seed is not None else c.seed,
+    scen_set = cast(
+        MortalityScenarioSet,
+        build_projection_pipeline(
+            ages=ages_arr,
+            years=years_arr,
+            m=m,
+            train_end=train_end,
+            horizon=horizon,
+            n_scenarios=n_scenarios,
+            model_names=model_names,
+            cpsplines_kwargs={
+                "k": cpsplines_k,
+                "horizon": cpsplines_horizon,
+                "verbose": c.verbose,
+            },
+            bootstrap_kwargs={"include_last": True},
+            seed=seed if seed is not None else c.seed,
+        ),
     )
     out = output or c.outdir / "scenarios_P.npz"
     _save_scenarios(scen_set, out)
@@ -1002,6 +1029,7 @@ def forecast_cmd(
         n_scenarios=int(scenarios),
         bootstrap_kwargs={"resample": resample},
     )
+    resample_typed = cast(Literal["cell", "year_block"], resample_mode)
     _, scen_set, _cache = project_from_fitted_model(
         fitted=fitted,
         B_bootstrap=B_bootstrap,
@@ -1009,7 +1037,7 @@ def forecast_cmd(
         n_process=n_process,
         seed=c.seed,
         include_last=bool(include_last),
-        resample=resample_mode,
+        resample=resample_typed,
     )
     out = output or c.outdir / "scenarios_forecast.npz"
     _save_scenarios(scen_set, out)
@@ -1345,6 +1373,7 @@ def price_bond_cmd(
             n_scenarios=int(scenarios),
             bootstrap_kwargs={"resample": "year_block"},
         )
+        resample_typed = cast(Literal["cell", "year_block"], resample_mode)
         _, scen_set, _cache = project_from_fitted_model(
             fitted=fitted,
             B_bootstrap=B_bootstrap,
@@ -1352,7 +1381,7 @@ def price_bond_cmd(
             n_process=n_process,
             seed=c.seed,
             include_last=True,
-            resample=resample_mode,
+            resample=resample_typed,
         )
 
     if issue_age is None:
@@ -1643,7 +1672,7 @@ def sens_all_cmd(
     c = _ctx(ctx)
     scen_set = _load_scenarios(scen_path)
     specs_cfg = _load_config(specs_path)
-    bumps = {
+    bumps: BumpsConfig = {
         "build_scenarios_func": lambda _scale_sigma: scen_set,
         "sigma_rel_bump": sigma_rel_bump,
         "q_rel_bump": q_rel_bump,
@@ -1734,7 +1763,7 @@ def hedge_default_cmd(
 
     if method.lower() != "min_variance":
         raise typer.BadParameter("Only method='min_variance' is supported for PV paths.")
-    hedge_min_variance_cmd(
+    cast(Callable[..., None], hedge_min_variance_cmd)(
         ctx=ctx,
         liab_pv_path=liabilities,
         instr_pv_path=instruments,
@@ -1788,7 +1817,7 @@ def hedge_end_to_end_cmd(
         method=method,
     )
     if hasattr(res, "instrument_names"):
-        res.instrument_names = instr_names  # type: ignore[attr-defined]
+        res.instrument_names = instr_names
 
     weights_map = {
         name: float(w)
@@ -1847,11 +1876,12 @@ def hedge_multihorizon_cmd(
     H_cf = _read_numeric_cube(instr_cf_path)
     df = _read_numeric_series(discount_factors_path) if discount_factors_path else None
     tw = _read_numeric_series(time_weights_path) if time_weights_path else None
+    constraints = cast(HedgeConstraints, {"discount_factors": df, "time_weights": tw})
     res = hedging_pipeline(
         liability_pv_paths=L,
         hedge_pv_paths=H_cf,
         method="multihorizon",
-        constraints={"discount_factors": df, "time_weights": tw},
+        constraints=constraints,
     )
     out = output or c.outdir / "hedge_multihorizon.json"
     out.write_text(
@@ -1969,8 +1999,8 @@ def plot_lexis_cmd(
         coh_list = [int(x) for x in cohorts.split(",") if x]
     plot_lexis(
         scen_set,
-        value=value,
-        statistic=statistic,
+        value=cast(Literal["m", "q", "S"], value),
+        statistic=cast(Literal["mean", "median"], statistic),
         cohorts=coh_list,
     )
     out = output or c.outdir / "lexis.png"
@@ -2018,15 +2048,15 @@ def plot_animate_cmd(
     if type == "surface":
         animate_mortality_surface(
             scen_set,
-            value=value,
-            statistic=statistic,
+            value=cast(Literal["q", "S"], value),
+            statistic=cast(Literal["mean", "median"], statistic),
             interval=interval,
             save_path=str(output),
         )
     else:
         animate_survival_curves(
             scen_set,
-            statistic=statistic,
+            statistic=cast(Literal["mean", "median"], statistic),
             interval=interval,
             save_path=str(output),
         )
@@ -2090,18 +2120,21 @@ def run_pricing_pipeline_cmd(
     n_scenarios = int(scen_cfg.get("n_scenarios", scen_cfg.get("B_bootstrap", 200)))
 
     if scen_measure == "P":
-        scen_set = build_projection_pipeline(
-            ages=ages_arr,
-            years=years_arr,
-            m=m,
-            train_end=int(fit_cfg.get("train_end", years_arr.max())),
-            horizon=horizon,
-            n_scenarios=n_scenarios,
-            model_names=tuple(m.upper() for m in models)
-            if models
-            else ("LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"),
-            cpsplines_kwargs=fit_cfg.get("cpsplines"),
-            seed=c.seed,
+        scen_set = cast(
+            MortalityScenarioSet,
+            build_projection_pipeline(
+                ages=ages_arr,
+                years=years_arr,
+                m=m,
+                train_end=int(fit_cfg.get("train_end", years_arr.max())),
+                horizon=horizon,
+                n_scenarios=n_scenarios,
+                model_names=tuple(m.upper() for m in models)
+                if models
+                else ("LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"),
+                cpsplines_kwargs=fit_cfg.get("cpsplines"),
+                seed=c.seed,
+            ),
         )
     else:
         cache = build_calibration_cache(
@@ -2180,7 +2213,7 @@ def run_hedge_pipeline_cmd(
         hedge_pv_paths=hedge_matrix,
         method=hedge_cfg.get("method", "min_variance"),
     )
-    res.instrument_names = names  # type: ignore[attr-defined]
+    res.instrument_names = names
     weights_map = {
         name: float(w) for name, w in zip(names, np.asarray(res.weights).reshape(-1), strict=True)
     }

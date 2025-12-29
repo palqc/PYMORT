@@ -6,13 +6,14 @@ Note:
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Protocol, cast
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import lsq_linear
-from sklearn.linear_model import Lasso, Ridge
 
 from pymort.pricing.utils import pv_matrix_from_cf_paths
 
@@ -33,6 +34,21 @@ class HedgeResult:
     hedge_pv_paths: FloatArray  # (N,)
     net_pv_paths: FloatArray  # (N,)
     summary: dict[str, object]
+
+
+class _LinearModel(Protocol):
+    coef_: np.ndarray
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> _LinearModel: ...
+
+
+class _LinearModelFactory(Protocol):
+    def __call__(self, **kwargs: object) -> _LinearModel: ...
+
+
+_sklearn_linear_model = importlib.import_module("sklearn.linear_model")
+Lasso = cast(_LinearModelFactory, _sklearn_linear_model.Lasso)
+Ridge = cast(_LinearModelFactory, _sklearn_linear_model.Ridge)
 
 
 def _default_instrument_names(m: int) -> list[str]:
@@ -219,12 +235,13 @@ def compute_multihorizon_hedge(
     if mode == "pv_by_horizon":
         # "Proper" multihorizon: fit on PV-at-horizon matrices (N,T)
         # L_pv_mat[n,h] = PV at horizon h of remaining liability CFs
-        L_pv_mat = pv_matrix_from_cf_paths(L_cf, df_pv)  # (N,T)
+        df_pv_mat = cast(FloatArray, df_pv)
+        L_pv_mat = pv_matrix_from_cf_paths(L_cf, df_pv_mat)  # (N,T)
 
         # H_pv_mat[n,j,h] = PV at horizon h of remaining CFs of instrument j
         H_pv_mat = np.empty((n, m, t), dtype=float)
         for j in range(m):
-            H_pv_mat[:, j, :] = pv_matrix_from_cf_paths(H_cf[:, j, :], df_pv)
+            H_pv_mat[:, j, :] = pv_matrix_from_cf_paths(H_cf[:, j, :], df_pv_mat)
 
         # WLS on (n,h) pairs
         L_flat = (L_pv_mat * W_sqrt).reshape(n * t)  # (N*T,)
@@ -362,11 +379,11 @@ def compute_greek_matching_hedge(
     elif method == "ridge":
         reg = Ridge(alpha=float(alpha), fit_intercept=False)
         reg.fit(G, -g)
-        w = reg.coef_.reshape(-1)
+        w = np.asarray(reg.coef_, dtype=float).reshape(-1)
     else:
         reg = Lasso(alpha=float(alpha), fit_intercept=False, max_iter=10_000)
         reg.fit(G, -g)
-        w = reg.coef_.reshape(-1)
+        w = np.asarray(reg.coef_, dtype=float).reshape(-1)
 
     residuals_vec = G @ w + g
 

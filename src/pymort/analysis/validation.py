@@ -33,7 +33,7 @@ def _time_split(
     return tr_mask, te_mask, years[tr_mask], years[te_mask]
 
 
-def _check_surface_time_inputs(years: np.ndarray, mat: np.ndarray, name: str):
+def _check_surface_time_inputs(years: np.ndarray, mat: np.ndarray, name: str) -> None:
     years = np.asarray(years, dtype=int)
     mat = np.asarray(mat, dtype=float)
     if mat.ndim != 2:
@@ -103,7 +103,7 @@ def _freeze_gamma_last_per_age(
     out = np.zeros_like(ages, dtype=float)
     for i, age_x in enumerate(ages):
         c_last = float(train_end - age_x)
-        idx = np.searchsorted(cohorts, c_last)
+        idx = int(np.searchsorted(cohorts, c_last))
 
         if idx == 0:
             idx_use = 0

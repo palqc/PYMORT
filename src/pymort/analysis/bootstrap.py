@@ -81,7 +81,7 @@ def bootstrap_logm_model(
     B: int = 500,
     seed: int | None = None,
     resample: ResampleMode = "year_block",
-    fit_kwargs: dict | None = None,
+    fit_kwargs: dict[str, object] | None = None,
 ) -> BootstrapResult:
     """Run a residual bootstrap for models fitted on log-mortality.
 
@@ -170,7 +170,7 @@ def bootstrap_logitq_model(
     B: int = 500,
     seed: int | None = None,
     resample: ResampleMode = "year_block",
-    fit_kwargs: dict | None = None,
+    fit_kwargs: dict[str, object] | None = None,
 ) -> BootstrapResult:
     """Run a residual bootstrap for models fitted on logit(q).
 

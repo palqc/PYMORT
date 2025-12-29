@@ -10,9 +10,9 @@ Note:
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict, cast
 
 import numpy as np
 
@@ -74,13 +74,56 @@ from pymort.pricing.risk_neutral import (
 )
 from pymort.pricing.survivor_swaps import SurvivorSwapSpec
 
+InstrumentSpec = (
+    LongevityBondSpec | SurvivorSwapSpec | SForwardSpec | QForwardSpec | CohortLifeAnnuitySpec
+)
+
+
+class BootstrapKwargs(TypedDict, total=False):
+    B: int
+    B_bootstrap: int
+    n_process: int
+    resample: str
+    include_last: bool
+
+
+class BumpsConfig(TypedDict, total=False):
+    build_scenarios_func: Callable[[float], MortalityScenarioSet]
+    calibration_cache: CalibrationCache
+    lambda_esscher: float | Sequence[float] | np.ndarray
+    short_rate_for_pricing: float | None
+    sigma_rel_bump: float
+    q_rel_bump: float
+    rate_bump: float
+    ages_for_delta: Iterable[float] | None
+
+
+class HedgeConstraints(TypedDict, total=False):
+    lb: float
+    ub: float
+    mode: str
+    discount_factors: np.ndarray
+    time_weights: np.ndarray
+    instrument_names: list[str] | None
+    solver: str
+    alpha: float
+
+
+class HedgeGreeks(TypedDict, total=False):
+    liability: Iterable[float]
+    instruments: np.ndarray
+    liability_dPdr: float
+    instruments_dPdr: Iterable[float]
+    liability_d2Pdr2: float
+    instruments_d2Pdr2: Iterable[float]
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
 def _derive_bootstrap_params(
-    n_scenarios: int, bootstrap_kwargs: dict | None
+    n_scenarios: int, bootstrap_kwargs: BootstrapKwargs | None
 ) -> tuple[int, int, str]:
     """Choose bootstrap parameters given a target number of scenarios.
 
@@ -118,7 +161,7 @@ def _infer_kind(spec: object) -> str:
     raise ValueError("Cannot infer instrument kind; provide a spec dataclass or dict with 'kind'.")
 
 
-def _normalize_spec(spec: object) -> object:
+def _normalize_spec(spec: object) -> InstrumentSpec:
     """Normalize an instrument spec to its dataclass form.
 
     Args:
@@ -180,7 +223,7 @@ def _build_multi_instrument_quotes(
         quotes.append(
             MultiInstrumentQuote(
                 kind=kind,
-                spec=spec,  # type: ignore[arg-type]
+                spec=spec,
                 market_price=float(market_prices[name]),
                 weight=weight,
             )
@@ -500,8 +543,8 @@ def build_projection_pipeline(
         "CBDM6",
         "CBDM7",
     ),
-    cpsplines_kwargs: dict | None = None,
-    bootstrap_kwargs: dict | None = None,
+    cpsplines_kwargs: dict[str, object] | None = None,
+    bootstrap_kwargs: BootstrapKwargs | None = None,
     seed: int | None = None,
     ages_raw: np.ndarray | None = None,
     years_raw: np.ndarray | None = None,
@@ -668,6 +711,7 @@ def build_risk_neutral_pipeline(
             include_last=bool(calibration_kwargs.get("include_last", False)),
         )
 
+    cache = cast(CalibrationCache, cache)
     quotes = _build_multi_instrument_quotes(instruments, market_prices)
     B_bootstrap = getattr(cache.bs_res, "B", None)
     if B_bootstrap is None:
@@ -740,22 +784,24 @@ def pricing_pipeline(
         raise ValueError("pricing_pipeline: scen_Q is None (no scenario set provided).")
     hw = hull_white or HullWhiteConfig(enabled=False)
     scen_used = apply_hull_white_discounting(scen_Q, hw=hw, short_rate=short_rate)
-    normalized_specs: dict[str, object] = {}
+    normalized_specs: dict[str, InstrumentSpec] = {}
     for name, spec_obj in specs.items():
         normalized_specs[name] = _normalize_spec(spec_obj)
     prices: dict[str, float] = {}
+    short_rate_pricer = cast(float, short_rate)
     for name, spec in normalized_specs.items():
         kind = _infer_kind(spec)
-        pricer = make_single_product_pricer(kind=kind, spec=spec, short_rate=short_rate)
+        pricer = make_single_product_pricer(kind=kind, spec=spec, short_rate=short_rate_pricer)
         prices[name] = float(pricer(scen_used))
     return prices
 
 
 def risk_analysis_pipeline(
+    scen_Q: MortalityScenarioSet,
     *,
     specs: Mapping[str, object],
     short_rate: float,
-    bumps: dict,
+    bumps: BumpsConfig,
 ) -> AllSensitivities:
     """Compute mortality and rate sensitivities for a set of instruments.
 
@@ -768,7 +814,8 @@ def risk_analysis_pipeline(
     Returns:
         AllSensitivities object with rate and mortality measures.
     """
-    normalized_specs: dict[str, object] = {}
+    _ = scen_Q  # currently unused, but could be used for base pricing
+    normalized_specs: dict[str, InstrumentSpec] = {}
     for name, spec_obj in specs.items():
         normalized_specs[name] = _normalize_spec(spec_obj)
 
@@ -812,7 +859,7 @@ def sensitivities_pipeline(
     compute_convexity: bool = False,
     compute_delta_by_age: bool = False,
     compute_vega: bool = False,
-    bumps: dict | None = None,
+    bumps: BumpsConfig | None = None,
 ) -> dict[str, Any]:
     """UI-friendly sensitivities pipeline.
 
@@ -829,10 +876,11 @@ def sensitivities_pipeline(
     Returns:
         Dictionary with base prices and any requested sensitivities.
     """
-    bumps = bumps or {}
+    if bumps is None:
+        bumps = {}
 
     # normalize specs
-    normalized_specs: dict[str, object] = {}
+    normalized_specs: dict[str, InstrumentSpec] = {}
     for name, spec_obj in specs.items():
         normalized_specs[name] = _normalize_spec(spec_obj)
 
@@ -1067,9 +1115,9 @@ def hedging_pipeline(
     hedge_pv_paths: np.ndarray,
     liability_cf_paths: np.ndarray | None = None,
     hedge_cf_paths: np.ndarray | None = None,
-    hedge_greeks: dict | None = None,
+    hedge_greeks: HedgeGreeks | None = None,
     method: str = "min_variance",
-    constraints: dict | None = None,
+    constraints: HedgeConstraints | None = None,
     discount_factors: np.ndarray | None = None,
 ) -> HedgeResult | GreekHedgeResult:
     """Compute hedge weights using various strategies.

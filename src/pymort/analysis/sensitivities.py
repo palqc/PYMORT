@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -80,7 +81,7 @@ def rate_sensitivity(
     *,
     base_short_rate: float,
     bump: float = 1e-4,
-    **price_kwargs,
+    **price_kwargs: object,
 ) -> RateSensitivity:
     """Compute numerical sensitivity of a price to the short rate.
 
@@ -247,7 +248,7 @@ def rate_convexity(
     *,
     base_short_rate: float,
     bump: float = 1e-4,
-    **price_kwargs,
+    **price_kwargs: object,
 ) -> RateConvexity:
     """Approximate rate convexity with finite differences.
 
@@ -412,30 +413,39 @@ def make_single_product_pricer(
     k = alias_map.get(k, k)
 
     if k == "longevity_bond":
+        spec_lb = cast(LongevityBondSpec, spec)
         return lambda scen: float(
-            price_simple_longevity_bond(scen_set=scen, spec=spec, short_rate=short_rate)["price"]
+            price_simple_longevity_bond(
+                scen_set=scen, spec=spec_lb, short_rate=short_rate
+            )["price"]
         )
 
     if k == "s_forward":
+        spec_sf = cast(SForwardSpec, spec)
         return lambda scen: float(
-            price_s_forward(scen_set=scen, spec=spec, short_rate=short_rate)["price"]
+            price_s_forward(scen_set=scen, spec=spec_sf, short_rate=short_rate)["price"]
         )
 
     if k == "q_forward":
+        spec_qf = cast(QForwardSpec, spec)
         return lambda scen: float(
-            price_q_forward(scen_set=scen, spec=spec, short_rate=short_rate)["price"]
+            price_q_forward(scen_set=scen, spec=spec_qf, short_rate=short_rate)["price"]
         )
 
     if k == "survivor_swap":
+        spec_ss = cast(SurvivorSwapSpec, spec)
         return lambda scen: float(
-            price_survivor_swap(scen_set=scen, spec=spec, short_rate=short_rate)["price"]
+            price_survivor_swap(
+                scen_set=scen, spec=spec_ss, short_rate=short_rate
+            )["price"]
         )
 
     if k == "life_annuity":
+        spec_ann = cast(CohortLifeAnnuitySpec, spec)
         return lambda scen: float(
             price_cohort_life_annuity(
                 scen_set=scen,
-                spec=spec,
+                spec=spec_ann,
                 short_rate=short_rate,
                 discount_factors=None,
             )["price"]
@@ -535,7 +545,11 @@ def rate_sensitivity_all_products(
         # IMPORTANT: here we need a pricer that accepts short_rate as arg
         # So we wrap manually instead of using pricer(scenset).
         def price_func(
-            *, scen_set: MortalityScenarioSet, short_rate: float, _kind=kind, _spec=spec
+            *,
+            scen_set: MortalityScenarioSet,
+            short_rate: float,
+            _kind: str = kind,
+            _spec: ProductSpec = spec,
         ) -> float:
             return float(
                 make_single_product_pricer(
@@ -576,7 +590,11 @@ def rate_convexity_all_products(
     for kind, spec in specs.items():
 
         def price_func(
-            *, scen_set: MortalityScenarioSet, short_rate: float, _kind=kind, _spec=spec
+            *,
+            scen_set: MortalityScenarioSet,
+            short_rate: float,
+            _kind: str = kind,
+            _spec: ProductSpec = spec,
         ) -> float:
             return float(
                 make_single_product_pricer(
@@ -730,7 +748,7 @@ def compute_all_sensitivities(
         bump=float(rate_bump),
     )
 
-    meta = {
+    meta: dict[str, object] = {
         "base_short_rate": r0,
         "short_rate_used_for_pricing": r_pr,
         "sigma_rel_bump": float(sigma_rel_bump),

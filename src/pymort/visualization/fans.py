@@ -10,22 +10,24 @@ from collections.abc import Iterable
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 from numpy.typing import NDArray
 
 from pymort.analysis import MortalityScenarioSet
 
 _DEFAULT_QUANTILES: tuple[int, ...] = (5, 25, 50, 75, 95)
 FloatArray = NDArray[np.floating]
+GridArray = NDArray[np.integer] | NDArray[np.floating]
 
 
 def _fan(
     paths: FloatArray,
-    grid: FloatArray,
+    grid: GridArray,
     *,
     quantiles: Iterable[int] = _DEFAULT_QUANTILES,
-    ax=None,
+    ax: Axes | None = None,
     label: str = "",
-):
+) -> Axes:
     qs = sorted({int(q) for q in quantiles})
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 4))
@@ -47,7 +49,7 @@ def plot_survival_fan(
     *,
     age: float,
     quantiles: Iterable[int] = _DEFAULT_QUANTILES,
-    ax=None,
+    ax: Axes | None = None,
 ) -> None:
     """Plot a survival fan chart for a given cohort age.
 
@@ -72,7 +74,7 @@ def plot_mortality_fan(
     *,
     age: float,
     quantiles: Iterable[int] = _DEFAULT_QUANTILES,
-    ax=None,
+    ax: Axes | None = None,
 ) -> None:
     """Plot a mortality fan chart for a given cohort age.
 

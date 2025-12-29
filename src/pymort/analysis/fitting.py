@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -120,11 +120,12 @@ def _fit_single_model(
     rmse_logitq: float | None = None
     aic: float | None = None
     bic: float | None = None
+    model: object
 
     # -------- LC / APC family: fit on log m --------
     if model_name == "LCM1":
-        model = LCM1().fit(m_fit)
-        ln_hat = model.predict_log_m()  # (A, T)
+        model_lcm1 = LCM1().fit(m_fit)
+        ln_hat = model_lcm1.predict_log_m()  # (A, T)
         m_hat = np.exp(ln_hat)
         q_hat = m_to_q(m_hat)
 
@@ -134,76 +135,82 @@ def _fit_single_model(
             _logit(q_hat),
             n_params=2 * A + T,
         )
+        model = model_lcm1
 
     elif model_name == "LCM2":
-        model = LCM2().fit(m_fit, ages, years)
-        params = model.params
-        if params is None:
+        model_lcm2 = LCM2().fit(m_fit, ages, years)
+        params_lcm2 = model_lcm2.params
+        if params_lcm2 is None:
             raise RuntimeError("LCM2.fit() returned None params")
-        m_hat = model.predict_m()
+        m_hat = model_lcm2.predict_m()
         q_hat = m_to_q(m_hat)
 
         rmse_logm = float(np.sqrt(np.mean((np.log(m_eval_safe) - np.log(m_hat)) ** 2)))
         rmse_logitq, aic, bic = rmse_aic_bic(
             logit_true,
             _logit(q_hat),
-            n_params=2 * A + T + len(params.cohorts),
+            n_params=2 * A + T + len(params_lcm2.cohorts),
         )
+        model = model_lcm2
 
     elif model_name == "APCM3":
-        model = APCM3().fit(m_fit, ages, years)
-        params = model.params
-        if params is None:
+        model_apcm3 = APCM3().fit(m_fit, ages, years)
+        params_apcm3 = model_apcm3.params
+        if params_apcm3 is None:
             raise RuntimeError("APCM3.fit() returned None params")
-        m_hat = model.predict_m()
+        m_hat = model_apcm3.predict_m()
         q_hat = m_to_q(m_hat)
 
         rmse_logm = float(np.sqrt(np.mean((np.log(m_eval_safe) - np.log(m_hat)) ** 2)))
         rmse_logitq, aic, bic = rmse_aic_bic(
             logit_true,
             _logit(q_hat),
-            n_params=A + T + len(params.cohorts),
+            n_params=A + T + len(params_apcm3.cohorts),
         )
+        model = model_apcm3
 
     # -------- CBD family: fit on logit q --------
     elif model_name == "CBDM5":
         q_fit = m_to_q(m_fit)
-        model = CBDM5().fit(q_fit, ages)
-        q_hat = model.predict_q()
+        model_cbdm5 = CBDM5().fit(q_fit, ages)
+        q_hat = model_cbdm5.predict_q()
 
         rmse_logitq, aic, bic = rmse_aic_bic(
             logit_true,
             _logit(q_hat),
             n_params=2 * T,
         )
+        model = model_cbdm5
 
     elif model_name == "CBDM6":
         q_fit = m_to_q(m_fit)
-        model = CBDM6().fit(q_fit, ages, years)
-        params = model.params
-        if params is None:
+        model_cbdm6 = CBDM6().fit(q_fit, ages, years)
+        params_cbdm6 = model_cbdm6.params
+        if params_cbdm6 is None:
             raise RuntimeError("CBDM6.fit() returned None params")
-        q_hat = model.predict_q()
+        q_hat = model_cbdm6.predict_q()
 
         rmse_logitq, aic, bic = rmse_aic_bic(
             logit_true,
             _logit(q_hat),
-            n_params=2 * T + len(params.cohorts),
+            n_params=2 * T + len(params_cbdm6.cohorts),
         )
+        model = model_cbdm6
 
     elif model_name == "CBDM7":
         q_fit = m_to_q(m_fit)
-        model = CBDM7().fit(q_fit, ages, years)
-        params = model.params
-        if params is None:
+        model_cbdm7 = CBDM7().fit(q_fit, ages, years)
+        params_cbdm7 = model_cbdm7.params
+        if params_cbdm7 is None:
             raise RuntimeError("CBDM7.fit() returned None params")
-        q_hat = model.predict_q()
+        q_hat = model_cbdm7.predict_q()
 
         rmse_logitq, aic, bic = rmse_aic_bic(
             logit_true,
             _logit(q_hat),
-            n_params=3 * T + len(params.cohorts),
+            n_params=3 * T + len(params_cbdm7.cohorts),
         )
+        model = model_cbdm7
 
     else:
         raise ValueError(f"Unknown model_name: {model_name}")
@@ -274,22 +281,28 @@ def fit_mortality_model(
         if cpsplines_kwargs is not None:
             kw.update(cpsplines_kwargs)
 
+        k = cast(tuple[int, int] | None, kw["k"])
+        horizon = cast(int, kw["horizon"])
+        verbose = cast(bool, kw["verbose"])
+
         try:
             cp_res = smooth_mortality_with_cpsplines(
                 m=m,
                 ages=ages,
                 years=years,
-                k=kw["k"],
-                horizon=kw["horizon"],
-                verbose=kw["verbose"],
+                k=k,
+                horizon=horizon,
+                verbose=verbose,
             )
-            m_fit = cp_res["m_fitted"]
+            m_fit = cast(np.ndarray, cp_res["m_fitted"])
             data_source = (
-                "cpsplines_fit_eval_on_raw" if eval_on_raw else "cpsplines_fit_eval_on_smooth"
+                "cpsplines_fit_eval_on_raw"
+                if eval_on_raw
+                else "cpsplines_fit_eval_on_smooth"
             )
         except Exception as exc:
             # Tiny grids / solver issues (e.g. mosek fusion DimensionError): fall back gracefully
-            if kw.get("verbose", False):
+            if verbose:
                 print(
                     f"[fit_mortality_model] CPsplines failed ({type(exc).__name__}: {exc}); "
                     f"falling back to raw m."
@@ -401,10 +414,12 @@ def model_selection_by_forecast_rmse(
                 )
                 rmse_forecast_logm = float(res["rmse_log_forecast"])
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_start = int(res["train_years"][0])
-                train_end_eff = int(res["train_years"][-1])
-                test_start = int(res["test_years"][0])
-                test_end = int(res["test_years"][-1])
+                train_years = cast(np.ndarray, res["train_years"])
+                test_years = cast(np.ndarray, res["test_years"])
+                train_start = int(train_years[0])
+                train_end_eff = int(train_years[-1])
+                test_start = int(test_years[0])
+                test_end = int(test_years[-1])
 
             elif name == "LCM2":
                 res = time_split_backtest_lc_m2(
@@ -415,10 +430,12 @@ def model_selection_by_forecast_rmse(
                 )
                 rmse_forecast_logm = float(res["rmse_log_forecast"])
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_start = int(res["train_years"][0])
-                train_end_eff = int(res["train_years"][-1])
-                test_start = int(res["test_years"][0])
-                test_end = int(res["test_years"][-1])
+                train_years = cast(np.ndarray, res["train_years"])
+                test_years = cast(np.ndarray, res["test_years"])
+                train_start = int(train_years[0])
+                train_end_eff = int(train_years[-1])
+                test_start = int(test_years[0])
+                test_end = int(test_years[-1])
 
             elif name == "APCM3":
                 res = time_split_backtest_apc_m3(
@@ -429,10 +446,12 @@ def model_selection_by_forecast_rmse(
                 )
                 rmse_forecast_logm = float(res["rmse_log_forecast"])
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_start = int(res["train_years"][0])
-                train_end_eff = int(res["train_years"][-1])
-                test_start = int(res["test_years"][0])
-                test_end = int(res["test_years"][-1])
+                train_years = cast(np.ndarray, res["train_years"])
+                test_years = cast(np.ndarray, res["test_years"])
+                train_start = int(train_years[0])
+                train_end_eff = int(train_years[-1])
+                test_start = int(test_years[0])
+                test_end = int(test_years[-1])
 
             elif name == "CBDM5":
                 res = time_split_backtest_cbd_m5(
@@ -442,10 +461,12 @@ def model_selection_by_forecast_rmse(
                     train_end=train_end,
                 )
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_start = int(res["train_years"][0])
-                train_end_eff = int(res["train_years"][-1])
-                test_start = int(res["test_years"][0])
-                test_end = int(res["test_years"][-1])
+                train_years = cast(np.ndarray, res["train_years"])
+                test_years = cast(np.ndarray, res["test_years"])
+                train_start = int(train_years[0])
+                train_end_eff = int(train_years[-1])
+                test_start = int(test_years[0])
+                test_end = int(test_years[-1])
 
             elif name == "CBDM6":
                 res = time_split_backtest_cbd_m6(
@@ -455,10 +476,12 @@ def model_selection_by_forecast_rmse(
                     train_end=train_end,
                 )
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_start = int(res["train_years"][0])
-                train_end_eff = int(res["train_years"][-1])
-                test_start = int(res["test_years"][0])
-                test_end = int(res["test_years"][-1])
+                train_years = cast(np.ndarray, res["train_years"])
+                test_years = cast(np.ndarray, res["test_years"])
+                train_start = int(train_years[0])
+                train_end_eff = int(train_years[-1])
+                test_start = int(test_years[0])
+                test_end = int(test_years[-1])
 
             elif name == "CBDM7":
                 res = time_split_backtest_cbd_m7(
@@ -468,10 +491,12 @@ def model_selection_by_forecast_rmse(
                     train_end=train_end,
                 )
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_start = int(res["train_years"][0])
-                train_end_eff = int(res["train_years"][-1])
-                test_start = int(res["test_years"][0])
-                test_end = int(res["test_years"][-1])
+                train_years = cast(np.ndarray, res["train_years"])
+                test_years = cast(np.ndarray, res["test_years"])
+                train_start = int(train_years[0])
+                train_end_eff = int(train_years[-1])
+                test_start = int(test_years[0])
+                test_end = int(test_years[-1])
 
             else:
                 raise ValueError(f"Unknown model name in model_selection: {name!r}")

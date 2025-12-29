@@ -29,10 +29,27 @@ Note:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol, cast
 
 import numpy as np
 
+from pymort.analysis.bootstrap import BootstrapResult
 from pymort.lifetables import m_to_q, validate_q
+
+
+class _CBDParamsBase(Protocol):
+    kappa1: np.ndarray
+    kappa2: np.ndarray
+    x_bar: float
+
+
+class _CBDM7Params(_CBDParamsBase, Protocol):
+    kappa3: np.ndarray
+    sigma2_x: float
+
+
+class _HasGamma(Protocol):
+    def gamma_for_age_at_last_year(self, age: float) -> float: ...
 
 
 @dataclass
@@ -151,7 +168,8 @@ def project_mortality_from_bootstrap(
     model_cls: type,
     ages: np.ndarray,
     years: np.ndarray,
-    bootstrap_result,
+    m: np.ndarray,
+    bootstrap_result: BootstrapResult,
     horizon: int = 50,
     n_process: int = 200,
     seed: int | None = None,
@@ -198,6 +216,11 @@ def project_mortality_from_bootstrap(
     B = len(params_list)
     if mu_sigma_mat.shape[0] != B:
         raise ValueError("bootstrap_result.mu_sigma must have same length as params_list.")
+    m = np.asarray(m, dtype=float)
+    if m.shape != (len(ages), len(years)):
+        raise ValueError(f"m must have shape (A,T)=({len(ages)},{len(years)}), got {m.shape}.")
+    if not np.isfinite(m).all():
+        raise ValueError("m must be finite.")
 
     A = len(ages)
     H = int(horizon)
@@ -335,11 +358,16 @@ def project_mortality_from_bootstrap(
                 eps2_b = rng_b.normal(size=(n_process, H))
                 eps3_b = rng_b.normal(size=(n_process, H)) if mu_sigma.size == 6 else None
             else:
+                if eps2 is None:
+                    raise ValueError("For CBD CRN, provide BOTH eps1 and eps2 (or neither).")
                 eps1_b = eps1[b]
                 eps2_b = eps2[b]
-                eps3_b = eps3[b] if (mu_sigma.size == 6) else None
-                if mu_sigma.size == 6 and eps3 is None:
-                    raise ValueError("eps3 must be provided for CBDM7 when using CRN.")
+                if mu_sigma.size == 6:
+                    if eps3 is None:
+                        raise ValueError("eps3 must be provided for CBDM7 when using CRN.")
+                    eps3_b = eps3[b]
+                else:
+                    eps3_b = None
         elif eps_rw is None:
             eps_rw_b = rng_b.normal(size=(n_process, H))
         else:
@@ -349,6 +377,7 @@ def project_mortality_from_bootstrap(
         if is_cbd:
             if len(mu_sigma) == 4:
                 mu1, sig1, mu2, sig2 = mu_sigma
+                params_cbd = cast(_CBDParamsBase, params)
 
                 if sigma_overrides is None:
                     sig1_eff = float(sig1) * float(scale_vec[0])
@@ -358,18 +387,19 @@ def project_mortality_from_bootstrap(
                     sig2_eff = float(sigma_overrides[1])
 
                 k1_block = simulate_random_walk_paths_with_eps(
-                    params.kappa1[-1], mu1, sig1_eff, eps1_b, include_last=include_last
+                    params_cbd.kappa1[-1], mu1, sig1_eff, eps1_b, include_last=include_last
                 )
                 k2_block = simulate_random_walk_paths_with_eps(
-                    params.kappa2[-1], mu2, sig2_eff, eps2_b, include_last=include_last
+                    params_cbd.kappa2[-1], mu2, sig2_eff, eps2_b, include_last=include_last
                 )
 
-                z = ages - params.x_bar
+                z = ages - params_cbd.x_bar
                 logit_q_block = k1_block[:, None, :] + z[None, :, None] * k2_block[:, None, :]
 
                 if hasattr(params, "gamma_for_age_at_last_year"):
+                    params_gamma = cast(_HasGamma, params)
                     gamma_last = np.array(
-                        [params.gamma_for_age_at_last_year(float(ax)) for ax in ages],
+                        [params_gamma.gamma_for_age_at_last_year(float(ax)) for ax in ages],
                         dtype=float,
                     )
                     logit_q_block += gamma_last[None, :, None]
@@ -384,6 +414,7 @@ def project_mortality_from_bootstrap(
 
             if len(mu_sigma) == 6:
                 mu1, sig1, mu2, sig2, mu3, sig3 = mu_sigma
+                params_cbd7 = cast(_CBDM7Params, params)
 
                 if sigma_overrides is None:
                     sig1_eff = float(sig1) * float(scale_vec[0])
@@ -395,17 +426,19 @@ def project_mortality_from_bootstrap(
                     sig3_eff = float(sigma_overrides[2])
 
                 k1_block = simulate_random_walk_paths_with_eps(
-                    params.kappa1[-1], mu1, sig1_eff, eps1_b, include_last=include_last
+                    params_cbd7.kappa1[-1], mu1, sig1_eff, eps1_b, include_last=include_last
                 )
                 k2_block = simulate_random_walk_paths_with_eps(
-                    params.kappa2[-1], mu2, sig2_eff, eps2_b, include_last=include_last
+                    params_cbd7.kappa2[-1], mu2, sig2_eff, eps2_b, include_last=include_last
                 )
+                if eps3_b is None:
+                    raise RuntimeError("eps3_b must be set for CBDM7 projections.")
                 k3_block = simulate_random_walk_paths_with_eps(
-                    params.kappa3[-1], mu3, sig3_eff, eps3_b, include_last=include_last
+                    params_cbd7.kappa3[-1], mu3, sig3_eff, eps3_b, include_last=include_last
                 )
 
-                z = ages - params.x_bar
-                z2c = z**2 - params.sigma2_x
+                z = ages - params_cbd7.x_bar
+                z2c = z**2 - params_cbd7.sigma2_x
 
                 logit_q_block = (
                     k1_block[:, None, :]
@@ -414,8 +447,9 @@ def project_mortality_from_bootstrap(
                 )
 
                 if hasattr(params, "gamma_for_age_at_last_year"):
+                    params_gamma = cast(_HasGamma, params)
                     gamma_last = np.array(
-                        [params.gamma_for_age_at_last_year(float(ax)) for ax in ages],
+                        [params_gamma.gamma_for_age_at_last_year(float(ax)) for ax in ages],
                         dtype=float,
                     )
                     logit_q_block += gamma_last[None, :, None]
@@ -483,6 +517,8 @@ def project_mortality_from_bootstrap(
         q_block = m_to_q(m_block)
 
         q_paths[out : out + n_process] = q_block
+        if m_paths is None:
+            raise RuntimeError("m_paths should be initialized for LC/APC projections.")
         m_paths[out : out + n_process] = m_block
         k_paths[out : out + n_process] = k_block
         out += n_process

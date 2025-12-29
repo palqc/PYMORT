@@ -10,6 +10,7 @@ Note:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -203,12 +204,11 @@ class CBDM5:
         if self.params is None:
             raise ValueError("Fit the model first.")
         self.params = estimate_rw_params_cbd(self.params)
-        return (
-            self.params.mu1,
-            self.params.sigma1,
-            self.params.mu2,
-            self.params.sigma2,
-        )
+        mu1 = cast(float, self.params.mu1)
+        sigma1 = cast(float, self.params.sigma1)
+        mu2 = cast(float, self.params.mu2)
+        sigma2 = cast(float, self.params.sigma2)
+        return (mu1, sigma1, mu2, sigma2)
 
     def predict_logit_q(self) -> FloatArray:
         """Reconstruct the logit mortality surface from fitted parameters.
@@ -255,12 +255,12 @@ class CBDM5:
 
         if kappa_index == "kappa1":
             k_last = float(self.params.kappa1[-1])
-            mu = float(self.params.mu1)
-            sigma = float(self.params.sigma1)
+            mu = float(cast(float, self.params.mu1))
+            sigma = float(cast(float, self.params.sigma1))
         elif kappa_index == "kappa2":
             k_last = float(self.params.kappa2[-1])
-            mu = float(self.params.mu2)
-            sigma = float(self.params.sigma2)
+            mu = float(cast(float, self.params.mu2))
+            sigma = float(cast(float, self.params.sigma2))
         else:
             raise ValueError("kappa_index must be 'kappa1' or 'kappa2'.")
 

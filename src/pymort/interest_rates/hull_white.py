@@ -7,6 +7,7 @@ Note:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -57,7 +58,7 @@ def _fwd_from_zero(times: FloatArray, zero_rates: FloatArray) -> FloatArray:
     tz = times * z
     dt = np.diff(times, prepend=times[0] - (times[1] - times[0]))
     dt[dt == 0] = 1e-8
-    return np.gradient(tz, times)
+    return cast(FloatArray, np.gradient(tz, times))
 
 
 def calibrate_theta_from_zero_curve(
@@ -88,7 +89,10 @@ def calibrate_theta_from_zero_curve(
     sigma = float(sigma)
     if a <= 0.0 or sigma < 0.0:
         raise ValueError("a must be >0 and sigma >=0.")
-    return f0 + df_dt / a + (sigma**2) / (2 * a**2) * (1.0 - np.exp(-2 * a * times))
+    return cast(
+        FloatArray,
+        f0 + df_dt / a + (sigma**2) / (2 * a**2) * (1.0 - np.exp(-2 * a * times)),
+    )
 
 
 def simulate_hull_white_paths(

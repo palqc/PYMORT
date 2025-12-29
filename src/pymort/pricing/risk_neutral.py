@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import least_squares
 
-from pymort.analysis import MortalityScenarioSet, bootstrap_from_m
+from pymort.analysis import BootstrapResult, MortalityScenarioSet, bootstrap_from_m
 from pymort.analysis.projections import project_mortality_from_bootstrap
 from pymort.lifetables import m_to_q, survival_from_q, validate_q
 from pymort.models.cbd_m7 import CBDM7
@@ -63,8 +63,8 @@ class EsscherResult:
 class CalibrationCache:
     """Objects and common random numbers reused across lambda calls."""
 
-    model: object
-    bs_res: object
+    model: LCM2 | CBDM7
+    bs_res: BootstrapResult
     eps: dict[str, FloatArray]
     ages: FloatArray
     years: NDArray[np.integer]
@@ -170,6 +170,7 @@ def build_calibration_cache(
 ) -> CalibrationCache:
     model_name_up = str(model_name).upper()
 
+    model: LCM2 | CBDM7
     if model_name_up == "LCM2":
         model = LCM2().fit(m, ages, years)
     elif model_name_up == "CBDM7":
@@ -192,13 +193,14 @@ def build_calibration_cache(
     h = int(horizon)
     rng = np.random.default_rng(seed)
 
+    eps: dict[str, FloatArray]
     if model_name_up == "LCM2":
-        eps = {"eps_rw": rng.normal(size=(b, n_process, h))}
+        eps = {"eps_rw": cast(FloatArray, rng.normal(size=(b, n_process, h)))}
     else:
         eps = {
-            "eps1": rng.normal(size=(b, n_process, h)),
-            "eps2": rng.normal(size=(b, n_process, h)),
-            "eps3": rng.normal(size=(b, n_process, h)),
+            "eps1": cast(FloatArray, rng.normal(size=(b, n_process, h))),
+            "eps2": cast(FloatArray, rng.normal(size=(b, n_process, h))),
+            "eps3": cast(FloatArray, rng.normal(size=(b, n_process, h))),
         }
 
     return CalibrationCache(
@@ -232,7 +234,8 @@ def apply_kappa_drift_shock(
     if shock is None:
         return mu_Q_arr
 
-    s = np.asarray(list(np.atleast_1d(shock)), dtype=float).reshape(-1)
+    shock_arr = np.asarray(cast(Sequence[float] | np.ndarray | float, shock), dtype=float)
+    s = shock_arr.reshape(-1)
     if s.size == 1 and k > 1:
         s = np.full(k, float(s[0]), dtype=float)
     if s.size != k:
@@ -242,13 +245,14 @@ def apply_kappa_drift_shock(
     if mode_l == "additive":
         out = mu_Q_arr + s
     elif mode_l == "multiplicative":
-        out = mu_Q_arr * (1.0 + s)
+        out = mu_Q_arr * (s + 1.0)
     else:
         raise ValueError("mode must be 'additive' or 'multiplicative'.")
 
-    if not np.all(np.isfinite(out)):
+    out_arr = np.asarray(out, dtype=float)
+    if not np.all(np.isfinite(out_arr)):
         raise ValueError("Non-finite mu_Q after drift shock.")
-    return out
+    return out_arr
 
 
 def apply_cohort_trend_shock_to_qpaths(
@@ -296,8 +300,9 @@ def apply_cohort_trend_shock_to_qpaths(
     else:
         raise ValueError(f"Unknown cohort shock_type='{shock_type}'.")
 
-    validate_q(q_new)
-    return q_new
+    q_new_arr = np.asarray(q_new, dtype=float)
+    validate_q(q_new_arr)
+    return q_new_arr
 
 
 # ============================================================================
@@ -317,9 +322,15 @@ def build_scenarios_under_lambda_fast(
     cohort_pivot_year: int | None = None,
 ) -> MortalityScenarioSet:
     if cache.model_name == "LCM2":
-        esscher = risk_neutral_from_lcm2(cache.model, lambda_esscher=lambda_esscher)
+        esscher = risk_neutral_from_lcm2(
+            cast(LCM2, cache.model), lambda_esscher=lambda_esscher
+        )
+    elif cache.model_name == "CBDM7":
+        esscher = risk_neutral_from_cbdm7(
+            cast(CBDM7, cache.model), lambda_esscher=lambda_esscher
+        )
     else:
-        esscher = risk_neutral_from_cbdm7(cache.model, lambda_esscher=lambda_esscher)
+        raise ValueError("cache.model_name must be 'LCM2' or 'CBDM7'.")
 
     mu_Q = apply_kappa_drift_shock(
         mu_Q=esscher.mu_Q,
@@ -387,7 +398,7 @@ def _price_from_scen_set(
         return float(
             price_simple_longevity_bond(
                 scen_set=scen_set,
-                spec=quote.spec,
+                spec=cast(LongevityBondSpec, quote.spec),
                 short_rate=short_rate,
             )["price"]
         )
@@ -396,7 +407,7 @@ def _price_from_scen_set(
         return float(
             price_survivor_swap(
                 scen_set=scen_set,
-                spec=quote.spec,
+                spec=cast(SurvivorSwapSpec, quote.spec),
                 short_rate=short_rate,
             )["price"]
         )
@@ -405,7 +416,7 @@ def _price_from_scen_set(
         return float(
             price_s_forward(
                 scen_set=scen_set,
-                spec=quote.spec,
+                spec=cast(SForwardSpec, quote.spec),
                 short_rate=short_rate,
             )["price"]
         )
@@ -414,7 +425,7 @@ def _price_from_scen_set(
         return float(
             price_q_forward(
                 scen_set=scen_set,
-                spec=quote.spec,
+                spec=cast(QForwardSpec, quote.spec),
                 short_rate=short_rate,
             )["price"]
         )
@@ -423,7 +434,7 @@ def _price_from_scen_set(
         return float(
             price_cohort_life_annuity(
                 scen_set=scen_set,
-                spec=quote.spec,
+                spec=cast(CohortLifeAnnuitySpec, quote.spec),
                 short_rate=short_rate,
             )["price"]
         )
@@ -556,7 +567,7 @@ def calibrate_lambda_least_squares(
             [_price_from_scen_set(scen_set_q, q, short_rate=short_rate) for q in quotes_list],
             dtype=float,
         )
-        return (model_prices - market) * w_sqrt
+        return cast(np.ndarray, (model_prices - market) * w_sqrt)
 
     res = least_squares(
         residual_vec,

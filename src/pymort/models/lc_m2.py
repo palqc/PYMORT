@@ -67,7 +67,7 @@ class LCM2Params:
 
         # we project onto the nearest full cohort
         c_rounded = float(round(c))
-        idx = np.searchsorted(self.cohorts, c_rounded)
+        idx = int(np.searchsorted(self.cohorts, c_rounded))
         if idx >= len(self.cohorts):
             idx = len(self.cohorts) - 1
 

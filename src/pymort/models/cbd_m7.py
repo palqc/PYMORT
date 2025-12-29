@@ -10,6 +10,7 @@ Note:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -302,14 +303,13 @@ class CBDM7:
         if self.params is None:
             raise ValueError("Fit the model first.")
         self.params = estimate_rw_params_m7(self.params)
-        return (
-            self.params.mu1,
-            self.params.sigma1,
-            self.params.mu2,
-            self.params.sigma2,
-            self.params.mu3,
-            self.params.sigma3,
-        )
+        mu1 = cast(float, self.params.mu1)
+        sigma1 = cast(float, self.params.sigma1)
+        mu2 = cast(float, self.params.mu2)
+        sigma2 = cast(float, self.params.sigma2)
+        mu3 = cast(float, self.params.mu3)
+        sigma3 = cast(float, self.params.sigma3)
+        return (mu1, sigma1, mu2, sigma2, mu3, sigma3)
 
     def predict_logit_q(self) -> FloatArray:
         """Reconstruct the logit mortality surface from fitted parameters.

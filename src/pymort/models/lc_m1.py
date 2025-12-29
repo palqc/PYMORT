@@ -88,7 +88,7 @@ def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
 
 
 class LCM1:
-    def __init__(self):
+    def __init__(self) -> None:
         self.params: LCM1Params | None = None
 
     def fit(self, m: np.ndarray) -> LCM1:

@@ -4,6 +4,8 @@ Note:
     Docstrings follow Google style and type hints use NDArray for clarity.
 """
 
+from typing import cast
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -123,16 +125,16 @@ def pv_from_cf_paths(cf_paths: FloatArray, discount_factors: FloatArray) -> Floa
     if df.ndim == 1:
         if df.shape[0] != H:
             raise ValueError(f"discount_factors length {df.shape[0]} must equal H={H}.")
-        return (cf * df[None, :]).sum(axis=1)
+        return cast(FloatArray, (cf * df[None, :]).sum(axis=1))
 
     if df.ndim == 2:
         if df.shape[1] != H:
             raise ValueError(f"discount_factors second dim {df.shape[1]} must equal H={H}.")
         if df.shape[0] == 1:
-            return (cf * np.repeat(df, N, axis=0)).sum(axis=1)
+            return cast(FloatArray, (cf * np.repeat(df, N, axis=0)).sum(axis=1))
         if df.shape[0] != N:
             raise ValueError(f"discount_factors first dim must be 1 or N={N}; got {df.shape[0]}.")
-        return (cf * df).sum(axis=1)
+        return cast(FloatArray, (cf * df).sum(axis=1))
 
     raise ValueError("discount_factors must be 1D or 2D.")
 
@@ -179,7 +181,7 @@ def pv_matrix_from_cf_paths(cf_paths: FloatArray, discount_factors: FloatArray) 
     # tail sums: sum_{t>=h} cf*D
     tail = np.cumsum(cfd[:, ::-1], axis=1)[:, ::-1]  # (N,T)
 
-    return tail / df
+    return cast(FloatArray, tail / df)
 
 
 def cohort_survival_full_horizon_from_q(
