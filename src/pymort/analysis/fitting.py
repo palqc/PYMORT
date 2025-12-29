@@ -296,9 +296,7 @@ def fit_mortality_model(
             )
             m_fit = cast(np.ndarray, cp_res["m_fitted"])
             data_source = (
-                "cpsplines_fit_eval_on_raw"
-                if eval_on_raw
-                else "cpsplines_fit_eval_on_smooth"
+                "cpsplines_fit_eval_on_raw" if eval_on_raw else "cpsplines_fit_eval_on_smooth"
             )
         except Exception as exc:
             # Tiny grids / solver issues (e.g. mosek fusion DimensionError): fall back gracefully

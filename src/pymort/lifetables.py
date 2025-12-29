@@ -203,11 +203,7 @@ def load_m_from_excel(
                 hrow,
             )
         # Prefer sheet where requested sex is available
-        if (
-            (sex in table.columns)
-            and (found_df is not None)
-            and (sex not in found_df.columns)
-        ):
+        if (sex in table.columns) and (found_df is not None) and (sex not in found_df.columns):
             found_df, _found_cols, _found_sheet, _header_row = (
                 table,
                 cmap,
@@ -224,9 +220,7 @@ def load_m_from_excel(
     df = found_df
 
     # Choose the rate column to use
-    rate_col = (
-        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
-    )
+    rate_col = sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
     if rate_col is None:
         # If requested sex not present and no Total, fallback to Female or Male (whichever exists)
         rate_col = "Female" if "Female" in df.columns else "Male"
@@ -487,11 +481,7 @@ def load_m_from_excel_any(
                 hrow,
             )
 
-        if (
-            (sex in table.columns)
-            and (found_df is not None)
-            and (sex not in found_df.columns)
-        ):
+        if (sex in table.columns) and (found_df is not None) and (sex not in found_df.columns):
             found_df, _found_cols, _found_sheet, _header_row = (
                 table,
                 cmap,
@@ -508,9 +498,7 @@ def load_m_from_excel_any(
     df = found_df
 
     # Choose the rate column to use
-    rate_col = (
-        sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
-    )
+    rate_col = sex if sex in df.columns else ("Total" if "Total" in df.columns else None)
     if rate_col is None:
         rate_col = "Female" if "Female" in df.columns else "Male"
 

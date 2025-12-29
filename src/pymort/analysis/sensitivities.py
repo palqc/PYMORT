@@ -415,9 +415,7 @@ def make_single_product_pricer(
     if k == "longevity_bond":
         spec_lb = cast(LongevityBondSpec, spec)
         return lambda scen: float(
-            price_simple_longevity_bond(
-                scen_set=scen, spec=spec_lb, short_rate=short_rate
-            )["price"]
+            price_simple_longevity_bond(scen_set=scen, spec=spec_lb, short_rate=short_rate)["price"]
         )
 
     if k == "s_forward":
@@ -435,9 +433,7 @@ def make_single_product_pricer(
     if k == "survivor_swap":
         spec_ss = cast(SurvivorSwapSpec, spec)
         return lambda scen: float(
-            price_survivor_swap(
-                scen_set=scen, spec=spec_ss, short_rate=short_rate
-            )["price"]
+            price_survivor_swap(scen_set=scen, spec=spec_ss, short_rate=short_rate)["price"]
         )
 
     if k == "life_annuity":

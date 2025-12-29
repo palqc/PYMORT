@@ -117,6 +117,7 @@ class HedgeGreeks(TypedDict, total=False):
     liability_d2Pdr2: float
     instruments_d2Pdr2: Iterable[float]
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
