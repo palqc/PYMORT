@@ -16,6 +16,7 @@ dependencies = [
     "statsmodels>=0.14",
     "typer>=0.12",
     "openpyxl>=3.1",
+    "typing-extensions>=4.7",
 ]
 
 [project.optional-dependencies]
@@ -52,7 +53,7 @@ pymort = ["py.typed"]
 # Ruff configuration
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py310"
 src = ["src", "tests"]
 exclude = ["streamlit_app/*", "docs/*", "build/*", "dist/*", ".venv/*", "__pycache__/*"]
 
@@ -71,7 +72,7 @@ known-first-party = ["pymort"]
 
 # MyPy configuration
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.10"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
