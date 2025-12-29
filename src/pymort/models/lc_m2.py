@@ -10,6 +10,7 @@ Note:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -195,7 +196,8 @@ def reconstruct_log_m_cohort(params: LCM2Params) -> FloatArray:
     idx = np.clip(idx, 0, len(params.cohorts) - 1)
 
     gamma_matrix = params.gamma[idx]
-    return base_ln + gamma_matrix
+    out = np.asarray(base_ln + gamma_matrix, dtype=float)
+    return cast(FloatArray, out)
 
 
 def reconstruct_m_cohort(params: LCM2Params) -> FloatArray:
