@@ -4,7 +4,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from assets.sidebar import logo_sidebar
+from assets.logo import add_logo_top_right
 
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
@@ -107,7 +107,7 @@ def render_sidebar_state() -> None:
 # App
 # -----------------------------
 def main() -> None:
-    logo_sidebar()
+    add_logo_top_right()
     st.set_page_config(
         page_title="PYMORT — Longevity Risk Lab",
         page_icon="📈",

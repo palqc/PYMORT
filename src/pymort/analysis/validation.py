@@ -21,9 +21,7 @@ from pymort.models.lc_m1 import LCM1
 from pymort.models.lc_m2 import LCM2
 
 
-def _time_split(
-    years: AnyArray, train_end: int
-) -> tuple[BoolArray, BoolArray, IntArray, IntArray]:
+def _time_split(years: AnyArray, train_end: int) -> tuple[BoolArray, BoolArray, IntArray, IntArray]:
     years = np.asarray(years, dtype=int)
     if years.ndim != 1:
         raise ValueError("years must be 1D.")

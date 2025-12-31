@@ -8,6 +8,9 @@ from pymort.analysis.scenario_analysis import ShockSpec
 from pymort.analysis.sensitivities import price_all_products
 from pymort.pipeline import stress_testing_pipeline
 
+from assets.logo import add_logo_top_right
+
+add_logo_top_right()
 st.set_page_config(page_title="Scenario Analysis", page_icon="🧪", layout="wide")
 st.title("🧪 Scenario Analysis (Stress Tests)")
 st.caption(

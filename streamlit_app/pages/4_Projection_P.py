@@ -6,6 +6,9 @@ import streamlit as st
 
 from pymort.pipeline import project_from_fitted_model
 
+from assets.logo import add_logo_top_right
+
+add_logo_top_right()
 st.set_page_config(page_title="Projection P", page_icon="📈", layout="wide")
 st.title("📈 Projections (P-measure)")
 st.caption("Bootstrap + process risk mortality projections under the physical measure P.")

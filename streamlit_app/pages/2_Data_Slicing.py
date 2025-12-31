@@ -4,6 +4,9 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from assets.logo import add_logo_top_right
+
+add_logo_top_right()
 st.set_page_config(page_title="Data & Slicing", page_icon="✂️", layout="wide")
 st.title("✂️ Data Slicing (fit / projection subset)")
 st.caption(

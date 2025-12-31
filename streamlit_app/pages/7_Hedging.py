@@ -7,6 +7,10 @@ import streamlit as st
 
 from pymort.pipeline import hedging_pipeline
 
+from assets.logo import add_logo_top_right
+
+
+add_logo_top_right()
 st.set_page_config(page_title="Hedging", page_icon="🛡️", layout="wide")
 st.title("🛡️ Hedging")
 st.caption("Build hedge weights from scenario PV/CF paths computed on the Pricing page.")

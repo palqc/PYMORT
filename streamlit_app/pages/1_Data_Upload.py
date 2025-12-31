@@ -6,6 +6,10 @@ import streamlit as st
 
 from pymort.lifetables import load_m_from_excel_any
 
+from assets.logo import add_logo_top_right
+
+add_logo_top_right()
+
 st.set_page_config(page_title="Data Upload", page_icon="📥", layout="wide")
 st.title("📥 Data Upload (HMD Excel)")
 st.caption("Drag & drop an HMD-style period death-rate table (Mx_1x1-like) in .xlsx.")

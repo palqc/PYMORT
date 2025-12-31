@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import streamlit as st
+from assets.logo import add_logo_top_right
 
 from pymort.analysis.sensitivities import make_single_product_pricer
 from pymort.pipeline import (
@@ -24,6 +25,7 @@ from pymort.pricing.mortality_derivatives import (
 )
 from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
 
+add_logo_top_right()
 st.set_page_config(page_title="Pricing", page_icon="💰", layout="wide")
 st.title("💰 Pricing")
 st.caption("Price instruments under P or Q scenarios and store results for hedging/risk reporting.")

@@ -7,6 +7,9 @@ import streamlit as st
 
 from pymort.analysis.fitting import select_and_fit_best_model_for_pricing
 
+from assets.logo import add_logo_top_right
+
+add_logo_top_right()
 st.set_page_config(page_title="Fit & Model Selection", page_icon="🧠", layout="wide")
 st.title("🧠 Fit & Model Selection")
 st.caption("Select best mortality model (or force one) and fit on the chosen training window.")

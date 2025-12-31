@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from assets.logo import add_logo_top_right
+
 from pymort.pipeline import build_risk_neutral_pipeline
 from pymort.pricing.liabilities import CohortLifeAnnuitySpec, price_cohort_life_annuity
 from pymort.pricing.longevity_bonds import (
@@ -89,6 +91,7 @@ def format_lambda_for_display(lam):
 # -----------------------------
 # Page
 # -----------------------------
+add_logo_top_right()
 st.set_page_config(page_title="Risk-neutral Q", page_icon="🌙", layout="wide")
 st.title("🌙 Risk-neutral scenarios (Q-measure)")
 st.caption(
