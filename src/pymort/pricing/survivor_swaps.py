@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import TypedDict
 
 import numpy as np
-from numpy.typing import NDArray
 
+from pymort._types import FloatArray, IntArray
 from pymort.analysis import MortalityScenarioSet
 from pymort.pricing.utils import (
     build_discount_factors,
@@ -19,9 +19,6 @@ from pymort.pricing.utils import (
     find_nearest_age_index,
     pv_from_cf_paths,
 )
-
-FloatArray = NDArray[np.floating]
-IntArray = NDArray[np.integer]
 
 
 class SurvivorSwapPricingResult(TypedDict, total=False):
@@ -61,7 +58,7 @@ class SurvivorSwapSpec:
     notional: float = 1.0
     strike: float | None = None
     payer: str = "fixed"  # "fixed" or "floating"
-    payment_times: np.ndarray | None = None
+    payment_times: IntArray | None = None
 
 
 def price_survivor_swap(

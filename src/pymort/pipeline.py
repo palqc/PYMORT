@@ -16,6 +16,7 @@ from typing import Any, Literal, TypedDict, cast
 
 import numpy as np
 
+from pymort._types import AnyArray, FloatArray
 from pymort.analysis import (
     MortalityScenarioSet,
     bootstrap_from_m,
@@ -90,7 +91,7 @@ class BootstrapKwargs(TypedDict, total=False):
 class BumpsConfig(TypedDict, total=False):
     build_scenarios_func: Callable[[float], MortalityScenarioSet]
     calibration_cache: CalibrationCache
-    lambda_esscher: float | Sequence[float] | np.ndarray
+    lambda_esscher: float | Sequence[float] | FloatArray
     short_rate_for_pricing: float | None
     sigma_rel_bump: float
     q_rel_bump: float
@@ -102,8 +103,8 @@ class HedgeConstraints(TypedDict, total=False):
     lb: float
     ub: float
     mode: str
-    discount_factors: np.ndarray
-    time_weights: np.ndarray
+    discount_factors: FloatArray
+    time_weights: FloatArray
     instrument_names: list[str] | None
     solver: str
     alpha: float
@@ -111,7 +112,7 @@ class HedgeConstraints(TypedDict, total=False):
 
 class HedgeGreeks(TypedDict, total=False):
     liability: Iterable[float]
-    instruments: np.ndarray
+    instruments: FloatArray
     liability_dPdr: float
     instruments_dPdr: Iterable[float]
     liability_d2Pdr2: float
@@ -291,9 +292,9 @@ def _calibration_summary(lam_res: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_mortality_scenarios_for_pricing(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     *,
     train_end: int,
     model_names: Iterable[ModelName] = (
@@ -418,9 +419,9 @@ def project_from_fitted_model(
     seed: int | None = None,
     include_last: bool = True,
     resample: Literal["cell", "year_block"] = "year_block",
-    ages_raw: np.ndarray | None = None,
-    years_raw: np.ndarray | None = None,
-    m_raw: np.ndarray | None = None,
+    ages_raw: AnyArray | None = None,
+    years_raw: AnyArray | None = None,
+    m_raw: FloatArray | None = None,
     plot_age_start: int = 95,
     plot_age_max: int = 200,
 ) -> tuple[ProjectionResult, MortalityScenarioSet, CalibrationCache]:
@@ -530,9 +531,9 @@ def project_from_fitted_model(
 
 def build_projection_pipeline(
     *,
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     train_end: int,
     horizon: int,
     n_scenarios: int,
@@ -547,9 +548,9 @@ def build_projection_pipeline(
     cpsplines_kwargs: dict[str, object] | None = None,
     bootstrap_kwargs: BootstrapKwargs | None = None,
     seed: int | None = None,
-    ages_raw: np.ndarray | None = None,
-    years_raw: np.ndarray | None = None,
-    m_raw: np.ndarray | None = None,
+    ages_raw: AnyArray | None = None,
+    years_raw: AnyArray | None = None,
+    m_raw: FloatArray | None = None,
     plot_age_start: int = 95,
     plot_age_max: int = 200,
 ) -> tuple[MortalityScenarioSet, CalibrationCache]:
@@ -997,9 +998,9 @@ def stress_testing_pipeline(
 
 def build_interest_rate_pipeline(
     *,
-    times: np.ndarray | None = None,
-    zero_rates: np.ndarray | None = None,
-    zero_curve: np.ndarray | None = None,
+    times: FloatArray | None = None,
+    zero_rates: FloatArray | None = None,
+    zero_curve: FloatArray | None = None,
     horizon: int | None = None,
     a: float,
     sigma: float,
@@ -1112,14 +1113,14 @@ def build_joint_scenarios(
 
 def hedging_pipeline(
     *,
-    liability_pv_paths: np.ndarray,
-    hedge_pv_paths: np.ndarray,
-    liability_cf_paths: np.ndarray | None = None,
-    hedge_cf_paths: np.ndarray | None = None,
+    liability_pv_paths: FloatArray,
+    hedge_pv_paths: FloatArray,
+    liability_cf_paths: FloatArray | None = None,
+    hedge_cf_paths: FloatArray | None = None,
     hedge_greeks: HedgeGreeks | None = None,
     method: str = "min_variance",
     constraints: HedgeConstraints | None = None,
-    discount_factors: np.ndarray | None = None,
+    discount_factors: FloatArray | None = None,
 ) -> HedgeResult | GreekHedgeResult:
     """Compute hedge weights using various strategies.
 
@@ -1218,8 +1219,8 @@ def hedging_pipeline(
 
 def reporting_pipeline(
     *,
-    pv_paths: np.ndarray,
-    ref_pv_paths: np.ndarray | None = None,
+    pv_paths: FloatArray,
+    ref_pv_paths: FloatArray | None = None,
     name: str,
     var_level: float = 0.99,
 ) -> RiskReport:
@@ -1250,9 +1251,9 @@ def reporting_pipeline(
 def _attach_plot_extension_gompertz(
     scen: MortalityScenarioSet,
     *,
-    ages_raw: np.ndarray | None,
-    years_raw: np.ndarray | None,
-    m_raw: np.ndarray | None,
+    ages_raw: AnyArray | None,
+    years_raw: AnyArray | None,
+    m_raw: FloatArray | None,
     plot_age_start: int,
     plot_age_max: int,
     age_fit_min: int = 80,
@@ -1353,7 +1354,7 @@ class HullWhiteConfig:
     sigma: float = 0.01
     seed: int | None = 0
     # Zero curve: array (H,), flat scalar, or None -> fallback to short_rate.
-    zero_rates: np.ndarray | None = None
+    zero_rates: FloatArray | None = None
     r0: float | None = None  # If None, uses zero_rates[0].
 
 
@@ -1393,7 +1394,7 @@ def apply_hull_white_discounting(
         else:
             if zr.size < H:
                 raise ValueError(f"zero_rates must have length >= H={H}, got {zr.size}.")
-            zero_rates = zr[:H]
+            zero_rates = cast(FloatArray, zr[:H])
 
     # --- simulate rate paths + DF paths ---
     ir_set = build_interest_rate_scenarios(

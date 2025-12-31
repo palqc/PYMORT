@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 
+from pymort._types import AnyArray, FloatArray
 from pymort.analysis.projections import ProjectionResult
 from pymort.lifetables import (
     cohort_survival_from_q_paths,
@@ -47,14 +48,14 @@ class MortalityScenarioSet:
         metadata (dict[str, Any]): Extra context such as measure and model name.
     """
 
-    years: np.ndarray
-    ages: np.ndarray
+    years: AnyArray
+    ages: AnyArray
 
-    q_paths: np.ndarray
-    S_paths: np.ndarray
+    q_paths: FloatArray
+    S_paths: FloatArray
 
-    m_paths: np.ndarray | None = None
-    discount_factors: np.ndarray | None = None
+    m_paths: FloatArray | None = None
+    discount_factors: FloatArray | None = None
 
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -176,8 +177,8 @@ def load_scenario_set_npz(path: Path | str) -> MortalityScenarioSet:
 
 def build_scenario_set_from_projection(
     proj: ProjectionResult,
-    ages: np.ndarray,
-    discount_factors: np.ndarray | None = None,
+    ages: AnyArray,
+    discount_factors: FloatArray | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> MortalityScenarioSet:
     """Build a MortalityScenarioSet from a ProjectionResult.

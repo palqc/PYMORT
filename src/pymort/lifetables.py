@@ -17,11 +17,10 @@ from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
+
+from pymort._types import FloatArray, IntArray
 
 Sex = Literal["Total", "Female", "Male"]
-FloatArray = NDArray[np.floating]
-IntArray = NDArray[np.integer]
 MortalitySurface = tuple[IntArray, IntArray, FloatArray]
 
 
@@ -247,8 +246,8 @@ def load_m_from_excel(
 
     if drop_years is not None:
         mask = ~np.isin(years, np.array(list(drop_years)))
-        years = years[mask]
-        m = m[:, mask]
+        years = cast(IntArray, years[mask])
+        m = cast(FloatArray, m[:, mask])
 
     # Simple imputation if gaps exist (ffill/bfill along time then age)
     if np.isnan(m).any():
@@ -264,7 +263,7 @@ def load_m_from_excel(
             raise ValueError("Missing values remain after simple imputation.")
 
     # Ensure strictly positive
-    m = np.clip(m, m_floor, None)
+    m = cast(FloatArray, np.clip(m, m_floor, None))
 
     return {"m": (ages, years, m)}
 
@@ -524,8 +523,8 @@ def load_m_from_excel_any(
 
     if drop_years is not None:
         mask = ~np.isin(years, np.array(list(drop_years)))
-        years = years[mask]
-        m = m[:, mask]
+        years = cast(IntArray, years[mask])
+        m = cast(FloatArray, m[:, mask])
 
     # Simple imputation if gaps exist (ffill/bfill along time then age)
     if np.isnan(m).any():
@@ -540,6 +539,6 @@ def load_m_from_excel_any(
         if np.isnan(m).any():
             raise ValueError("Missing values remain after simple imputation.")
 
-    m = np.clip(m, m_floor, None)
+    m = cast(FloatArray, np.clip(m, m_floor, None))
 
     return {"m": (ages, years, m)}

@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
+
+from assets.sidebar import logo_sidebar
+
+LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
 # -----------------------------
 # Session state helpers
@@ -81,7 +87,9 @@ def render_sidebar_state() -> None:
 
     st.sidebar.write(("✅" if _is_set("raw_df") else "❌") + " Data loaded")
     st.sidebar.write(("✅" if _is_set("m_slice") else "❌") + " Data sliced")
-    st.sidebar.write(("✅" if _is_set("fitted_model") else "❌") + " Model fitted/selected")
+    st.sidebar.write(
+        ("✅" if _is_set("fitted_model") else "❌") + " Model fitted/selected"
+    )
     st.sidebar.write(("✅" if _is_set("scen_P") else "❌") + " Scenarios P built")
     st.sidebar.write(("✅" if _is_set("scen_Q") else "❌") + " Scenarios Q built")
     st.sidebar.write(("✅" if _is_set("prices") else "❌") + " Pricing done")
@@ -99,6 +107,7 @@ def render_sidebar_state() -> None:
 # App
 # -----------------------------
 def main() -> None:
+    logo_sidebar()
     st.set_page_config(
         page_title="PYMORT — Longevity Risk Lab",
         page_icon="📈",
@@ -110,7 +119,7 @@ def main() -> None:
 
     st.title("📈 PYMORT — Longevity Risk Lab")
     st.caption(
-        "Workflow: HMD table → slice → fit/select → P scenarios → Q scenarios (λ) → pricing → hedging → reporting."
+        "Workflow: HMD table → slice → fit/select → P scenarios → Q scenarios (λ) → pricing → hedging → scenario analysis → sensitivities → reporting."
     )
 
     st.markdown(

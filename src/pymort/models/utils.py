@@ -12,8 +12,10 @@ Note:
 
 import numpy as np
 
+from pymort._types import FloatArray
 
-def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
+
+def estimate_rw_params(k: FloatArray) -> tuple[float, float]:
     """Estimate random-walk-with-drift parameters for a 1D series.
 
     The model is:
@@ -52,7 +54,7 @@ def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
     return mu, sigma
 
 
-def _estimate_rw_params(kappa: np.ndarray) -> tuple[float, float]:
+def _estimate_rw_params(kappa: FloatArray) -> tuple[float, float]:
     """Estimate random-walk-with-drift parameters for a 1D CBD series.
 
     This helper is more permissive than ``estimate_rw_params``: if the

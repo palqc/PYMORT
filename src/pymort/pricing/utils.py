@@ -7,11 +7,9 @@ Note:
 from typing import cast
 
 import numpy as np
-from numpy.typing import NDArray
 
+from pymort._types import FloatArray
 from pymort.analysis import MortalityScenarioSet
-
-FloatArray = NDArray[np.floating]
 
 
 def find_nearest_age_index(ages: FloatArray, target_age: float) -> int:
@@ -267,8 +265,11 @@ def cohort_survival_full_horizon_from_q(
         q_diag[:, k] = np.clip(q_k, 0.0, 1.0 - 1e-12)
 
     if not np.isfinite(q_diag).all():
-        q_diag = np.nan_to_num(q_diag, nan=0.0, posinf=1.0 - 1e-12, neginf=0.0)
-    q_diag = np.clip(q_diag, 0.0, 1.0 - 1e-12)
+        q_diag = cast(
+            FloatArray,
+            np.nan_to_num(q_diag, nan=0.0, posinf=1.0 - 1e-12, neginf=0.0),
+        )
+    q_diag = cast(FloatArray, np.clip(q_diag, 0.0, 1.0 - 1e-12))
 
     S = np.cumprod(1.0 - q_diag, axis=1)
     return np.clip(S, 0.0, 1.0)

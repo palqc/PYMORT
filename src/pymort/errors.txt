@@ -1,0 +1,926 @@
+Run mypy src/pymort
+src\pymort\models\utils.py:16: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    def estimate_rw_params(k: np.ndarray) -> tuple[float, float]:
+                              ^
+src\pymort\models\utils.py:55: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    def _estimate_rw_params(kappa: np.ndarray) -> tuple[float, float]:
+                                   ^
+src\pymort\lifetables.py:250: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int], dtype[Any]]")  [assignment]
+            years = years[mask]
+                    ^~~~~~~~~~~
+src\pymort\lifetables.py:251: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int, int], dtype[Any]]")  [assignment]
+            m = m[:, mask]
+                ^~~~~~~~~~
+src\pymort\lifetables.py:267: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int, int], dtype[Any]]")  [assignment]
+        m = np.clip(m, m_floor, None)
+            ^~~~~~~~~~~~~~~~~~~~~~~~~
+src\pymort\lifetables.py:527: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int], dtype[Any]]")  [assignment]
+            years = years[mask]
+                    ^~~~~~~~~~~
+src\pymort\lifetables.py:528: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int, int], dtype[Any]]")  [assignment]
+            m = m[:, mask]
+                ^~~~~~~~~~
+src\pymort\lifetables.py:543: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int, int], dtype[Any]]")  [assignment]
+        m = np.clip(m, m_floor, None)
+            ^~~~~~~~~~~~~~~~~~~~~~~~~
+src\pymort\analysis\smoothing.py:19: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\smoothing.py:20: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\smoothing.py:21: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\models\lc_m1.py:21: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        a: np.ndarray  # (A,)
+           ^
+src\pymort\models\lc_m1.py:22: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        b: np.ndarray  # (A,)
+           ^
+src\pymort\models\lc_m1.py:23: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        k: np.ndarray  # (T,)
+           ^
+src\pymort\models\lc_m1.py:28: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    def fit_lee_carter(m: np.ndarray) -> LCM1Params:
+                          ^
+src\pymort\models\lc_m1.py:78: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
+                                                 ^
+src\pymort\models\lc_m1.py:94: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        def fit(self, m: np.ndarray) -> LCM1:
+                         ^
+src\pymort\models\lc_m1.py:113: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        def predict_log_m(self) -> np.ndarray:
+                                   ^
+src\pymort\models\lc_m1.py:125: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        ) -> np.ndarray:
+             ^
+src\pymort\analysis\bootstrap.py:41: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        mu_sigma: np.ndarray
+                  ^
+src\pymort\analysis\bootstrap.py:46: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        resid: np.ndarray,
+               ^
+src\pymort\analysis\bootstrap.py:49: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+    ) -> np.ndarray:
+         ^
+src\pymort\analysis\bootstrap.py:78: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\bootstrap.py:79: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\bootstrap.py:80: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\bootstrap.py:167: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q: np.ndarray,
+           ^
+src\pymort\analysis\bootstrap.py:168: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\bootstrap.py:169: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\bootstrap.py:255: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\bootstrap.py:256: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\bootstrap.py:257: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\projections.py:41: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        kappa1: np.ndarray
+                ^
+src\pymort\analysis\projections.py:42: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        kappa2: np.ndarray
+                ^
+src\pymort\analysis\projections.py:47: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        kappa3: np.ndarray
+                ^
+src\pymort\analysis\projections.py:68: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray  # (H_out,)
+               ^
+src\pymort\analysis\projections.py:69: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q_paths: np.ndarray  # (N, A, H_out)
+                 ^
+src\pymort\analysis\projections.py:70: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m_paths: np.ndarray | None  # (N, A, H_out) for log-m models, else...
+                 ^
+src\pymort\analysis\projections.py:71: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        k_paths: np.ndarray | None  # (N, H_out) for LC/APC, or (N, d_fact...
+                 ^
+src\pymort\analysis\projections.py:82: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> np.ndarray:
+         ^
+src\pymort\analysis\projections.py:130: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        eps: np.ndarray,
+             ^
+src\pymort\analysis\projections.py:132: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> np.ndarray:
+         ^
+src\pymort\analysis\projections.py:169: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\projections.py:170: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\projections.py:171: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\projections.py:177: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        drift_overrides: np.ndarray | None = None,
+                         ^
+src\pymort\analysis\projections.py:178: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        scale_sigma: float | np.ndarray = 1.0,
+                             ^
+src\pymort\analysis\projections.py:179: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        sigma_overrides: np.ndarray | None = None,
+                         ^
+src\pymort\analysis\projections.py:181: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        eps_rw: np.ndarray | None = None,  # (B, n_process, H) for LC/APC
+                ^
+src\pymort\analysis\projections.py:182: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        eps1: np.ndarray | None = None,  # (B, n_process, H) for CBD
+              ^
+src\pymort\analysis\projections.py:183: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        eps2: np.ndarray | None = None,  # (B, n_process, H) for CBD
+              ^
+src\pymort\analysis\projections.py:184: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        eps3: np.ndarray | None = None,  # (B, n_process, H) for CBDM7 onl...
+              ^
+src\pymort\analysis\projections.py:257: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int, int, int], dtype[Any]]")  [assignment]
+            k_paths = np.zeros((N, H_out), dtype=float)
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\pymort\analysis\projections.py:288: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int], dtype[Any]]")  [assignment]
+            scale_vec = np.array([float(scale_vec[0])])
+                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\pymort\analysis\projections.py:304: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        def _check_eps(name: str, arr: np.ndarray | None) -> np.ndarray | ...
+                                       ^
+src\pymort\analysis\validation.py:24: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray, train_end: int
+               ^
+src\pymort\analysis\validation.py:25: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+               ^
+src\pymort\analysis\validation.py:36: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _check_surface_time_inputs(years: np.ndarray, mat: np.ndarray, nam...
+                                          ^
+src\pymort\analysis\validation.py:51: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _rmse(a: np.ndarray, b: np.ndarray) -> float:
+                 ^
+src\pymort\analysis\validation.py:59: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _rmse_logit_q(q_true: np.ndarray, q_hat: np.ndarray) -> float:
+                              ^
+src\pymort\analysis\validation.py:65: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _rmse_logit_q_from_m(m_true: np.ndarray, m_hat: np.ndarray) -> flo...
+                                     ^
+src\pymort\analysis\validation.py:69: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _rmse_logit_forecast_from_logit_hat(q_te: np.ndarray, logit_hat_te...
+                                                  ^
+src\pymort\analysis\validation.py:73: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _rw_drift_forecast(last: float, mu: float, H: int) -> np.ndarray:
+                                                              ^
+src\pymort\analysis\validation.py:82: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\validation.py:83: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        cohorts: np.ndarray,
+                 ^
+src\pymort\analysis\validation.py:84: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        gamma: np.ndarray,
+               ^
+src\pymort\analysis\validation.py:86: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> np.ndarray:
+         ^
+src\pymort\analysis\validation.py:122: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\validation.py:123: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\validation.py:125: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> dict[str, np.ndarray | float]:
+                   ^
+src\pymort\analysis\validation.py:170: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\validation.py:171: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\validation.py:172: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\validation.py:174: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> dict[str, float | np.ndarray]:
+                           ^
+src\pymort\analysis\validation.py:235: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\validation.py:236: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\validation.py:237: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q: np.ndarray,
+           ^
+src\pymort\analysis\validation.py:239: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> dict[str, np.ndarray | float]:
+                   ^
+src\pymort\analysis\validation.py:289: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\validation.py:290: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\validation.py:291: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q: np.ndarray,
+           ^
+src\pymort\analysis\validation.py:293: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> dict[str, np.ndarray | float]:
+                   ^
+src\pymort\analysis\validation.py:342: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\validation.py:343: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\validation.py:344: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q: np.ndarray,
+           ^
+src\pymort\analysis\validation.py:346: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> dict[str, np.ndarray | float]:
+                   ^
+src\pymort\analysis\validation.py:399: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\validation.py:400: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\validation.py:401: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\validation.py:403: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> dict[str, float | np.ndarray]:
+                           ^
+src\pymort\analysis\validation.py:467: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        logit_true: np.ndarray, logit_hat: np.ndarray, n_params: int
+                    ^
+src\pymort\analysis\scenario.py:50: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        years: np.ndarray
+               ^
+src\pymort\analysis\scenario.py:51: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray
+              ^
+src\pymort\analysis\scenario.py:53: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        q_paths: np.ndarray
+                 ^
+src\pymort\analysis\scenario.py:54: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        S_paths: np.ndarray
+                 ^
+src\pymort\analysis\scenario.py:56: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m_paths: np.ndarray | None = None
+                 ^
+src\pymort\analysis\scenario.py:57: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        discount_factors: np.ndarray | None = None
+                          ^
+src\pymort\analysis\scenario.py:179: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\scenario.py:180: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        discount_factors: np.ndarray | None = None,
+                          ^
+src\pymort\pricing\utils.py:270: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int, int], dtype[Any]]")  [assignment]
+            q_diag = np.nan_to_num(q_diag, nan=0.0, posinf=1.0 - 1e-12, ne...
+                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~...
+src\pymort\pricing\utils.py:271: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int, int], dtype[Any]]")  [assignment]
+        q_diag = np.clip(q_diag, 0.0, 1.0 - 1e-12)
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\pymort\analysis\scenario_analysis.py:28: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q_paths: np.ndarray | None = None,
+                 ^
+src\pymort\analysis\scenario_analysis.py:29: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        S_paths: np.ndarray | None = None,
+                 ^
+src\pymort\analysis\scenario_analysis.py:30: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        discount_factors: np.ndarray | None = None,
+                          ^
+src\pymort\analysis\scenario_analysis.py:318: error: Missing type parameters
+for generic type "ndarray"  [type-arg]
+        q_1d: np.ndarray,
+              ^
+src\pymort\analysis\risk_tools.py:40: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray
+              ^
+src\pymort\analysis\risk_tools.py:41: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray
+               ^
+src\pymort\analysis\risk_tools.py:42: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        S_mean: np.ndarray
+                ^
+src\pymort\analysis\risk_tools.py:43: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        S_std: np.ndarray
+               ^
+src\pymort\analysis\risk_tools.py:44: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        S_quantiles: dict[int, np.ndarray]
+                               ^
+src\pymort\analysis\risk_tools.py:45: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q_mean: np.ndarray
+                ^
+src\pymort\analysis\risk_tools.py:46: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q_std: np.ndarray
+               ^
+src\pymort\analysis\risk_tools.py:47: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q_quantiles: dict[int, np.ndarray]
+                               ^
+src\pymort\analysis\risk_tools.py:110: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        S_quantiles: dict[int, np.ndarray] = {}
+                               ^
+src\pymort\analysis\risk_tools.py:111: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q_quantiles: dict[int, np.ndarray] = {}
+                               ^
+src\pymort\analysis\risk_tools.py:129: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def summarize_pv_paths(pv_paths: np.ndarray) -> PVSummary:
+                                     ^
+src\pymort\analysis\reporting.py:86: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+    def _as_1d(x: np.ndarray, *, name: str) -> np.ndarray:
+                  ^
+src\pymort\analysis\reporting.py:95: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+    def _pv_to_loss(pv: np.ndarray, pv_kind: PVKind) -> np.ndarray:
+                        ^
+src\pymort\analysis\reporting.py:103: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _compute_var_cvar(loss_paths: np.ndarray, alpha: float) -> tuple[f...
+                                      ^
+src\pymort\analysis\reporting.py:114: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _skew_kurtosis(x: np.ndarray) -> tuple[float, float]:
+                          ^
+src\pymort\analysis\reporting.py:132: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        pv_paths: np.ndarray,
+                  ^
+src\pymort\analysis\reporting.py:136: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ref_pv_paths: np.ndarray | None = None,
+                      ^
+src\pymort\analysis\reporting.py:314: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        pv_paths: np.ndarray,
+                  ^
+src\pymort\analysis\reporting.py:342: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        liability_pv_paths: np.ndarray,
+                            ^
+src\pymort\analysis\reporting.py:343: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        net_pv_paths: np.ndarray,
+                      ^
+src\pymort\analysis\fitting.py:65: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray
+              ^
+src\pymort\analysis\fitting.py:66: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        years: np.ndarray
+               ^
+src\pymort\analysis\fitting.py:69: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m_fit_surface: np.ndarray | None = None
+                       ^
+src\pymort\analysis\fitting.py:70: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m_eval_surface: np.ndarray | None = None
+                        ^
+src\pymort\analysis\fitting.py:82: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\fitting.py:83: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\fitting.py:84: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m_fit: np.ndarray,
+               ^
+src\pymort\analysis\fitting.py:85: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m_eval: np.ndarray,
+                ^
+src\pymort\analysis\fitting.py:235: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\fitting.py:236: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\fitting.py:237: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\fitting.py:297: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                m_fit = cast(np.ndarray, cp_res["m_fitted"])
+                             ^
+src\pymort\analysis\fitting.py:335: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\fitting.py:336: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\fitting.py:337: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\analysis\fitting.py:415: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    train_years = cast(np.ndarray, res["train_years"])
+                                       ^
+src\pymort\analysis\fitting.py:416: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    test_years = cast(np.ndarray, res["test_years"])
+                                      ^
+src\pymort\analysis\fitting.py:431: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    train_years = cast(np.ndarray, res["train_years"])
+                                       ^
+src\pymort\analysis\fitting.py:432: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    test_years = cast(np.ndarray, res["test_years"])
+                                      ^
+src\pymort\analysis\fitting.py:447: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    train_years = cast(np.ndarray, res["train_years"])
+                                       ^
+src\pymort\analysis\fitting.py:448: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    test_years = cast(np.ndarray, res["test_years"])
+                                      ^
+src\pymort\analysis\fitting.py:462: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    train_years = cast(np.ndarray, res["train_years"])
+                                       ^
+src\pymort\analysis\fitting.py:463: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    test_years = cast(np.ndarray, res["test_years"])
+                                      ^
+src\pymort\analysis\fitting.py:477: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    train_years = cast(np.ndarray, res["train_years"])
+                                       ^
+src\pymort\analysis\fitting.py:478: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    test_years = cast(np.ndarray, res["test_years"])
+                                      ^
+src\pymort\analysis\fitting.py:492: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    train_years = cast(np.ndarray, res["train_years"])
+                                       ^
+src\pymort\analysis\fitting.py:493: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+                    test_years = cast(np.ndarray, res["test_years"])
+                                      ^
+src\pymort\analysis\fitting.py:552: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\analysis\fitting.py:553: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\analysis\fitting.py:554: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\pricing\survivor_swaps.py:64: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        payment_times: np.ndarray | None = None
+                       ^
+src\pymort\pricing\hedging.py:40: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        coef_: np.ndarray
+               ^
+src\pymort\pricing\hedging.py:42: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        def fit(self, X: np.ndarray, y: np.ndarray) -> _LinearModel: ...
+                         ^
+src\pymort\pricing\hedging.py:216: error: Missing type parameters for generic
+type "ndarray"  [type-arg]
+        df_pv: np.ndarray | None = None
+               ^
+src\pymort\pricing\risk_neutral.py:35: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    Lambda = float | Sequence[float] | np.ndarray
+                                       ^
+src\pymort\pricing\risk_neutral.py:36: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    Shock = Sequence[float] | np.ndarray
+                              ^
+src\pymort\pricing\risk_neutral.py:78: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _to_1d_array(x: Iterable[float] | float, name: str) -> np.ndarray:
+                                                               ^
+src\pymort\pricing\risk_neutral.py:161: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\pricing\risk_neutral.py:162: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\pricing\risk_neutral.py:163: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\pricing\risk_neutral.py:226: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        mu_Q: np.ndarray,
+              ^
+src\pymort\pricing\risk_neutral.py:230: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> np.ndarray:
+         ^
+src\pymort\pricing\risk_neutral.py:237: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ...   shock_arr = np.asarray(cast(Sequence[float] | np.ndarray | float, s...
+                                                        ^
+src\pymort\pricing\risk_neutral.py:259: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        q_paths: np.ndarray,
+                 ^
+src\pymort\pricing\risk_neutral.py:260: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\pricing\risk_neutral.py:261: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\pricing\risk_neutral.py:267: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> np.ndarray:
+         ^
+src\pymort\pricing\risk_neutral.py:475: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    def _to_lambda_vec(lambda_esscher: Lambda, k: int) -> np.ndarray:
+                                                          ^
+src\pymort\pricing\risk_neutral.py:488: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\pricing\risk_neutral.py:489: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\pricing\risk_neutral.py:490: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\pricing\risk_neutral.py:551: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        def residual_vec(lam_vec: np.ndarray) -> np.ndarray:
+                                  ^
+src\pymort\pricing\risk_neutral.py:566: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+            return cast(np.ndarray, (model_prices - market) * w_sqrt)
+                        ^
+src\pymort\pricing\risk_neutral.py:619: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\pricing\risk_neutral.py:620: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\pricing\risk_neutral.py:621: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\pricing\risk_neutral.py:639: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+    ) -> np.ndarray:
+         ^
+src\pymort\analysis\sensitivities.py:74: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        ages: np.ndarray
+              ^
+src\pymort\analysis\sensitivities.py:75: error: Missing type parameters for
+generic type "ndarray"  [type-arg]
+        deltas: np.ndarray
+                ^
+src\pymort\pipeline.py:93: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        lambda_esscher: float | Sequence[float] | np.ndarray
+                                                  ^
+src\pymort\pipeline.py:105: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        discount_factors: np.ndarray
+                          ^
+src\pymort\pipeline.py:106: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        time_weights: np.ndarray
+                      ^
+src\pymort\pipeline.py:114: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        instruments: np.ndarray
+                     ^
+src\pymort\pipeline.py:294: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\pipeline.py:295: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\pipeline.py:296: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\pipeline.py:421: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        ages_raw: np.ndarray | None = None,
+                  ^
+src\pymort\pipeline.py:422: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        years_raw: np.ndarray | None = None,
+                   ^
+src\pymort\pipeline.py:423: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        m_raw: np.ndarray | None = None,
+               ^
+src\pymort\pipeline.py:533: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\pipeline.py:534: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\pipeline.py:535: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\pipeline.py:550: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        ages_raw: np.ndarray | None = None,
+                  ^
+src\pymort\pipeline.py:551: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        years_raw: np.ndarray | None = None,
+                   ^
+src\pymort\pipeline.py:552: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        m_raw: np.ndarray | None = None,
+               ^
+src\pymort\pipeline.py:1000: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        times: np.ndarray | None = None,
+               ^
+src\pymort\pipeline.py:1001: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        zero_rates: np.ndarray | None = None,
+                    ^
+src\pymort\pipeline.py:1002: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        zero_curve: np.ndarray | None = None,
+                    ^
+src\pymort\pipeline.py:1115: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        liability_pv_paths: np.ndarray,
+                            ^
+src\pymort\pipeline.py:1116: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        hedge_pv_paths: np.ndarray,
+                        ^
+src\pymort\pipeline.py:1117: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        liability_cf_paths: np.ndarray | None = None,
+                            ^
+src\pymort\pipeline.py:1118: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        hedge_cf_paths: np.ndarray | None = None,
+                        ^
+src\pymort\pipeline.py:1122: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        discount_factors: np.ndarray | None = None,
+                          ^
+src\pymort\pipeline.py:1221: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        pv_paths: np.ndarray,
+                  ^
+src\pymort\pipeline.py:1222: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        ref_pv_paths: np.ndarray | None = None,
+                      ^
+src\pymort\pipeline.py:1253: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        ages_raw: np.ndarray | None,
+                  ^
+src\pymort\pipeline.py:1254: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        years_raw: np.ndarray | None,
+                   ^
+src\pymort\pipeline.py:1255: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        m_raw: np.ndarray | None,
+               ^
+src\pymort\pipeline.py:1356: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        zero_rates: np.ndarray | None = None
+                    ^
+src\pymort\pipeline.py:1396: error: Incompatible types in assignment
+(expression has type "ndarray[tuple[int, ...], dtype[Any]]", variable has type
+"ndarray[tuple[int], dtype[Any]]")  [assignment]
+                zero_rates = zr[:H]
+                             ^~~~~~
+src\pymort\cli.py:122: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    def _parse_number_list(spec: str | None) -> np.ndarray | None:
+                                                ^
+src\pymort\cli.py:152: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        ages: np.ndarray,
+              ^
+src\pymort\cli.py:153: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        years: np.ndarray,
+               ^
+src\pymort\cli.py:154: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        m: np.ndarray,
+           ^
+src\pymort\cli.py:158: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+               ^
+src\pymort\cli.py:173: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    def _read_numeric_series(path: Path) -> np.ndarray:
+                                            ^
+src\pymort\cli.py:176: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+            return cast(np.ndarray, np.load(path))
+                        ^
+src\pymort\cli.py:186: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    def _read_numeric_matrix(path: Path) -> np.ndarray:
+                                            ^
+src\pymort\cli.py:197: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    def _read_numeric_cube(path: Path) -> np.ndarray:
+                                          ^
+src\pymort\cli.py:211: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+               ^
+src\pymort\cli.py:398: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+    ) -> tuple[float, np.ndarray]:
+                      ^
+src\pymort\cli.py:1797: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        liab_paths: np.ndarray | None = None
+                    ^
+src\pymort\cli.py:1804: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        hedge_cols: list[np.ndarray] = []
+                         ^
+src\pymort\cli.py:2202: error: Missing type parameters for generic type
+"ndarray"  [type-arg]
+        hedge_cols: list[np.ndarray] = []
+                         ^
+Found 228 errors in 19 files (checked 39 source files)
+Error: Process completed with exit code 1.

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from pymort._types import FloatArray, IntArray
 from pymort.analysis import MortalityScenarioSet
 
 
@@ -37,14 +38,14 @@ class SurvivalScenarioSummary:
             death probabilities, each surface shape (A, H).
     """
 
-    ages: np.ndarray
-    years: np.ndarray
-    S_mean: np.ndarray
-    S_std: np.ndarray
-    S_quantiles: dict[int, np.ndarray]
-    q_mean: np.ndarray
-    q_std: np.ndarray
-    q_quantiles: dict[int, np.ndarray]
+    ages: FloatArray
+    years: IntArray
+    S_mean: FloatArray
+    S_std: FloatArray
+    S_quantiles: dict[int, FloatArray]
+    q_mean: FloatArray
+    q_std: FloatArray
+    q_quantiles: dict[int, FloatArray]
 
 
 @dataclass
@@ -107,8 +108,8 @@ def summarize_survival_scenarios(
     q_std = q_paths.std(axis=0)
 
     # Quantiles across scenarios
-    S_quantiles: dict[int, np.ndarray] = {}
-    q_quantiles: dict[int, np.ndarray] = {}
+    S_quantiles: dict[int, FloatArray] = {}
+    q_quantiles: dict[int, FloatArray] = {}
 
     for p in percentiles:
         S_quantiles[p] = np.percentile(S_paths, p, axis=0)  # (A, H)
@@ -126,7 +127,7 @@ def summarize_survival_scenarios(
     )
 
 
-def summarize_pv_paths(pv_paths: np.ndarray) -> PVSummary:
+def summarize_pv_paths(pv_paths: FloatArray) -> PVSummary:
     """Summarize a vector of PV paths.
 
     This helper works for longevity bonds, swaps, forwards, and liabilities.

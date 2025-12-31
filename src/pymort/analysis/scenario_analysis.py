@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 
+from pymort._types import FloatArray
 from pymort.analysis import MortalityScenarioSet
 from pymort.lifetables import survival_from_q, validate_q, validate_survival_monotonic
 
@@ -25,9 +26,9 @@ from pymort.lifetables import survival_from_q, validate_q, validate_survival_mon
 def clone_scen_set_with(
     scen_set: MortalityScenarioSet,
     *,
-    q_paths: np.ndarray | None = None,
-    S_paths: np.ndarray | None = None,
-    discount_factors: np.ndarray | None = None,
+    q_paths: FloatArray | None = None,
+    S_paths: FloatArray | None = None,
+    discount_factors: FloatArray | None = None,
     metadata: dict[str, object] | None = None,
 ) -> MortalityScenarioSet:
     """Clone a MortalityScenarioSet with optional replacements.
@@ -315,7 +316,7 @@ def generate_stressed_bundle(
 
 
 def _life_expectancy_from_q(
-    q_1d: np.ndarray,
+    q_1d: FloatArray,
     *,
     include_half_year: bool = True,
 ) -> float:

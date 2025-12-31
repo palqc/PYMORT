@@ -33,18 +33,19 @@ from typing import Protocol, cast
 
 import numpy as np
 
+from pymort._types import AnyArray, FloatArray, IntArray
 from pymort.analysis.bootstrap import BootstrapResult
 from pymort.lifetables import m_to_q, validate_q
 
 
 class _CBDParamsBase(Protocol):
-    kappa1: np.ndarray
-    kappa2: np.ndarray
+    kappa1: FloatArray
+    kappa2: FloatArray
     x_bar: float
 
 
 class _CBDM7Params(_CBDParamsBase, Protocol):
-    kappa3: np.ndarray
+    kappa3: FloatArray
     sigma2_x: float
 
 
@@ -65,10 +66,10 @@ class ProjectionResult:
             or (N, d_factors, H_out) for CBD, or None if not stored.
     """
 
-    years: np.ndarray  # (H_out,)
-    q_paths: np.ndarray  # (N, A, H_out)
-    m_paths: np.ndarray | None  # (N, A, H_out) for log-m models, else None
-    k_paths: np.ndarray | None  # (N, H_out) for LC/APC, or (N, d_factors, H_out) for CBD
+    years: IntArray  # (H_out,)
+    q_paths: FloatArray  # (N, A, H_out)
+    m_paths: FloatArray | None  # (N, A, H_out) for log-m models, else None
+    k_paths: FloatArray | None  # (N, H_out) for LC/APC, or (N, d_factors, H_out) for CBD
 
 
 def simulate_random_walk_paths(
@@ -79,7 +80,7 @@ def simulate_random_walk_paths(
     n_sims: int,
     rng: np.random.Generator,
     include_last: bool = False,
-) -> np.ndarray:
+) -> FloatArray:
     """Simulate random-walk-with-drift paths (vectorized).
 
     The model is:
@@ -127,9 +128,9 @@ def simulate_random_walk_paths_with_eps(
     k_last: float,
     mu: float,
     sigma: float,
-    eps: np.ndarray,
+    eps: FloatArray,
     include_last: bool = False,
-) -> np.ndarray:
+) -> FloatArray:
     """Simulate random-walk paths using pre-drawn eps (CRN-friendly).
 
     Args:
@@ -166,22 +167,22 @@ def simulate_random_walk_paths_with_eps(
 
 def project_mortality_from_bootstrap(
     model_cls: type,
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     bootstrap_result: BootstrapResult,
     horizon: int = 50,
     n_process: int = 200,
     seed: int | None = None,
     include_last: bool = False,
-    drift_overrides: np.ndarray | None = None,
-    scale_sigma: float | np.ndarray = 1.0,
-    sigma_overrides: np.ndarray | None = None,
+    drift_overrides: FloatArray | None = None,
+    scale_sigma: float | FloatArray = 1.0,
+    sigma_overrides: FloatArray | None = None,
     # --- CRN innovations (optional) ---
-    eps_rw: np.ndarray | None = None,  # (B, n_process, H) for LC/APC
-    eps1: np.ndarray | None = None,  # (B, n_process, H) for CBD
-    eps2: np.ndarray | None = None,  # (B, n_process, H) for CBD
-    eps3: np.ndarray | None = None,  # (B, n_process, H) for CBDM7 only
+    eps_rw: FloatArray | None = None,  # (B, n_process, H) for LC/APC
+    eps1: FloatArray | None = None,  # (B, n_process, H) for CBD
+    eps2: FloatArray | None = None,  # (B, n_process, H) for CBD
+    eps3: FloatArray | None = None,  # (B, n_process, H) for CBDM7 only
 ) -> ProjectionResult:
     """Project mortality by combining bootstrap and process uncertainty.
 
@@ -252,9 +253,9 @@ def project_mortality_from_bootstrap(
             raise ValueError(
                 f"CBD projection: expected mu_sigma with 4 (M5/M6) or 6 (M7) columns, got {d_mu}."
             )
-        k_paths = np.zeros((N, d_factors, H_out), dtype=float)
+        k_paths = cast(FloatArray, np.zeros((N, d_factors, H_out), dtype=float))
     else:
-        k_paths = np.zeros((N, H_out), dtype=float)
+        k_paths = cast(FloatArray, np.zeros((N, H_out), dtype=float))
 
     # drift_overrides validation
     if drift_overrides is not None:
@@ -285,7 +286,7 @@ def project_mortality_from_bootstrap(
             raise ValueError(
                 f"scale_sigma must be scalar (or length 1) for LC/APC, got {scale_vec.size}."
             )
-        scale_vec = np.array([float(scale_vec[0])])
+        scale_vec = cast(FloatArray, np.array([float(scale_vec[0])]))
 
     if not np.all(np.isfinite(scale_vec)) or np.any(scale_vec <= 0.0):
         raise ValueError("scale_sigma must be finite and > 0.")
@@ -301,7 +302,7 @@ def project_mortality_from_bootstrap(
             raise ValueError("sigma_overrides must be finite and > 0.")
 
     # --- CRN validation helpers ---
-    def _check_eps(name: str, arr: np.ndarray | None) -> np.ndarray | None:
+    def _check_eps(name: str, arr: FloatArray | None) -> FloatArray | None:
         if arr is None:
             return None
         arr = np.asarray(arr, dtype=float)
@@ -404,7 +405,7 @@ def project_mortality_from_bootstrap(
                     )
                     logit_q_block += gamma_last[None, :, None]
 
-                q_block = 1.0 / (1.0 + np.exp(-logit_q_block))
+                q_block = cast(FloatArray, 1.0 / (1.0 + np.exp(-logit_q_block)))
 
                 q_paths[out : out + n_process] = q_block
                 k_paths[out : out + n_process, 0, :] = k1_block
@@ -454,7 +455,7 @@ def project_mortality_from_bootstrap(
                     )
                     logit_q_block += gamma_last[None, :, None]
 
-                q_block = 1.0 / (1.0 + np.exp(-logit_q_block))
+                q_block = cast(FloatArray, 1.0 / (1.0 + np.exp(-logit_q_block)))
 
                 q_paths[out : out + n_process] = q_block
                 k_paths[out : out + n_process, 0, :] = k1_block

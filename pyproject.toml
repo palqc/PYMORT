@@ -87,7 +87,6 @@ follow_imports = "normal"
 namespace_packages = true
 show_error_codes = true
 pretty = true
-plugins = ["numpy.typing.mypy_plugin"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"

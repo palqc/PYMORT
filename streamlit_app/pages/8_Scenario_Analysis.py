@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from pymort.analysis.scenario_analysis import ShockSpec
-from pymort.analysis.sensitivities import price_all_products  # uses your wrappers
+from pymort.analysis.sensitivities import price_all_products
 from pymort.pipeline import stress_testing_pipeline
 
 st.set_page_config(page_title="Scenario Analysis", page_icon="🧪", layout="wide")

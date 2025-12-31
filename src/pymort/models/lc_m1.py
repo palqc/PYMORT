@@ -10,22 +10,24 @@ Note:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
+from pymort._types import FloatArray
 from pymort.models.utils import estimate_rw_params
 
 
 @dataclass
 class LCM1Params:
-    a: np.ndarray  # (A,)
-    b: np.ndarray  # (A,)
-    k: np.ndarray  # (T,)
+    a: FloatArray  # (A,)
+    b: FloatArray  # (A,)
+    k: FloatArray  # (T,)
     mu: float | None = None  # drift of k_t
     sigma: float | None = None  # volatility of k_t
 
 
-def fit_lee_carter(m: np.ndarray) -> LCM1Params:
+def fit_lee_carter(m: FloatArray) -> LCM1Params:
     """Fit the Lee-Carter model to a mortality surface.
 
     Steps:
@@ -75,7 +77,7 @@ def fit_lee_carter(m: np.ndarray) -> LCM1Params:
     return LCM1Params(a=a, b=b, k=k)
 
 
-def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
+def reconstruct_log_m(params: LCM1Params) -> FloatArray:
     """Reconstruct the fitted log-mortality surface.
 
     Args:
@@ -84,14 +86,14 @@ def reconstruct_log_m(params: LCM1Params) -> np.ndarray:
     Returns:
         Log-mortality surface log m_{x,t}, shape (A, T).
     """
-    return params.a[:, None] + np.outer(params.b, params.k)
+    return cast(FloatArray, params.a[:, None] + np.outer(params.b, params.k))
 
 
 class LCM1:
     def __init__(self) -> None:
         self.params: LCM1Params | None = None
 
-    def fit(self, m: np.ndarray) -> LCM1:
+    def fit(self, m: FloatArray) -> LCM1:
         """Fit the Lee-Carter model and store parameters.
 
         Args:
@@ -110,7 +112,7 @@ class LCM1:
         self.params.mu, self.params.sigma = mu, sigma
         return mu, sigma
 
-    def predict_log_m(self) -> np.ndarray:
+    def predict_log_m(self) -> FloatArray:
         """Reconstruct the log-mortality surface implied by fitted parameters."""
         if self.params is None:
             raise ValueError("Fit first.")
@@ -122,7 +124,7 @@ class LCM1:
         n_sims: int = 1000,
         seed: int | None = None,
         include_last: bool = False,
-    ) -> np.ndarray:
+    ) -> FloatArray:
         """Simulate random-walk paths for k_t.
 
         Args:

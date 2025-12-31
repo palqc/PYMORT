@@ -12,12 +12,10 @@ from dataclasses import dataclass
 from typing import Protocol, cast
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.optimize import lsq_linear
 
+from pymort._types import FloatArray
 from pymort.pricing.utils import pv_matrix_from_cf_paths
-
-FloatArray = NDArray[np.floating]
 
 
 @dataclass
@@ -37,9 +35,9 @@ class HedgeResult:
 
 
 class _LinearModel(Protocol):
-    coef_: np.ndarray
+    coef_: FloatArray
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> _LinearModel: ...
+    def fit(self, X: FloatArray, y: FloatArray) -> _LinearModel: ...
 
 
 class _LinearModelFactory(Protocol):
@@ -213,7 +211,7 @@ def compute_multihorizon_hedge(
         raise ValueError("mode must be one of {'pv_by_horizon', 'pv_cashflows'}.")
 
     # Normalize discount factors to (N,T) for consistent operations
-    df_pv: np.ndarray | None = None
+    df_pv: FloatArray | None = None
     if discount_factors is not None:
         df_arr = np.asarray(discount_factors, dtype=float)
         if df_arr.ndim == 1:

@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import typer
 
+from pymort._types import AnyArray, FloatArray, IntArray
 from pymort.analysis import MortalityScenarioSet, smooth_mortality_with_cpsplines
 from pymort.analysis.fitting import (
     FittedModel,
@@ -119,7 +120,7 @@ def _ensure_outdir(path: Path, overwrite: bool) -> None:
         return
 
 
-def _parse_number_list(spec: str | None) -> np.ndarray | None:
+def _parse_number_list(spec: str | None) -> FloatArray | None:
     if spec is None:
         return None
     if spec.strip() == "":
@@ -149,13 +150,13 @@ def _parse_range_spec(spec: str | None) -> tuple[float, float] | None:
 
 
 def _slice_surface(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: AnyArray,
     *,
     age_range: tuple[float, float] | None = None,
     year_range: tuple[float, float] | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[FloatArray, IntArray, FloatArray]:
     ages_arr = np.asarray(ages, dtype=float)
     years_arr = np.asarray(years, dtype=int)
     m_arr = np.asarray(m, dtype=float)
@@ -170,10 +171,10 @@ def _slice_surface(
     return ages_arr[age_mask], years_arr[year_mask], m_arr[np.ix_(age_mask, year_mask)]
 
 
-def _read_numeric_series(path: Path) -> np.ndarray:
+def _read_numeric_series(path: Path) -> FloatArray:
     ext = path.suffix.lower()
     if ext == ".npy":
-        return cast(np.ndarray, np.load(path))
+        return cast(FloatArray, np.load(path))
     if ext == ".npz":
         data = np.load(path)
         first_key = next(iter(data.keys()))
@@ -183,7 +184,7 @@ def _read_numeric_series(path: Path) -> np.ndarray:
     return np.asarray(arr, dtype=float)
 
 
-def _read_numeric_matrix(path: Path) -> np.ndarray:
+def _read_numeric_matrix(path: Path) -> FloatArray:
     ext = path.suffix.lower()
     if ext in {".npy", ".npz"}:
         arr = np.load(path)
@@ -194,7 +195,7 @@ def _read_numeric_matrix(path: Path) -> np.ndarray:
     return np.asarray(df.to_numpy(), dtype=float)
 
 
-def _read_numeric_cube(path: Path) -> np.ndarray:
+def _read_numeric_cube(path: Path) -> FloatArray:
     arr = _read_numeric_matrix(path)
     if arr.ndim == 3:
         return arr
@@ -208,7 +209,7 @@ def _load_m_surface(
     ages_path: Path | None,
     years_path: Path | None,
     preferred_rate_col: str | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[AnyArray, AnyArray, FloatArray]:
     ext = m_path.suffix.lower()
     ages = _parse_number_list(ages_inline) if ages_inline else None
     years = _parse_number_list(years_inline) if years_inline else None
@@ -395,7 +396,7 @@ def _price_paths_for_spec(
     spec_obj: object,
     *,
     short_rate: float | None,
-) -> tuple[float, np.ndarray]:
+) -> tuple[float, FloatArray]:
     spec = _normalize_spec(spec_obj)
     kind = _infer_kind(spec)
     if kind == "longevity_bond":
@@ -1794,14 +1795,14 @@ def hedge_end_to_end_cmd(
         raise typer.BadParameter("Instruments file must contain a mapping of specs.")
     instr_specs = {"hedge": instr_cfg} if "kind" in instr_cfg else instr_cfg
 
-    liab_paths: np.ndarray | None = None
+    liab_paths: FloatArray | None = None
     for spec in liab_specs.values():
         _, pv = _price_paths_for_spec(scen_set, spec, short_rate=short_rate)
         liab_paths = pv if liab_paths is None else liab_paths + pv
     if liab_paths is None:
         raise typer.BadParameter("No liability specs provided.")
 
-    hedge_cols: list[np.ndarray] = []
+    hedge_cols: list[FloatArray] = []
     instr_names: list[str] = []
     for name, spec in instr_specs.items():
         _, pv = _price_paths_for_spec(scen_set, spec, short_rate=short_rate)
@@ -2199,7 +2200,7 @@ def run_hedge_pipeline_cmd(
         raise typer.BadParameter("hedge_instruments section is required.")
 
     _, liab_paths = _price_paths_for_spec(scen_set, liab_spec, short_rate=short_rate)
-    hedge_cols: list[np.ndarray] = []
+    hedge_cols: list[FloatArray] = []
     names: list[str] = []
     for name, spec in hedge_specs.items():
         _, pv = _price_paths_for_spec(scen_set, spec, short_rate=short_rate)

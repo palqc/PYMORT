@@ -11,9 +11,9 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.optimize import least_squares
 
+from pymort._types import AnyArray, FloatArray
 from pymort.analysis import BootstrapResult, MortalityScenarioSet, bootstrap_from_m
 from pymort.analysis.projections import project_mortality_from_bootstrap
 from pymort.lifetables import m_to_q, survival_from_q, validate_q
@@ -32,9 +32,8 @@ from pymort.pricing.mortality_derivatives import (
 )
 from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
 
-Lambda = float | Sequence[float] | np.ndarray
-Shock = Sequence[float] | np.ndarray
-FloatArray = NDArray[np.floating]
+Lambda = float | Sequence[float] | FloatArray
+Shock = Sequence[float] | FloatArray
 
 
 # ============================================================================
@@ -66,8 +65,8 @@ class CalibrationCache:
     model: LCM2 | CBDM7
     bs_res: BootstrapResult
     eps: dict[str, FloatArray]
-    ages: FloatArray
-    years: NDArray[np.integer]
+    ages: AnyArray
+    years: AnyArray
     m: FloatArray
     model_name: str
     horizon: int
@@ -75,7 +74,7 @@ class CalibrationCache:
     include_last: bool
 
 
-def _to_1d_array(x: Iterable[float] | float, name: str) -> np.ndarray:
+def _to_1d_array(x: Iterable[float] | float, name: str) -> FloatArray:
     arr = np.atleast_1d(np.asarray(x, dtype=float)).reshape(-1)
     if not np.all(np.isfinite(arr)):
         raise ValueError(f"{name} must be finite.")
@@ -158,9 +157,9 @@ def risk_neutral_from_cbdm7(model_cbdm7: CBDM7, lambda_esscher: Lambda) -> Essch
 
 def build_calibration_cache(
     *,
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     model_name: str,
     B_bootstrap: int,
     n_process: int,
@@ -223,18 +222,18 @@ def build_calibration_cache(
 
 
 def apply_kappa_drift_shock(
-    mu_Q: np.ndarray,
+    mu_Q: FloatArray,
     *,
     shock: Iterable[float] | None = None,
     mode: str = "additive",
-) -> np.ndarray:
+) -> FloatArray:
     mu_Q_arr = np.asarray(mu_Q, dtype=float).reshape(-1)
     k = mu_Q_arr.shape[0]
 
     if shock is None:
         return mu_Q_arr
 
-    shock_arr = np.asarray(cast(Sequence[float] | np.ndarray | float, shock), dtype=float)
+    shock_arr = np.asarray(cast(Sequence[float] | FloatArray | float, shock), dtype=float)
     s = shock_arr.reshape(-1)
     if s.size == 1 and k > 1:
         s = np.full(k, float(s[0]), dtype=float)
@@ -256,15 +255,15 @@ def apply_kappa_drift_shock(
 
 
 def apply_cohort_trend_shock_to_qpaths(
-    q_paths: np.ndarray,
-    ages: np.ndarray,
-    years: np.ndarray,
+    q_paths: FloatArray,
+    ages: AnyArray,
+    years: AnyArray,
     *,
     shock_type: str = "cohort_improvement",
     magnitude: float = 0.01,
     pivot_cohort_year: int | None = None,
     cap: float = 0.50,
-) -> np.ndarray:
+) -> FloatArray:
     q = np.asarray(q_paths, dtype=float)
     ages_arr = np.asarray(ages, dtype=float).reshape(-1)
     years_arr = np.asarray(years, dtype=int).reshape(-1)
@@ -472,7 +471,7 @@ def _infer_lambda_dim(model_name: str) -> int:
     raise ValueError("Unsupported model_name. Use 'LCM2' or 'CBDM7'.")
 
 
-def _to_lambda_vec(lambda_esscher: Lambda, k: int) -> np.ndarray:
+def _to_lambda_vec(lambda_esscher: Lambda, k: int) -> FloatArray:
     lam = np.atleast_1d(np.asarray(lambda_esscher, dtype=float)).reshape(-1)
     if lam.size == 1 and k > 1:
         lam = np.full(k, float(lam[0]), dtype=float)
@@ -485,9 +484,9 @@ def _to_lambda_vec(lambda_esscher: Lambda, k: int) -> np.ndarray:
 
 def calibrate_lambda_least_squares(
     quotes: Iterable[MultiInstrumentQuote],
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     *,
     model_name: str = "CBDM7",
     lambda0: Lambda = 0.0,
@@ -548,7 +547,7 @@ def calibrate_lambda_least_squares(
         include_last=include_last,
     )
 
-    def residual_vec(lam_vec: np.ndarray) -> np.ndarray:
+    def residual_vec(lam_vec: FloatArray) -> FloatArray:
         scen_set_q = build_scenarios_under_lambda_fast(
             cache=cache,
             lambda_esscher=lam_vec,
@@ -563,7 +562,7 @@ def calibrate_lambda_least_squares(
             [_price_from_scen_set(scen_set_q, q, short_rate=short_rate) for q in quotes_list],
             dtype=float,
         )
-        return cast(np.ndarray, (model_prices - market) * w_sqrt)
+        return cast(FloatArray, (model_prices - market) * w_sqrt)
 
     res = least_squares(
         residual_vec,
@@ -616,9 +615,9 @@ def calibrate_lambda_least_squares(
 
 def calibrate_market_price_of_longevity_risk(
     quotes: Iterable[MultiInstrumentQuote],
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     *,
     model_name: str,
     lambda0: Lambda = 0.0,
@@ -636,7 +635,7 @@ def calibrate_market_price_of_longevity_risk(
     cohort_shock_type: str | None = None,
     cohort_shock_magnitude: float = 0.01,
     cohort_pivot_year: int | None = None,
-) -> np.ndarray:
+) -> FloatArray:
     res = calibrate_lambda_least_squares(
         quotes=quotes,
         ages=ages,

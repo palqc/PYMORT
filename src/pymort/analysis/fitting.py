@@ -16,6 +16,7 @@ from typing import Any, Literal, cast
 import numpy as np
 import pandas as pd
 
+from pymort._types import AnyArray, FloatArray, IntArray
 from pymort.analysis import (
     rmse_aic_bic,
     smooth_mortality_with_cpsplines,
@@ -62,12 +63,12 @@ class FittedModel:
     """
 
     name: str
-    ages: np.ndarray
-    years: np.ndarray
+    ages: AnyArray
+    years: AnyArray
     model: object
 
-    m_fit_surface: np.ndarray | None = None
-    m_eval_surface: np.ndarray | None = None
+    m_fit_surface: FloatArray | None = None
+    m_eval_surface: FloatArray | None = None
 
     rmse_logm: float | None = None
     rmse_logitq: float | None = None
@@ -79,10 +80,10 @@ class FittedModel:
 
 def _fit_single_model(
     model_name: ModelName,
-    ages: np.ndarray,
-    years: np.ndarray,
-    m_fit: np.ndarray,
-    m_eval: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m_fit: FloatArray,
+    m_eval: FloatArray,
 ) -> FittedModel:
     """Fit one model on m_fit and evaluate diagnostics on m_eval.
 
@@ -232,9 +233,9 @@ def _fit_single_model(
 
 def fit_mortality_model(
     model_name: ModelName,
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     *,
     smoothing: Literal["none", "cpsplines"] = "none",
     cpsplines_kwargs: dict[str, Any] | None = None,
@@ -294,7 +295,7 @@ def fit_mortality_model(
                 horizon=horizon,
                 verbose=verbose,
             )
-            m_fit = cast(np.ndarray, cp_res["m_fitted"])
+            m_fit = cast(FloatArray, cp_res["m_fitted"])
             data_source = (
                 "cpsplines_fit_eval_on_raw" if eval_on_raw else "cpsplines_fit_eval_on_smooth"
             )
@@ -332,9 +333,9 @@ def fit_mortality_model(
 
 
 def model_selection_by_forecast_rmse(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     *,
     train_end: int,
     model_names: Iterable[ModelName] = (
@@ -412,8 +413,8 @@ def model_selection_by_forecast_rmse(
                 )
                 rmse_forecast_logm = float(res["rmse_log_forecast"])
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_years = cast(np.ndarray, res["train_years"])
-                test_years = cast(np.ndarray, res["test_years"])
+                train_years = cast(IntArray, res["train_years"])
+                test_years = cast(IntArray, res["test_years"])
                 train_start = int(train_years[0])
                 train_end_eff = int(train_years[-1])
                 test_start = int(test_years[0])
@@ -428,8 +429,8 @@ def model_selection_by_forecast_rmse(
                 )
                 rmse_forecast_logm = float(res["rmse_log_forecast"])
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_years = cast(np.ndarray, res["train_years"])
-                test_years = cast(np.ndarray, res["test_years"])
+                train_years = cast(IntArray, res["train_years"])
+                test_years = cast(IntArray, res["test_years"])
                 train_start = int(train_years[0])
                 train_end_eff = int(train_years[-1])
                 test_start = int(test_years[0])
@@ -444,8 +445,8 @@ def model_selection_by_forecast_rmse(
                 )
                 rmse_forecast_logm = float(res["rmse_log_forecast"])
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_years = cast(np.ndarray, res["train_years"])
-                test_years = cast(np.ndarray, res["test_years"])
+                train_years = cast(IntArray, res["train_years"])
+                test_years = cast(IntArray, res["test_years"])
                 train_start = int(train_years[0])
                 train_end_eff = int(train_years[-1])
                 test_start = int(test_years[0])
@@ -459,8 +460,8 @@ def model_selection_by_forecast_rmse(
                     train_end=train_end,
                 )
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_years = cast(np.ndarray, res["train_years"])
-                test_years = cast(np.ndarray, res["test_years"])
+                train_years = cast(IntArray, res["train_years"])
+                test_years = cast(IntArray, res["test_years"])
                 train_start = int(train_years[0])
                 train_end_eff = int(train_years[-1])
                 test_start = int(test_years[0])
@@ -474,8 +475,8 @@ def model_selection_by_forecast_rmse(
                     train_end=train_end,
                 )
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_years = cast(np.ndarray, res["train_years"])
-                test_years = cast(np.ndarray, res["test_years"])
+                train_years = cast(IntArray, res["train_years"])
+                test_years = cast(IntArray, res["test_years"])
                 train_start = int(train_years[0])
                 train_end_eff = int(train_years[-1])
                 test_start = int(test_years[0])
@@ -489,8 +490,8 @@ def model_selection_by_forecast_rmse(
                     train_end=train_end,
                 )
                 rmse_forecast_logit = float(res["rmse_logit_forecast"])
-                train_years = cast(np.ndarray, res["train_years"])
-                test_years = cast(np.ndarray, res["test_years"])
+                train_years = cast(IntArray, res["train_years"])
+                test_years = cast(IntArray, res["test_years"])
                 train_start = int(train_years[0])
                 train_end_eff = int(train_years[-1])
                 test_start = int(test_years[0])
@@ -549,9 +550,9 @@ def model_selection_by_forecast_rmse(
 
 
 def select_and_fit_best_model_for_pricing(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     *,
     train_end: int,
     model_names: Iterable[ModelName] = (

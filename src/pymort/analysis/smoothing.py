@@ -11,14 +11,16 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from pymort._types import AnyArray, FloatArray
+
 if TYPE_CHECKING:  # pragma: no cover
     pass
 
 
 def smooth_mortality_with_cpsplines(
-    m: np.ndarray,
-    ages: np.ndarray,
-    years: np.ndarray,
+    m: FloatArray,
+    ages: AnyArray,
+    years: AnyArray,
     deg: tuple[int, int] = (3, 3),
     ord_d: tuple[int, int] = (2, 2),
     k: tuple[int, int] | None = None,

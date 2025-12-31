@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from pymort._types import AnyArray, BoolArray, FloatArray, IntArray
 from pymort.lifetables import m_to_q
 from pymort.models.apc_m3 import APCM3
 from pymort.models.cbd_m5 import CBDM5, _logit
@@ -21,8 +22,8 @@ from pymort.models.lc_m2 import LCM2
 
 
 def _time_split(
-    years: np.ndarray, train_end: int
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    years: AnyArray, train_end: int
+) -> tuple[BoolArray, BoolArray, IntArray, IntArray]:
     years = np.asarray(years, dtype=int)
     if years.ndim != 1:
         raise ValueError("years must be 1D.")
@@ -33,7 +34,7 @@ def _time_split(
     return tr_mask, te_mask, years[tr_mask], years[te_mask]
 
 
-def _check_surface_time_inputs(years: np.ndarray, mat: np.ndarray, name: str) -> None:
+def _check_surface_time_inputs(years: AnyArray, mat: FloatArray, name: str) -> None:
     years = np.asarray(years, dtype=int)
     mat = np.asarray(mat, dtype=float)
     if mat.ndim != 2:
@@ -48,7 +49,7 @@ def _check_surface_time_inputs(years: np.ndarray, mat: np.ndarray, name: str) ->
         raise ValueError("q must lie strictly in (0,1).")
 
 
-def _rmse(a: np.ndarray, b: np.ndarray) -> float:
+def _rmse(a: FloatArray, b: FloatArray) -> float:
     a = np.asarray(a)
     b = np.asarray(b)
     if a.shape != b.shape:
@@ -56,21 +57,21 @@ def _rmse(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.sqrt(np.mean((a - b) ** 2)))
 
 
-def _rmse_logit_q(q_true: np.ndarray, q_hat: np.ndarray) -> float:
+def _rmse_logit_q(q_true: FloatArray, q_hat: FloatArray) -> float:
     q_true = np.clip(q_true, 1e-12, 1 - 1e-12)
     q_hat = np.clip(q_hat, 1e-12, 1 - 1e-12)
     return _rmse(_logit(q_true), _logit(q_hat))
 
 
-def _rmse_logit_q_from_m(m_true: np.ndarray, m_hat: np.ndarray) -> float:
+def _rmse_logit_q_from_m(m_true: FloatArray, m_hat: FloatArray) -> float:
     return _rmse_logit_q(m_to_q(m_true), m_to_q(m_hat))
 
 
-def _rmse_logit_forecast_from_logit_hat(q_te: np.ndarray, logit_hat_te: np.ndarray) -> float:
+def _rmse_logit_forecast_from_logit_hat(q_te: FloatArray, logit_hat_te: FloatArray) -> float:
     return _rmse(_logit(q_te), logit_hat_te)
 
 
-def _rw_drift_forecast(last: float, mu: float, H: int) -> np.ndarray:
+def _rw_drift_forecast(last: float, mu: float, H: int) -> FloatArray:
     steps = np.arange(1, H + 1)
     H = int(H)
     if H <= 0:
@@ -79,11 +80,11 @@ def _rw_drift_forecast(last: float, mu: float, H: int) -> np.ndarray:
 
 
 def _freeze_gamma_last_per_age(
-    ages: np.ndarray,
-    cohorts: np.ndarray,
-    gamma: np.ndarray,
+    ages: AnyArray,
+    cohorts: AnyArray,
+    gamma: FloatArray,
     train_end: int,
-) -> np.ndarray:
+) -> FloatArray:
     """Compute gamma at the last training year for each age.
 
     For each age i, we set:
@@ -119,10 +120,10 @@ def _freeze_gamma_last_per_age(
 
 
 def time_split_backtest_lc_m1(
-    years: np.ndarray,
-    m: np.ndarray,
+    years: AnyArray,
+    m: FloatArray,
     train_end: int,
-) -> dict[str, np.ndarray | float]:
+) -> dict[str, IntArray | float]:
     """Backtest Lee-Carter M1 with an explicit time split.
 
     The model is fitted on years <= train_end, then a drift-only forecast is
@@ -167,11 +168,11 @@ def time_split_backtest_lc_m1(
 
 
 def time_split_backtest_lc_m2(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     train_end: int,
-) -> dict[str, float | np.ndarray]:
+) -> dict[str, IntArray | float]:
     """Backtest Lee-Carter with cohort effect (LCM2).
 
     Model:
@@ -232,11 +233,11 @@ def time_split_backtest_lc_m2(
 
 
 def time_split_backtest_cbd_m5(
-    ages: np.ndarray,
-    years: np.ndarray,
-    q: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    q: FloatArray,
     train_end: int,
-) -> dict[str, np.ndarray | float]:
+) -> dict[str, IntArray | float]:
     """Backtest CBD M5 with an explicit time split on logit(q).
 
     The model is fitted on years <= train_end. A drift-only forecast for
@@ -286,11 +287,11 @@ def time_split_backtest_cbd_m5(
 
 
 def time_split_backtest_cbd_m6(
-    ages: np.ndarray,
-    years: np.ndarray,
-    q: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    q: FloatArray,
     train_end: int,
-) -> dict[str, np.ndarray | float]:
+) -> dict[str, IntArray | float]:
     """Backtest CBD M6 (cohort effect) with a time split on logit(q).
 
     Args:
@@ -339,11 +340,11 @@ def time_split_backtest_cbd_m6(
 
 
 def time_split_backtest_cbd_m7(
-    ages: np.ndarray,
-    years: np.ndarray,
-    q: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    q: FloatArray,
     train_end: int,
-) -> dict[str, np.ndarray | float]:
+) -> dict[str, IntArray | float]:
     """Backtest CBD M7 (quadratic + cohort) with a time split on logit(q).
 
     Args:
@@ -396,11 +397,11 @@ def time_split_backtest_cbd_m7(
 
 
 def time_split_backtest_apc_m3(
-    ages: np.ndarray,
-    years: np.ndarray,
-    m: np.ndarray,
+    ages: AnyArray,
+    years: AnyArray,
+    m: FloatArray,
     train_end: int,
-) -> dict[str, float | np.ndarray]:
+) -> dict[str, IntArray | float]:
     """Backtest APC Model M3 with a time split.
 
     Model:
@@ -464,7 +465,7 @@ def time_split_backtest_apc_m3(
 
 
 def rmse_aic_bic(
-    logit_true: np.ndarray, logit_hat: np.ndarray, n_params: int
+    logit_true: FloatArray, logit_hat: FloatArray, n_params: int
 ) -> tuple[float, float, float]:
     """Compute RMSE, AIC, and BIC on the logit scale.
 

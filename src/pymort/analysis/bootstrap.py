@@ -13,6 +13,7 @@ from typing import Literal
 
 import numpy as np
 
+from pymort._types import AnyArray, FloatArray
 from pymort.lifetables import m_to_q, validate_q
 from pymort.models.apc_m3 import APCM3
 from pymort.models.cbd_m5 import CBDM5, _logit
@@ -38,15 +39,15 @@ class BootstrapResult:
     """
 
     params_list: list[object]
-    mu_sigma: np.ndarray
+    mu_sigma: FloatArray
     seed: int | None = None
 
 
 def _resample_residuals(
-    resid: np.ndarray,
+    resid: FloatArray,
     mode: ResampleMode,
     rng: np.random.Generator,
-) -> np.ndarray:
+) -> FloatArray:
     """Resample a residual surface.
 
     Args:
@@ -75,9 +76,9 @@ def _resample_residuals(
 
 def bootstrap_logm_model(
     model_cls: type,
-    m: np.ndarray,
-    ages: np.ndarray,
-    years: np.ndarray,
+    m: FloatArray,
+    ages: AnyArray,
+    years: AnyArray,
     B: int = 500,
     seed: int | None = None,
     resample: ResampleMode = "year_block",
@@ -164,9 +165,9 @@ def bootstrap_logm_model(
 
 def bootstrap_logitq_model(
     model_cls: type,
-    q: np.ndarray,
-    ages: np.ndarray,
-    years: np.ndarray,
+    q: FloatArray,
+    ages: AnyArray,
+    years: AnyArray,
     B: int = 500,
     seed: int | None = None,
     resample: ResampleMode = "year_block",
@@ -252,9 +253,9 @@ def bootstrap_logitq_model(
 
 def bootstrap_from_m(
     model_cls: type,
-    m: np.ndarray,
-    ages: np.ndarray,
-    years: np.ndarray,
+    m: FloatArray,
+    ages: AnyArray,
+    years: AnyArray,
     B: int = 500,
     seed: int | None = None,
     resample: ResampleMode = "year_block",

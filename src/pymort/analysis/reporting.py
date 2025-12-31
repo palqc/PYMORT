@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
+from pymort._types import FloatArray
 from pymort.analysis import MortalityScenarioSet
 
 PVKind = Literal["cost", "value", "pnl"]
@@ -83,7 +84,7 @@ class RiskReport:
 # =============================================================================
 
 
-def _as_1d(x: np.ndarray, *, name: str) -> np.ndarray:
+def _as_1d(x: FloatArray, *, name: str) -> FloatArray:
     arr = np.asarray(x, dtype=float).reshape(-1)
     if arr.size == 0:
         raise ValueError(f"{name} must contain at least one scenario.")
@@ -92,7 +93,7 @@ def _as_1d(x: np.ndarray, *, name: str) -> np.ndarray:
     return arr
 
 
-def _pv_to_loss(pv: np.ndarray, pv_kind: PVKind) -> np.ndarray:
+def _pv_to_loss(pv: FloatArray, pv_kind: PVKind) -> FloatArray:
     if pv_kind == "cost":
         return pv
     if pv_kind in ("value", "pnl"):
@@ -100,7 +101,7 @@ def _pv_to_loss(pv: np.ndarray, pv_kind: PVKind) -> np.ndarray:
     raise ValueError(f"Unknown pv_kind: {pv_kind!r}")
 
 
-def _compute_var_cvar(loss_paths: np.ndarray, alpha: float) -> tuple[float, float]:
+def _compute_var_cvar(loss_paths: FloatArray, alpha: float) -> tuple[float, float]:
     if not (0.0 < alpha < 1.0):
         raise ValueError("var_level (alpha) must be in (0,1).")
 
@@ -111,7 +112,7 @@ def _compute_var_cvar(loss_paths: np.ndarray, alpha: float) -> tuple[float, floa
     return var, cvar
 
 
-def _skew_kurtosis(x: np.ndarray) -> tuple[float, float]:
+def _skew_kurtosis(x: FloatArray) -> tuple[float, float]:
     # population moments (ddof=0)
     mu = float(x.mean())
     s = float(x.std(ddof=0))
@@ -129,11 +130,11 @@ def _skew_kurtosis(x: np.ndarray) -> tuple[float, float]:
 
 
 def generate_risk_report(
-    pv_paths: np.ndarray,
+    pv_paths: FloatArray,
     *,
     name: str = "Portfolio",
     var_level: float = 0.99,
-    ref_pv_paths: np.ndarray | None = None,
+    ref_pv_paths: FloatArray | None = None,
     pv_kind: PVKind = "cost",
     quantile_grid: Sequence[float] = (0.01, 0.05, 0.50, 0.95, 0.99),
     loss_threshold: float | None = None,
@@ -311,7 +312,7 @@ def plot_survival_fan(
 
 
 def plot_price_distribution(
-    pv_paths: np.ndarray,
+    pv_paths: FloatArray,
     *,
     ax: Axes | None = None,
     bins: int = 50,
@@ -339,8 +340,8 @@ def plot_price_distribution(
 
 
 def plot_hedge_performance(
-    liability_pv_paths: np.ndarray,
-    net_pv_paths: np.ndarray,
+    liability_pv_paths: FloatArray,
+    net_pv_paths: FloatArray,
     *,
     ax: Axes | None = None,
     label_liability: str = "Liability PV",

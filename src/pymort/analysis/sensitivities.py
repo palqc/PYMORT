@@ -15,6 +15,7 @@ from typing import cast
 
 import numpy as np
 
+from pymort._types import FloatArray
 from pymort.analysis import MortalityScenarioSet
 from pymort.analysis.scenario_analysis import clone_scen_set_with
 from pymort.lifetables import survival_from_q, validate_q, validate_survival_monotonic
@@ -71,8 +72,8 @@ class MortalityDeltaByAge:
 
     base_price: float
     rel_bump: float
-    ages: np.ndarray
-    deltas: np.ndarray
+    ages: FloatArray
+    deltas: FloatArray
 
 
 def rate_sensitivity(
