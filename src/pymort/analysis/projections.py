@@ -272,16 +272,17 @@ def project_mortality_from_bootstrap(
     if scale_sigma is None:
         scale_sigma = 1.0
 
+    scale_vec: FloatArray
     if is_cbd:
-        scale_vec = np.asarray(scale_sigma, dtype=float).reshape(-1)
+        scale_vec = cast(FloatArray, np.asarray(scale_sigma, dtype=float).reshape(-1))
         if scale_vec.size == 1:
-            scale_vec = np.full(d_factors, float(scale_vec[0]))
+            scale_vec = cast(FloatArray, np.full(d_factors, float(scale_vec[0])))
         if scale_vec.size != d_factors:
             raise ValueError(
                 f"scale_sigma must have length 1 or {d_factors} for CBD, got {scale_vec.size}."
             )
     else:
-        scale_vec = np.asarray(scale_sigma, dtype=float).reshape(-1)
+        scale_vec = cast(FloatArray, np.asarray(scale_sigma, dtype=float).reshape(-1))
         if scale_vec.size != 1:
             raise ValueError(
                 f"scale_sigma must be scalar (or length 1) for LC/APC, got {scale_vec.size}."

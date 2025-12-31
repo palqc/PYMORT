@@ -238,7 +238,7 @@ def cohort_survival_full_horizon_from_q(
     if x_var <= 0:
         raise ValueError("Degenerate Gompertz fit window.")
 
-    q_diag = np.empty((N, Ht), dtype=float)
+    q_diag = cast(FloatArray, np.empty((N, Ht), dtype=float))
 
     for k in range(Ht):
         age_k = age0_snap + k

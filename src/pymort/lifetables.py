@@ -235,19 +235,19 @@ def load_m_from_excel(
         raise ValueError("No rows left after filtering age/year. Check filters.")
 
     # Build regular grids
-    ages = np.arange(df["Age"].min(), df["Age"].max() + 1, dtype=int)
-    years = np.arange(df["Year"].min(), df["Year"].max() + 1, dtype=int)
+    ages = cast(IntArray, np.arange(df["Age"].min(), df["Age"].max() + 1, dtype=int))
+    years = cast(IntArray, np.arange(df["Year"].min(), df["Year"].max() + 1, dtype=int))
 
     # Pivot to (A, T)
     pivot = df.pivot(index="Age", columns="Year", values=rate_col).reindex(
         index=ages, columns=years
     )
-    m = pivot.to_numpy(dtype=float)
+    m = cast(FloatArray, pivot.to_numpy(dtype=float))
 
     if drop_years is not None:
         mask = ~np.isin(years, np.array(list(drop_years)))
-        years = cast(IntArray, years[mask])
-        m = cast(FloatArray, m[:, mask])
+        years = years[mask]
+        m = m[:, mask]
 
     # Simple imputation if gaps exist (ffill/bfill along time then age)
     if np.isnan(m).any():
@@ -512,19 +512,19 @@ def load_m_from_excel_any(
         raise ValueError("No rows left after filtering age/year. Check filters.")
 
     # Build regular grids
-    ages = np.arange(df["Age"].min(), df["Age"].max() + 1, dtype=int)
-    years = np.arange(df["Year"].min(), df["Year"].max() + 1, dtype=int)
+    ages = cast(IntArray, np.arange(df["Age"].min(), df["Age"].max() + 1, dtype=int))
+    years = cast(IntArray, np.arange(df["Year"].min(), df["Year"].max() + 1, dtype=int))
 
     # Pivot to (A, T)
     pivot = df.pivot(index="Age", columns="Year", values=rate_col).reindex(
         index=ages, columns=years
     )
-    m = pivot.to_numpy(dtype=float)
+    m = cast(FloatArray, pivot.to_numpy(dtype=float))
 
     if drop_years is not None:
         mask = ~np.isin(years, np.array(list(drop_years)))
-        years = cast(IntArray, years[mask])
-        m = cast(FloatArray, m[:, mask])
+        years = years[mask]
+        m = m[:, mask]
 
     # Simple imputation if gaps exist (ffill/bfill along time then age)
     if np.isnan(m).any():

@@ -1381,16 +1381,17 @@ def apply_hull_white_discounting(
     times = np.arange(1, H + 1, dtype=float)
 
     # --- build the zero curve ---
+    zero_rates: FloatArray
     if hw.zero_rates is None:
         if short_rate is None:
             raise ValueError(
                 "Hull–White enabled but no zero curve provided and short_rate is None."
             )
-        zero_rates = np.full(H, float(short_rate), dtype=float)
+        zero_rates = cast(FloatArray, np.full(H, float(short_rate), dtype=float))
     else:
         zr = np.asarray(hw.zero_rates, dtype=float).reshape(-1)
         if zr.size == 1:
-            zero_rates = np.full(H, float(zr[0]), dtype=float)
+            zero_rates = cast(FloatArray, np.full(H, float(zr[0]), dtype=float))
         else:
             if zr.size < H:
                 raise ValueError(f"zero_rates must have length >= H={H}, got {zr.size}.")
