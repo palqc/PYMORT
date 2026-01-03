@@ -163,8 +163,7 @@ def _align_sign(bx_py, kt_py, kt_r):
     """Fix sign indeterminacy: if kt correlation is negative, flip Python (bx, kt)."""
     corr = np.corrcoef(np.asarray(kt_py).ravel(), np.asarray(kt_r).ravel())[0, 1]
     if np.isfinite(corr) and corr < 0:
-        bx_py = -bx_py
-        kt_py = -kt_py
+        return -bx_py, -kt_py
     return bx_py, kt_py
 
 
@@ -220,7 +219,7 @@ def main() -> None:
     # 3) Normalize + align sign
     ax_py_n, bx_py_n, kt_py_n = _normalize_lc(ax_py, bx_py, kt_py)
     ax_r_n, bx_r_n, kt_r_n = _normalize_lc(ax_r, bx_r, kt_r)
-    bx_py_n, kt_py_n = _align_sign(bx_py_n, kt_py_n, bx_r_n, kt_r_n)
+    bx_py_n, kt_py_n = _align_sign(bx_py_n, kt_py_n, kt_r_n)
 
     # 4) Robust metrics
     corr_kt = _corr(kt_py_n, kt_r_n)

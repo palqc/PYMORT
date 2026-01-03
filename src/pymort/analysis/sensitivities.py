@@ -10,7 +10,7 @@ Note:
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import cast
 
 import numpy as np
@@ -18,9 +18,16 @@ import numpy as np
 from pymort._types import FloatArray
 from pymort.analysis import MortalityScenarioSet
 from pymort.analysis.scenario_analysis import clone_scen_set_with
-from pymort.lifetables import survival_from_q, validate_q, validate_survival_monotonic
+from pymort.lifetables import (
+    cohort_survival_from_q_paths,
+    validate_q,
+    validate_survival_monotonic,
+)
 from pymort.pricing.liabilities import CohortLifeAnnuitySpec, price_cohort_life_annuity
-from pymort.pricing.longevity_bonds import LongevityBondSpec, price_simple_longevity_bond
+from pymort.pricing.longevity_bonds import (
+    LongevityBondSpec,
+    price_simple_longevity_bond,
+)
 from pymort.pricing.mortality_derivatives import (
     QForwardSpec,
     SForwardSpec,
@@ -110,7 +117,8 @@ def rate_sensitivity(
     # Central difference derivative
     dP_dr = (p_up - p_dn) / (2.0 * h)
 
-    duration = -dP_dr / p0 if p0 != 0.0 else np.nan
+    EPS = 1e-8
+    duration = -dP_dr / p0 if np.isfinite(p0) and abs(p0) > EPS else np.nan
     dv01 = dP_dr * 1e-4  # change in price for 1 bp bump
 
     return RateSensitivity(
@@ -187,9 +195,8 @@ def mortality_delta_by_age(
     for k, x in enumerate(ages_sel):
         i_age = idx_map[float(x)]
 
-        # Copy q and S
+        # Copy q
         q_bump = q_base.copy()
-        S_bump = S_base.copy()
 
         # Bump q for age index i_age
         q_bump[:, i_age, :] *= 1.0 + eps
@@ -197,13 +204,9 @@ def mortality_delta_by_age(
         # Validate q (ensure still in (0,1])
         validate_q(q_bump)
 
-        # Recompute S for this age based on bumped q
-        # For each scenario, survival_from_q works along the last axis
-        q_age = q_bump[:, i_age, :]  # (N, H)
-        S_age = survival_from_q(q_age)  # (N, H)
-        validate_survival_monotonic(S_age)
-
-        S_bump[:, i_age, :] = S_age
+        # Recompute FULL cohort survival paths (diagonals age+t)
+        S_bump = cohort_survival_from_q_paths(q_bump)
+        validate_survival_monotonic(S_bump)
 
         # Rebuild bumped scenario set
         scen_bump = clone_scen_set_with(scen_set, q_paths=q_bump, S_paths=S_bump)
@@ -539,6 +542,10 @@ def rate_sensitivity_all_products(
     out: dict[str, RateSensitivity] = {}
 
     for kind, spec in specs.items():
+        spec_used = freeze_atm_strike(
+            scen_set, kind=str(kind), spec=spec, short_rate=float(base_short_rate)
+        )
+
         # IMPORTANT: here we need a pricer that accepts short_rate as arg
         # So we wrap manually instead of using pricer(scenset).
         def price_func(
@@ -546,7 +553,7 @@ def rate_sensitivity_all_products(
             scen_set: MortalityScenarioSet,
             short_rate: float,
             _kind: str = kind,
-            _spec: ProductSpec = spec,
+            _spec: ProductSpec = spec_used,
         ) -> float:
             return float(
                 make_single_product_pricer(
@@ -585,13 +592,16 @@ def rate_convexity_all_products(
     out: dict[str, RateConvexity] = {}
 
     for kind, spec in specs.items():
+        spec_used = freeze_atm_strike(
+            scen_set, kind=str(kind), spec=spec, short_rate=float(base_short_rate)
+        )
 
         def price_func(
             *,
             scen_set: MortalityScenarioSet,
             short_rate: float,
             _kind: str = kind,
-            _spec: ProductSpec = spec,
+            _spec: ProductSpec = spec_used,
         ) -> float:
             return float(
                 make_single_product_pricer(
@@ -607,6 +617,37 @@ def rate_convexity_all_products(
         )
 
     return out
+
+
+def freeze_atm_strike(
+    scen_set: MortalityScenarioSet,
+    *,
+    kind: str,
+    spec: ProductSpec,
+    short_rate: float,
+) -> ProductSpec:
+    """Return a copy of spec with strike fixed at the ATM/par strike under scen_set."""
+    k = str(kind).lower()
+
+    if k == "q_forward":
+        res_qf = price_q_forward(
+            scen_set=scen_set, spec=cast(QForwardSpec, spec), short_rate=short_rate
+        )
+        return replace(cast(QForwardSpec, spec), strike=float(res_qf["strike"]))
+
+    if k == "s_forward":
+        res_sf = price_s_forward(
+            scen_set=scen_set, spec=cast(SForwardSpec, spec), short_rate=short_rate
+        )
+        return replace(cast(SForwardSpec, spec), strike=float(res_sf["strike"]))
+
+    if k == "survivor_swap":
+        res_ss = price_survivor_swap(
+            scen_set=scen_set, spec=cast(SurvivorSwapSpec, spec), short_rate=short_rate
+        )
+        return replace(cast(SurvivorSwapSpec, spec), strike=float(res_ss["strike"]))
+
+    return spec
 
 
 def mortality_delta_by_age_all_products(
@@ -632,12 +673,14 @@ def mortality_delta_by_age_all_products(
     out: dict[str, MortalityDeltaByAge] = {}
 
     for kind, spec in specs.items():
-        pricer = make_single_product_pricer(kind=str(kind), spec=spec, short_rate=float(short_rate))
+        spec_used = freeze_atm_strike(
+            scen_set, kind=str(kind), spec=spec, short_rate=float(short_rate)
+        )
+        pricer = make_single_product_pricer(
+            kind=str(kind), spec=spec_used, short_rate=float(short_rate)
+        )
         out[str(kind)] = mortality_delta_by_age(
-            pricer,
-            scen_set,
-            ages=ages,
-            rel_bump=float(rel_bump),
+            pricer, scen_set, ages=ages, rel_bump=float(rel_bump)
         )
 
     return out

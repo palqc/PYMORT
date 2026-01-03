@@ -16,7 +16,13 @@ import numpy as np
 
 from pymort._types import FloatArray
 from pymort.analysis import MortalityScenarioSet
-from pymort.lifetables import survival_from_q, validate_q, validate_survival_monotonic
+from pymort.lifetables import (
+    m_to_q,
+    q_to_m,
+    survival_from_q,
+    validate_q,
+    validate_survival_monotonic,
+)
 
 # ============================================================================
 # 1) Outil interne : cloner un MortalityScenarioSet avec q / S modifiés
@@ -108,16 +114,26 @@ def apply_mortality_shock(
     S_base = np.asarray(scen_set.S_paths, dtype=float)
 
     if q_base.shape != S_base.shape:
-        raise ValueError(
-            f"q_paths and S_paths must have the same shape; got {q_base.shape} vs {S_base.shape}."
-        )
+        raise ValueError(...)
 
     _N, _A, H = q_base.shape
     years = np.asarray(scen_set.years, dtype=int)
     if years.shape[0] != H:
         raise ValueError("scen_set.years length must match q_paths horizon.")
 
-    q_new = q_base.copy()
+    # Prefer existing m_paths if available, else derive m from q (stable)
+    if getattr(scen_set, "m_paths", None) is not None:
+        m_base = np.asarray(scen_set.m_paths, dtype=float)
+        if m_base.shape != q_base.shape:
+            raise ValueError(
+                f"m_paths must match q_paths shape; got {m_base.shape} vs {q_base.shape}."
+            )
+    else:
+        m_base = q_to_m(q_base)
+
+    m_new = np.asarray(m_base, dtype=float).copy()
+    eps = float(magnitude)
+    shock_type = shock_type.lower()
 
     eps = float(magnitude)
 
@@ -130,11 +146,11 @@ def apply_mortality_shock(
 
     if shock_type == "long_life":
         # Baisse uniforme des mortalités
-        q_new *= 1.0 - eps
+        m_new *= 1.0 - eps
 
     elif shock_type == "short_life":
         # Hausse uniforme des mortalités
-        q_new *= 1.0 + eps
+        m_new *= 1.0 + eps
 
     elif shock_type == "pandemic":
         if pandemic_year is None:
@@ -152,7 +168,7 @@ def apply_mortality_shock(
             return scen_set
 
         # On spike q sur ces années
-        q_new[:, :, mask] *= 1.0 + eps
+        m_new[:, :, mask] *= 1.0 + eps
 
     elif shock_type == "plateau":
         if plateau_start_year is None:
@@ -165,7 +181,7 @@ def apply_mortality_shock(
             return scen_set
 
         # On fige toutes les années t >= idx_start au niveau de idx_start
-        q_new[:, :, idx_start:] = q_new[:, :, idx_start][:, :, None]
+        m_new[:, :, idx_start:] = m_new[:, :, idx_start][:, :, None]
 
     elif shock_type == "accel_improvement":
         # Accélération des améliorations = baisse plus rapide des q dans le temps.
@@ -178,16 +194,19 @@ def apply_mortality_shock(
         offsets = np.arange(H - t0_idx, dtype=float)  # 0,1,...,H-t0-1
         factors = (1.0 - eps) ** offsets  # shape (H - t0,)
         # Broadcast sur (N, A, H-t0)
-        q_new[:, :, t0_idx:] *= factors[None, None, :]
+        m_new[:, :, t0_idx:] *= factors[None, None, :]
 
     else:
         raise ValueError(f"Unknown shock_type='{shock_type}'.")
 
-    # Validation des q
+    # Keep m non-negative (safety)
+    m_new = np.maximum(m_new, 0.0)
+
+    # Convert back to q, clamp for strict (0,1) constraints
+    q_new = m_to_q(m_new)
+    q_new = np.clip(q_new, 1e-12, 1.0 - 1e-12)
     validate_q(q_new)
 
-    # Recalcul complet des S à partir des q bumpés
-    # (plus simple/robuste que de bricoler seulement certaines tranches)
     S_new = survival_from_q(q_new)
     validate_survival_monotonic(S_new)
 

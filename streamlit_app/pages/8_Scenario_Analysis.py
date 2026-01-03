@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
+from assets.logo import add_logo_top_right, LOGO_PATH
 
 from pymort.analysis.scenario_analysis import ShockSpec
 from pymort.analysis.sensitivities import price_all_products
 from pymort.pipeline import stress_testing_pipeline
 
-from assets.logo import add_logo_top_right
-
 add_logo_top_right()
-st.set_page_config(page_title="Scenario Analysis", page_icon="🧪", layout="wide")
-st.title("🧪 Scenario Analysis (Stress Tests)")
+st.set_page_config(page_title="Scenario Analysis", page_icon=LOGO_PATH, layout="wide")
+st.title("Scenario Analysis (Stress Tests)")
 st.caption(
     "Apply mortality stress scenarios to the base scenario set and re-price all instruments."
 )
@@ -26,13 +26,16 @@ scen_Q = st.session_state.get("scen_Q")
 scen_P = st.session_state.get("scen_P")
 
 if not specs or not isinstance(specs, dict):
-    st.info("Run **Pricing** first (select products → Price) so `pricing_specs` exists.")
+    st.info(
+        "Run **Pricing** first (select products → Price) so `pricing_specs` exists."
+    )
     st.stop()
 
 if scen_Q is None and scen_P is None:
-    st.warning("No scenario set found in session (`scen_Q` / `scen_P`). Run **Pricing** first.")
+    st.warning(
+        "No scenario set found in session (`scen_Q` / `scen_P`). Run **Pricing** first."
+    )
     st.stop()
-
 
 # -----------------------------
 # Sidebar: base set + shocks
@@ -47,13 +50,15 @@ with st.sidebar:
     )
     base_scen = scen_Q if base_measure.startswith("Q") else scen_P
     if base_scen is None:
-        st.error("Selected base measure is not available in session. Build it in Pricing first.")
+        st.error(
+            "Selected base measure is not available in session. Build it in Pricing first."
+        )
         st.stop()
 
     # Rate used for repricing
     default_r = float(st.session_state.get("pricing_short_rate", 0.02))
     short_rate = st.number_input(
-        "Short rate used for repricing", value=default_r, step=0.0025, format="%.6f"
+        "Short rate used for repricing", value=default_r, step=0.0025, format="%.3f"
     )
 
     st.divider()
@@ -119,7 +124,9 @@ with st.sidebar:
         pandemic_duration = st.number_input(
             "Pandemic duration (years)", value=1, step=1, min_value=1
         )
-        pandemic_severity = st.slider("Pandemic severity (q *= 1 + severity)", 0.0, 5.0, 1.0, 0.1)
+        pandemic_severity = st.slider(
+            "Pandemic severity (m *= 1 + severity)", 0.0, 10.0, 1.0, 0.1
+        )
     if use_pand:
         shock_list.append(
             ShockSpec(
@@ -151,9 +158,13 @@ with st.sidebar:
         )
 
     # 5) Acceleration of improvement
-    use_accel = st.checkbox("Accel improvement (extra improvement over time)", value=False)
+    use_accel = st.checkbox(
+        "Accel improvement (extra improvement over time)", value=False
+    )
     if use_accel:
-        accel_rate = st.slider("Accel rate (annual extra improvement)", 0.0, 0.05, 0.01, 0.001)
+        accel_rate = st.slider(
+            "Accel rate (annual extra improvement)", 0.0, 0.05, 0.01, 0.001
+        )
         accel_start_year = st.number_input(
             "Accel start year (optional)",
             value=int(np.asarray(base_scen.years, dtype=int)[0]),
@@ -203,7 +214,9 @@ with st.sidebar:
         cohort_start = st.number_input("Cohort start (birth year)", value=1960, step=1)
         cohort_end = st.number_input("Cohort end (birth year)", value=1970, step=1)
         cohort_mag = st.slider("Cohort magnitude", 0.0, 0.30, 0.05, 0.01)
-        cohort_dir = st.selectbox("Direction", options=["favorable", "adverse"], index=0)
+        cohort_dir = st.selectbox(
+            "Direction", options=["favorable", "adverse"], index=0
+        )
         cohort_ramp = st.checkbox("Ramp (tilt across band)", value=True)
     if use_cohort:
         shock_list.append(
@@ -220,7 +233,12 @@ with st.sidebar:
             )
         )
 
-    run = st.button("🚀 Run scenario analysis", type="primary")
+    run = st.button(
+        "Run scenario analysis",
+        type="primary",
+        disabled=(len(shock_list) == 0),
+        help="Select at least one stress scenario to run the analysis." if len(shock_list) == 0 else None,
+    )
 
 
 # -----------------------------
@@ -229,7 +247,7 @@ with st.sidebar:
 st.subheader("Base info")
 c1, c2, c3 = st.columns(3)
 c1.metric("Base measure", "Q" if base_measure.startswith("Q") else "P")
-c2.metric("Short rate", f"{float(short_rate):.4%}")
+c2.metric("Short rate", f"{float(short_rate):.2%}")
 c3.metric("Instruments", f"{len(selected_kinds)}")
 
 if not selected_kinds:
@@ -250,7 +268,9 @@ if run:
         )
 
         for scen_name, scen in scen_dict.items():
-            prices = price_all_products(scen, specs=sel_specs, short_rate=float(short_rate))
+            prices = price_all_products(
+                scen, specs=sel_specs, short_rate=float(short_rate)
+            )
             for inst, p in prices.items():
                 EPS = 1e-8
 
@@ -293,45 +313,162 @@ if res is None:
     st.stop()
 
 df = res["prices_table"].copy()
+st.divider()
 
-st.success("Scenario analysis computed ✅")
+st.subheader("Top scenario impacts (sorted)")
 
+allowed = {"life_annuity", "longevity_bond"}
+
+col1, col2 = st.columns([1, 3])
+
+with col1:
+    inst_list = sorted([k for k in df["instrument"].unique().tolist() if k in allowed])
+
+    inst_pick = st.selectbox(
+        "Instrument",
+        options=inst_list,
+        index=0,
+    )
+st.markdown("")
+st.markdown("")
+
+K = 7
+
+df_inst = df[df["instrument"] == inst_pick].copy()
+
+# drop NaNs (si base_price ~ 0 => pct_delta peut être NaN)
+df_inst = df_inst[np.isfinite(df_inst["pct_delta"].values)]
+
+if df_inst.empty:
+    st.info(
+        "No finite pct_delta values for this instrument (base price too close to 0)."
+    )
+else:
+    # sort by absolute impact
+    df_inst["abs_pct"] = df_inst["pct_delta"].abs()
+
+    # on prend 2K pour pouvoir afficher worst + best même si mix
+    df_top = df_inst.sort_values("abs_pct", ascending=False).head(2 * K)
+
+    # split worst / best
+    df_worst = (
+        df_top[df_top["pct_delta"] < 0].sort_values("pct_delta").head(K)
+    )  # most negative
+    df_best = (
+        df_top[df_top["pct_delta"] > 0]
+        .sort_values("pct_delta", ascending=False)
+        .head(K)
+    )  # most positive
+
+    # concat in display order: worst (bottom) then best (top)
+    df_plot = pd.concat([df_worst, df_best], axis=0)
+
+    fig, ax = plt.subplots(figsize=(10, 0.45 * max(6, df_plot.shape[0])))
+
+    colors = ["#d62728" if x < 0 else "#2ca02c" for x in df_plot["pct_delta"].values]
+
+    vals = 100.0 * df_plot["pct_delta"].values  # in %
+    col_left, col_mid, col_right = st.columns([0.1, 5, 0.5])
+
+    with col_mid:
+        ax.barh(df_plot["scenario"].values, vals, color=colors)
+
+        ax.axvline(0.0, color="black", lw=1)
+        ax.set_xlabel("Δ vs base (%)")
+        ax.set_title(f"{inst_pick}: worst / best stress scenarios", pad=15)
+
+        # annotate
+        xmax = np.nanmax(np.abs(vals))
+        ax.set_xlim(-1.15 * xmax, 1.15 * xmax)
+
+        for y, v in enumerate(vals):
+            offset = 0.003 * xmax
+            if v >= 0:
+                ax.text(
+                    v + offset,
+                    y,
+                    f"{v:.2f}%",
+                    va="center",
+                    ha="left",
+                    fontsize=8,
+                )
+            else:
+                ax.text(
+                    v - offset,
+                    y,
+                    f"{v:.2f}%",
+                    va="center",
+                    ha="right",
+                    fontsize=8,
+                )
+
+        ax.grid(True, axis="x", alpha=0.25)
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+
+
+st.divider()
 st.subheader("Results table")
 st.caption(
     "% change shown only when |base_price| > 1e-8; "
     "near-zero prices are dominated by numerical noise."
 )
-# nicer formatting
+
 df_show = df.copy()
+
 df_show["pct_delta"] = 100.0 * df_show["pct_delta"]
+
+EPS_PRICE = 1e-10
+EPS_PCT = 1e-10
+
+for c in ["price", "base_price", "delta"]:
+    df_show[c] = df_show[c].where(df_show[c].abs() >= EPS_PRICE, 0)
+
+df_show["pct_delta"] = df_show["pct_delta"].where(df_show["pct_delta"].abs() >= EPS_PCT, 0)
+
+df_show = df_show.sort_values(["instrument", "scenario"])
+
 st.dataframe(
     df_show,
     use_container_width=True,
     column_config={
-        "price": st.column_config.NumberColumn(format="%.6f"),
-        "base_price": st.column_config.NumberColumn(format="%.6f"),
-        "delta": st.column_config.NumberColumn(format="%.6f"),
+        "scenario": st.column_config.TextColumn("scenario"),
+        "instrument": st.column_config.TextColumn("instrument"),
+        "price": st.column_config.NumberColumn("price", format="%.3f"),
+        "base_price": st.column_config.NumberColumn("base_price", format="%.3f"),
+        "delta": st.column_config.NumberColumn("delta", format="%.3f"),
         "pct_delta": st.column_config.NumberColumn("Δ vs base (%)", format="%.3f"),
     },
 )
 
 st.divider()
-st.subheader("Quick view: % change vs base")
-inst_list = sorted(df["instrument"].unique().tolist())
-inst_pick = st.selectbox("Instrument", options=inst_list, index=0)
+st.subheader("Heatmap: % change vs base (scenario × instrument)")
+st.markdown("")
 
-df_inst = df[df["instrument"] == inst_pick].copy()
-df_inst = df_inst.sort_values("scenario")
-ser = pd.Series(100.0 * df_inst["pct_delta"].values, index=df_inst["scenario"].values)
-st.bar_chart(ser)
+col_left, col_mid, col_right = st.columns([1, 4, 1])
 
+with col_mid:
+    # pivot: scenarios rows, instruments cols
+    pv = df.copy()
+    pv["pct"] = 100.0 * pv["pct_delta"]
+    piv = pv.pivot_table(
+        index="scenario", columns="instrument", values="pct", aggfunc="mean"
+    ).fillna(0.0)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    im = ax.imshow(piv.values, aspect="auto")
+    ax.set_xticks(range(piv.shape[1]))
+    ax.set_xticklabels(piv.columns.tolist(), rotation=30, ha="right")
+    ax.set_yticks(range(piv.shape[0]))
+    ax.set_yticklabels(piv.index.tolist())
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    ax.set_title("Δ vs base (%)", pad=15)
+    st.pyplot(fig, use_container_width=True)
+
+st.markdown("")
 st.caption(
     "Tip: use this page to identify which instruments are most exposed to longevity shocks, then hedge with your Hedging page."
 )
 
-with st.expander("Session debug (scenario analysis)"):
-    st.write("Session keys:", list(st.session_state.keys()))
-    st.write("Base scenario chosen:", res.get("base_measure"))
-    st.write("Short rate:", res.get("short_rate"))
-    st.write("Selected instruments:", res.get("selected_instruments"))
-    st.write("Shocks:", res.get("shocks"))
+st.markdown("")
+st.success("Next: go to **Sensitivities** page.")

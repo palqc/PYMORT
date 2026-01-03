@@ -55,7 +55,10 @@ from pymort.pipeline import (
     stress_testing_pipeline,
 )
 from pymort.pricing.liabilities import CohortLifeAnnuitySpec, price_cohort_life_annuity
-from pymort.pricing.longevity_bonds import LongevityBondSpec, price_simple_longevity_bond
+from pymort.pricing.longevity_bonds import (
+    LongevityBondSpec,
+    price_simple_longevity_bond,
+)
 from pymort.pricing.mortality_derivatives import (
     QForwardSpec,
     SForwardSpec,
@@ -68,13 +71,7 @@ from pymort.pricing.risk_neutral import (
     build_scenarios_under_lambda_fast,
 )
 from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
-from pymort.visualization import (
-    animate_mortality_surface,
-    animate_survival_curves,
-    plot_lexis,
-    plot_mortality_fan,
-    plot_survival_fan,
-)
+from pymort.visualization import plot_lexis, plot_mortality_fan, plot_survival_fan
 
 app = typer.Typer(help="PYMORT – Longevity bond & mortality toolkit")
 
@@ -2034,36 +2031,6 @@ def plot_fan_cmd(
     typer.echo(f"Fan plot saved to {out}")
 
 
-@plot_app.command("animate")
-def plot_animate_cmd(
-    ctx: typer.Context,
-    scen_path: Path = typer.Option(...),
-    type: str = typer.Option("surface", help="surface or survival"),
-    value: str = typer.Option("q", help="surface value q or S"),
-    output: Path = typer.Option(..., help="Output file (.mp4 or .gif)"),
-    statistic: str = typer.Option("median", help="mean or median"),
-    interval: int = typer.Option(200, help="Frame interval ms"),
-) -> None:
-    _ctx(ctx)
-    scen_set = _load_scenarios(scen_path)
-    if type == "surface":
-        animate_mortality_surface(
-            scen_set,
-            value=cast(Literal["q", "S"], value),
-            statistic=cast(Literal["mean", "median"], statistic),
-            interval=interval,
-            save_path=str(output),
-        )
-    else:
-        animate_survival_curves(
-            scen_set,
-            statistic=cast(Literal["mean", "median"], statistic),
-            interval=interval,
-            save_path=str(output),
-        )
-    typer.echo(f"Animation saved to {output}")
-
-
 app.add_typer(plot_app, name="plot")
 
 
@@ -2100,17 +2067,21 @@ def run_pricing_pipeline_cmd(
         years_arr,
         m,
         age_range=(
-            float(data_cfg["age_min"]),
-            float(data_cfg["age_max"]),
-        )
-        if "age_min" in data_cfg and "age_max" in data_cfg
-        else None,
+            (
+                float(data_cfg["age_min"]),
+                float(data_cfg["age_max"]),
+            )
+            if "age_min" in data_cfg and "age_max" in data_cfg
+            else None
+        ),
         year_range=(
-            float(data_cfg["year_min"]),
-            float(data_cfg["year_max"]),
-        )
-        if "year_min" in data_cfg and "year_max" in data_cfg
-        else None,
+            (
+                float(data_cfg["year_min"]),
+                float(data_cfg["year_max"]),
+            )
+            if "year_min" in data_cfg and "year_max" in data_cfg
+            else None
+        ),
     )
 
     fit_cfg = cfg.get("fit", {})
@@ -2130,9 +2101,11 @@ def run_pricing_pipeline_cmd(
                 train_end=int(fit_cfg.get("train_end", years_arr.max())),
                 horizon=horizon,
                 n_scenarios=n_scenarios,
-                model_names=tuple(m.upper() for m in models)
-                if models
-                else ("LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"),
+                model_names=(
+                    tuple(m.upper() for m in models)
+                    if models
+                    else ("LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7")
+                ),
                 cpsplines_kwargs=fit_cfg.get("cpsplines"),
                 seed=c.seed,
             ),

@@ -65,7 +65,12 @@ from pymort.pricing.hedging import (
 )
 from pymort.pricing.liabilities import CohortLifeAnnuitySpec
 from pymort.pricing.longevity_bonds import LongevityBondSpec
-from pymort.pricing.mortality_derivatives import QForwardSpec, SForwardSpec
+from pymort.pricing.mortality_derivatives import (
+    QForwardSpec,
+    SForwardSpec,
+    price_q_forward,
+    price_s_forward,
+)
 from pymort.pricing.risk_neutral import (
     CalibrationCache,
     MultiInstrumentQuote,
@@ -73,7 +78,7 @@ from pymort.pricing.risk_neutral import (
     build_scenarios_under_lambda_fast,
     calibrate_lambda_least_squares,
 )
-from pymort.pricing.survivor_swaps import SurvivorSwapSpec
+from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
 
 InstrumentSpec = (
     LongevityBondSpec | SurvivorSwapSpec | SForwardSpec | QForwardSpec | CohortLifeAnnuitySpec
@@ -761,6 +766,7 @@ def build_risk_neutral_pipeline(
     scen_Q.metadata["short_rate_for_calibration"] = float(short_rate)
     scen_Q.metadata["calibration_success"] = bool(lam_res.get("success", True))
     scen_Q.metadata["calibration_summary"] = calib_summary
+    scen_Q.metadata["calibration_cache"] = cache
     return scen_Q, calib_summary, cache
 
 
@@ -885,6 +891,41 @@ def sensitivities_pipeline(
     normalized_specs: dict[str, InstrumentSpec] = {}
     for name, spec_obj in specs.items():
         normalized_specs[name] = _normalize_spec(spec_obj)
+
+    # ---- Freeze strikes for ATM derivatives so bumps don't re-ATM every time ----
+    # (Only if your specs support "strike" and you set strike=None for ATM)
+    try:
+        from copy import deepcopy
+
+        normalized_specs = deepcopy(normalized_specs)
+
+        # Freeze Q-forward strike if missing
+        if "q_forward" in normalized_specs:
+            sp = normalized_specs["q_forward"]
+            if isinstance(sp, QForwardSpec) and sp.strike is None:
+                out_qf = price_q_forward(scen_set=scen, spec=sp, short_rate=float(short_rate))
+                if "strike" in out_qf:
+                    sp.strike = float(out_qf["strike"])
+
+        # Freeze S-forward strike if missing
+        if "s_forward" in normalized_specs:
+            sp = normalized_specs["s_forward"]
+            if isinstance(sp, SForwardSpec) and sp.strike is None:
+                out_sf = price_s_forward(scen_set=scen, spec=sp, short_rate=float(short_rate))
+                if "strike" in out_sf:
+                    sp.strike = float(out_sf["strike"])
+
+        # Freeze survivor swap strike if missing (depends on your API)
+        if "survivor_swap" in normalized_specs:
+            sp = normalized_specs["survivor_swap"]
+            if isinstance(sp, SurvivorSwapSpec) and sp.strike is None:
+                out_ss = price_survivor_swap(scen_set=scen, spec=sp, short_rate=float(short_rate))
+                if "strike" in out_ss:
+                    sp.strike = float(out_ss["strike"])
+
+    except Exception:
+        # If a spec/pricer doesn't expose strike, skip freezing.
+        pass
 
     out: dict[str, Any] = {}
     out["prices_base"] = price_all_products(

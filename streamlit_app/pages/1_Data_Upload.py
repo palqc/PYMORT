@@ -3,15 +3,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import streamlit as st
+from assets.logo import LOGO_PATH, add_logo_top_right
 
 from pymort.lifetables import load_m_from_excel_any
 
-from assets.logo import add_logo_top_right
-
 add_logo_top_right()
 
-st.set_page_config(page_title="Data Upload", page_icon="📥", layout="wide")
-st.title("📥 Data Upload (HMD Excel)")
+st.set_page_config(page_title="Data Upload", page_icon=LOGO_PATH, layout="wide")
+st.title("Data Upload (HMD Excel)")
 st.caption("Drag & drop an HMD-style period death-rate table (Mx_1x1-like) in .xlsx.")
 
 # ---- UI controls
@@ -25,11 +24,14 @@ with st.sidebar:
     m_floor = st.number_input("m_floor", value=1e-12, format="%.2e")
     drop_years_str = st.text_input("Drop years (comma-separated)", value="")
 
+st.markdown("")
 uploaded = st.file_uploader(
-    "Upload Excel (.xlsx)",
+    "**Upload Excel (.xlsx)**",
     type=["xlsx"],
     accept_multiple_files=False,
 )
+st.markdown("")
+st.markdown("")
 
 # ---- Parse optional inputs
 year_min_opt = int(year_min) if year_min and int(year_min) > 0 else None
@@ -115,7 +117,9 @@ for k in [
 # ---- Display summary
 col1, col2, col3 = st.columns(3)
 col1.metric("Ages", f"{int(np.min(ages))} → {int(np.max(ages))}", f"{len(ages)} points")
-col2.metric("Years", f"{int(np.min(years))} → {int(np.max(years))}", f"{len(years)} points")
+col2.metric(
+    "Years", f"{int(np.min(years))} → {int(np.max(years))}", f"{len(years)} points"
+)
 col3.metric("m shape", f"{m.shape[0]} × {m.shape[1]}", "age × year")
 
 st.subheader("Preview")
@@ -126,10 +130,5 @@ preview = pd.DataFrame(
 )
 st.dataframe(preview, use_container_width=True)
 
-with st.expander("Diagnostics"):
-    st.write("NaNs:", int(np.isnan(m).sum()))
-    st.write("Min m:", float(np.min(m)))
-    st.write("Max m:", float(np.max(m)))
-    st.json(st.session_state["data_meta"])
-
-st.success("Data loaded ✅ Go to the next page: Data & Slicing.")
+st.markdown("")
+st.success("Next: go to **Data & Slicing** page.")

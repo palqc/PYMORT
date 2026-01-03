@@ -22,7 +22,7 @@ Your PYMORT package must enable users to:
 
 ## Technical Requirements
 
-### Core Architecture
+### Core Architecture@
 
 **Mortality Models**:
 

@@ -3,15 +3,17 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
+from assets.logo import add_logo_top_right, LOGO_PATH
 
 from pymort.pipeline import project_from_fitted_model
-
-from assets.logo import add_logo_top_right
+from pymort.visualization.lexis import plot_lexis
 
 add_logo_top_right()
-st.set_page_config(page_title="Projection P", page_icon="📈", layout="wide")
-st.title("📈 Projections (P-measure)")
-st.caption("Bootstrap + process risk mortality projections under the physical measure P.")
+st.set_page_config(page_title="Projection P", page_icon=LOGO_PATH, layout="wide")
+st.title("Projections (P-measure)")
+st.caption(
+    "Bootstrap + process risk mortality projections under the physical measure P."
+)
 
 # -----------------------------
 # Guard: need data loaded
@@ -73,7 +75,7 @@ with st.sidebar:
     seed = st.number_input("seed (optional)", min_value=0, value=0, step=1)
 
     st.divider()
-    run = st.button("🚀 Build scenarios P", type="primary")
+    run = st.button("Build scenarios P", type="primary")
 
 # -----------------------------
 # Run projection
@@ -91,7 +93,9 @@ if run:
     with st.spinner("Building P-measure scenarios..."):
         try:
             if fitted is None:
-                st.error("No fitted model found. Go to **Fit & Model Selection** first.")
+                st.error(
+                    "No fitted model found. Go to **Fit & Model Selection** first."
+                )
                 st.stop()
             B_eff = int(B_bootstrap) if B_bootstrap is not None else 50
             nproc_eff = int(n_process) if n_process is not None else 200
@@ -133,7 +137,6 @@ if run:
 
     n_scenarios = B_eff * nproc_eff
 
-    st.success("P scenarios built ✅")
     st.session_state["projP_cfg"] = {
         "requested_horizon": int(horizon),
         "n_scenarios": int(n_scenarios),
@@ -155,6 +158,7 @@ years_proj = np.asarray(scen_P.years, dtype=int)
 N, A_s, H = q_paths.shape
 
 st.subheader("Scenario set summary")
+st.markdown("")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("N scenarios", f"{N}")
 c2.metric("Ages", f"{int(scen_P.ages.min())} → {int(scen_P.ages.max())}", f"{A_s} ages")
@@ -281,7 +285,7 @@ def _cohort_survival_full_horizon_from_q(
     return np.clip(S, 0.0, 1.0)
 
 
-colL, colR = st.columns(2)
+colL, col1, colR, colb = st.columns([3, 0.5, 3.12, 0.5])
 
 req_H = int(st.session_state.get("projP_cfg", {}).get("requested_horizon", H))
 start_year = int(years_proj[0])
@@ -314,7 +318,8 @@ yS_plot = _cohort_survival_full_horizon_from_q(
 )
 
 with colL:
-    st.subheader("Survival fan (S)")
+    st.markdown("")
+    st.markdown("**Survival fan (S)**")
     fig = plt.figure()
     ax = fig.add_subplot(111)
     _fanplot(
@@ -328,7 +333,8 @@ with colL:
     st.pyplot(fig, use_container_width=True)
 
 with colR:
-    st.subheader("Mortality fan (q)")
+    st.markdown("")
+    st.markdown("**Mortality fan (q)**")
     fig = plt.figure()
     ax = fig.add_subplot(111)
     _fanplot(
@@ -340,7 +346,37 @@ with colR:
     )
     st.pyplot(fig, use_container_width=True)
 
-with st.expander("Metadata"):
-    st.json(scen_P.metadata)
+st.divider()
+st.subheader("Lexis heatmap (summary over scenarios)")
 
-st.success("Next: go to **Risk-neutral (Q)** once you're happy with P scenarios.")
+c1, c2, c3 = st.columns([1, 1, 1])
+with c1:
+    lexis_val = st.selectbox("Surface", ["q", "S"], index=0, key="p_lexis_val")
+with c2:
+    lexis_stat = st.selectbox(
+        "Statistic", ["median", "mean"], index=0, key="p_lexis_stat"
+    )
+with c3:
+    cohort_str = st.text_input(
+        "Cohorts to highlight (comma-separated birth years)",
+        value="",
+        key="p_lexis_coh",
+    )
+
+cohorts = None
+if cohort_str.strip():
+    try:
+        cohorts = [int(x.strip()) for x in cohort_str.split(",") if x.strip()]
+    except Exception:
+        st.warning("Could not parse cohorts. Example: 1950, 1970, 1990")
+
+col_left, col_mid, col_right = st.columns([1, 4, 1])
+
+with col_mid:
+    st.markdown("")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    plot_lexis(scen_P, value=lexis_val, statistic=lexis_stat, cohorts=cohorts, ax=ax)
+    st.pyplot(fig, use_container_width=True)
+
+st.markdown("")
+st.success("Next: go to **Risk-neutral Q** page.")

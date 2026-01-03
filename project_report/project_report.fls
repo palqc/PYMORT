@@ -1,8 +1,8 @@
-PWD /Users/pierre-antoinelequellec/Desktop/MASTER/S1/DATASCIENCE/pymort-template-main/project_report
+PWD /Users/pierre-antoinelequellec/Desktop/MASTER/S1/DATASCIENCE/pymort/project_report
 INPUT /usr/local/texlive/2025/texmf.cnf
 INPUT /usr/local/texlive/2025/texmf-dist/web2c/texmf.cnf
 INPUT /usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt
-INPUT /Users/pierre-antoinelequellec/Desktop/MASTER/S1/DATASCIENCE/pymort-template-main/project_report/project_report.tex
+INPUT /Users/pierre-antoinelequellec/Desktop/MASTER/S1/DATASCIENCE/pymort/project_report/project_report.tex
 OUTPUT project_report.log
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls
 INPUT /usr/local/texlive/2025/texmf-dist/tex/latex/base/article.cls

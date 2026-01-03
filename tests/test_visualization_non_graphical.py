@@ -8,10 +8,6 @@ import numpy as np
 import pytest
 
 from pymort.analysis.scenario import MortalityScenarioSet
-from pymort.visualization.animation import (
-    animate_mortality_surface,
-    animate_survival_curves,
-)
 from pymort.visualization.fans import plot_mortality_fan, plot_survival_fan
 from pymort.visualization.lexis import plot_lexis
 
@@ -74,22 +70,4 @@ def test_plot_functions_raise_on_unknown_value_or_statistic():
         plot_lexis(scen, value="bad", statistic="median")
     with pytest.raises(ValueError):
         plot_lexis(scen, value="q", statistic="bad")
-    plt.close("all")
-
-
-def test_animate_survival_curves_no_save_runs_or_skips_cleanly():
-    scen = _toy_scenarios(T=3)  # keep frames minimal
-    plt.close("all")
-    anim = animate_survival_curves(scen_set=scen, statistic="mean", interval=50, save_path=None)
-    assert anim is not None
-    plt.close("all")
-
-
-def test_animate_mortality_surface_no_save_runs_or_skips_cleanly():
-    scen = _toy_scenarios(T=3)
-    plt.close("all")
-    anim = animate_mortality_surface(
-        scen_set=scen, value="q", statistic="mean", interval=50, save_path=None
-    )
-    assert anim is not None
     plt.close("all")

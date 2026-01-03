@@ -1,11 +1,10 @@
-# streamlit_app/pages/5_Risk_Neutral_Q.py
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
-
-from assets.logo import add_logo_top_right
+from assets.logo import LOGO_PATH, add_logo_top_right
 
 from pymort.pipeline import build_risk_neutral_pipeline
 from pymort.pricing.liabilities import CohortLifeAnnuitySpec, price_cohort_life_annuity
@@ -21,6 +20,8 @@ from pymort.pricing.mortality_derivatives import (
 )
 from pymort.pricing.risk_neutral import build_scenarios_under_lambda_fast
 from pymort.pricing.survivor_swaps import SurvivorSwapSpec, price_survivor_swap
+from pymort.visualization.fans import plot_mortality_fan, plot_survival_fan
+from pymort.visualization.lexis import plot_lexis
 
 
 # -----------------------------
@@ -35,23 +36,76 @@ def _lambda_dim_from_cache(cache) -> int:
 
 def _price_instrument(scen_set, key: str, spec: object, short_rate: float) -> float:
     if key == "longevity_bond":
-        return float(price_simple_longevity_bond(scen_set, spec, short_rate=short_rate)["price"])
+        return float(
+            price_simple_longevity_bond(scen_set, spec, short_rate=short_rate)["price"]
+        )
     if key == "survivor_swap":
-        return float(price_survivor_swap(scen_set, spec, short_rate=short_rate)["price"])
+        return float(
+            price_survivor_swap(scen_set, spec, short_rate=short_rate)["price"]
+        )
     if key == "q_forward":
         return float(price_q_forward(scen_set, spec, short_rate=short_rate)["price"])
     if key == "s_forward":
         return float(price_s_forward(scen_set, spec, short_rate=short_rate)["price"])
     if key == "life_annuity":
-        return float(price_cohort_life_annuity(scen_set, spec, short_rate=short_rate)["price"])
+        return float(
+            price_cohort_life_annuity(scen_set, spec, short_rate=short_rate)["price"]
+        )
     raise ValueError(f"Unknown instrument key '{key}'")
 
 
-def _build_price_table(scen_set, instruments: dict[str, object], short_rate: float) -> pd.DataFrame:
+def _build_price_table(
+    scen_set, instruments: dict[str, object], short_rate: float
+) -> pd.DataFrame:
     rows = []
+
     for k, spec in instruments.items():
-        p = _price_instrument(scen_set, k, spec, short_rate=float(short_rate))
-        rows.append({"instrument": k, "model_price": float(p)})
+        k_low = k.lower()
+
+        # ---- q-forward
+        if k_low == "q_forward":
+            res = price_q_forward(scen_set, spec, short_rate=float(short_rate))
+            rows.append(
+                {
+                    "instrument": k,
+                    "model_price": float(res["price"]),
+                    "strike": float(res["strike"]),
+                }
+            )
+
+        # ---- s-forward
+        elif k_low == "s_forward":
+            res = price_s_forward(scen_set, spec, short_rate=float(short_rate))
+            rows.append(
+                {
+                    "instrument": k,
+                    "model_price": float(res["price"]),
+                    "strike": float(res["strike"]),
+                }
+            )
+
+        # ---- survivor swap
+        elif k_low == "survivor_swap":
+            res = price_survivor_swap(scen_set, spec, short_rate=float(short_rate))
+            rows.append(
+                {
+                    "instrument": k,
+                    "model_price": float(res["price"]),
+                    "strike": float(res["strike"]),
+                }
+            )
+
+        # ---- everything else (annuity, longevity bond, etc.)
+        else:
+            p = _price_instrument(scen_set, k, spec, short_rate=float(short_rate))
+            rows.append(
+                {
+                    "instrument": k,
+                    "model_price": float(p),
+                    "strike": np.nan,
+                }
+            )
+
     return pd.DataFrame(rows)
 
 
@@ -88,16 +142,27 @@ def format_lambda_for_display(lam):
     return "[" + ", ".join(f"{x:.2f}" for x in arr) + "]"
 
 
+def _clean_small(df: pd.DataFrame, cols: list[str], eps: float = 1e-10) -> pd.DataFrame:
+    out = df.copy()
+    for c in cols:
+        if c in out.columns:
+            out[c] = pd.to_numeric(out[c], errors="coerce")
+            out[c] = out[c].where(
+                out[c].abs() >= eps, 0.0
+            )  # ou np.nan si tu préfères "—"
+    return out
+
+
 # -----------------------------
 # Page
 # -----------------------------
-add_logo_top_right()
-st.set_page_config(page_title="Risk-neutral Q", page_icon="🌙", layout="wide")
-st.title("🌙 Risk-neutral scenarios (Q-measure)")
+st.set_page_config(page_title="Risk-neutral Q", page_icon=LOGO_PATH, layout="wide")
+st.title("Risk-neutral scenarios (Q-measure)")
 st.caption(
     "Mode A: choose λ manually (no calibration). "
     "Mode B: create synthetic market prices to test calibration and recover λ."
 )
+add_logo_top_right()
 
 # -----------------------------
 # Session state init
@@ -153,7 +218,7 @@ with st.sidebar:
         "Short rate r (cont., flat)",
         value=0.02,
         step=0.005,
-        format="%.4f",
+        format="%.3f",
         help="Used for discounting in pricing/calibration.",
     )
 
@@ -161,39 +226,35 @@ with st.sidebar:
         "Sigma scale (vol multiplier)",
         value=1.0,
         step=0.05,
-        format="%.3f",
+        format="%.2f",
         help="Multiplies process volatility during Q build (and calibration in Mode B).",
     )
 
     st.divider()
     st.subheader("Instruments")
     use_bond = st.checkbox("Longevity bond", value=True)
-    use_swap = st.checkbox("Survivor swap", value=False)
-    use_qfwd = st.checkbox("Q-forward", value=False)
-    use_sfwd = st.checkbox("S-forward", value=False)
-    use_ann = st.checkbox("Cohort life annuity (liability)", value=False)
+    use_swap = st.checkbox("Survivor swap", value=True)
+    use_qfwd = st.checkbox("Q-forward", value=True)
+    use_sfwd = st.checkbox("S-forward", value=True)
+    use_ann = st.checkbox("Cohort life annuity (liability)", value=True)
 
 # -----------------------------
 # Main: instrument specs
 # -----------------------------
 st.subheader("Instrument specs")
-st.write(
-    "Pick instruments + specs. "
-    "Mode A builds Q directly from λ. Mode B uses market prices (synthetic or manual) to calibrate λ."
-)
-
+st.markdown("")
 instruments: dict[str, object] = {}
 
-col_specs, col_prices = st.columns(2)
+col1, col2, col3, col4, col5 = st.columns([0.01, 3, 1, 3, 0.5])
 
-with col_specs:
-    st.markdown("### Specs")
-
+with col2:
     if use_bond:
         st.markdown("**Longevity bond**")
-        bond_age = st.slider("Bond issue age", age_min, age_max, age_default, 1, key="bond_age")
+        bond_age = st.slider(
+            "Issue age", age_min, age_max, age_default, 1, key="bond_age"
+        )
         bond_T = st.slider(
-            "Bond maturity (years)",
+            "Maturity (years)",
             1,
             max_maturity,
             min(20, max_maturity),
@@ -201,10 +262,10 @@ with col_specs:
             key="bond_T",
         )
         bond_notional = st.number_input(
-            "Bond notional", value=100.0, step=10.0, key="bond_notional"
+            "Notional", value=100.0, step=10.0, key="bond_notional"
         )
         bond_include_principal = st.checkbox(
-            "Bond include principal", value=True, key="bond_include_principal"
+            "Include principal", value=True, key="bond_include_principal"
         )
 
         instruments["longevity_bond"] = LongevityBondSpec(
@@ -214,42 +275,23 @@ with col_specs:
             maturity_years=int(bond_T),
         )
 
-    if use_swap:
-        st.markdown("**Survivor swap**")
-        swap_age = st.slider("Swap age", age_min, age_max, age_default, 1, key="swap_age")
-        swap_T = st.slider(
-            "Swap maturity (years)",
-            1,
-            max_maturity,
-            min(20, max_maturity),
-            1,
-            key="swap_T",
-        )
-        swap_notional = st.number_input(
-            "Swap notional", value=100.0, step=10.0, key="swap_notional"
-        )
-        payer = st.selectbox("Swap payer", ["fixed", "floating"], index=0, key="swap_payer")
-
-        instruments["survivor_swap"] = SurvivorSwapSpec(
-            age=float(swap_age),
-            maturity_years=int(swap_T),
-            notional=float(swap_notional),
-            strike=None,
-            payer=str(payer),
-        )
-
     if use_qfwd:
+        st.markdown("")
+        st.markdown("")
+        st.markdown("")
         st.markdown("**Q-forward**")
-        qf_age = st.slider("QF age", age_min, age_max, age_default, 1, key="qf_age")
+        qf_age = st.slider("Age", age_min, age_max, age_default, 1, key="qf_age")
         qf_T = st.slider(
-            "QF maturity (years)",
+            "Maturity (years)",
             1,
             max_maturity,
             min(20, max_maturity),
             1,
             key="qf_T",
         )
-        qf_notional = st.number_input("QF notional", value=100.0, step=10.0, key="qf_notional")
+        qf_notional = st.number_input(
+            "Notional", value=100.0, step=10.0, key="qf_notional"
+        )
 
         instruments["q_forward"] = QForwardSpec(
             age=float(qf_age),
@@ -259,17 +301,22 @@ with col_specs:
         )
 
     if use_sfwd:
+        st.markdown("")
+        st.markdown("")
+        st.markdown("")
         st.markdown("**S-forward**")
-        sf_age = st.slider("SF age", age_min, age_max, age_default, 1, key="sf_age")
+        sf_age = st.slider("Age", age_min, age_max, age_default, 1, key="sf_age")
         sf_T = st.slider(
-            "SF maturity (years)",
+            "Maturity (years)",
             1,
             max_maturity,
             min(20, max_maturity),
             1,
             key="sf_T",
         )
-        sf_notional = st.number_input("SF notional", value=100.0, step=10.0, key="sf_notional")
+        sf_notional = st.number_input(
+            "Notional", value=100.0, step=10.0, key="sf_notional"
+        )
 
         instruments["s_forward"] = SForwardSpec(
             age=float(sf_age),
@@ -277,11 +324,42 @@ with col_specs:
             notional=float(sf_notional),
             strike=None,
         )
+
+with col4:
+    if use_swap:
+        st.markdown("**Survivor swap**")
+        swap_age = st.slider("Age", age_min, age_max, age_default, 1, key="swap_age")
+        swap_T = st.slider(
+            "Maturity (years)",
+            1,
+            max_maturity,
+            min(20, max_maturity),
+            1,
+            key="swap_T",
+        )
+        swap_notional = st.number_input(
+            "Notional", value=100.0, step=10.0, key="swap_notional"
+        )
+        payer = st.selectbox("Payer", ["fixed", "floating"], index=0, key="swap_payer")
+
+        instruments["survivor_swap"] = SurvivorSwapSpec(
+            age=float(swap_age),
+            maturity_years=int(swap_T),
+            notional=float(swap_notional),
+            strike=None,
+            payer=str(payer),
+        )
+
     if use_ann:
+        st.markdown("")
+        st.markdown("")
+        st.markdown("")
         st.markdown("**Cohort life annuity (liability)**")
-        ann_age = st.slider("Annuity issue age", age_min, age_max, age_default, 1, key="ann_age")
+        ann_age = st.slider(
+            "Issue age", age_min, age_max, age_default, 1, key="ann_age"
+        )
         ann_T = st.slider(
-            "Annuity horizon (years)",
+            "Horizon (years)",
             1,
             max_maturity,
             min(30, max_maturity),
@@ -289,10 +367,10 @@ with col_specs:
             key="ann_T",
         )
         ann_payment = st.number_input(
-            "Payment per survivor",
+            "Annual payment per survivor",
             value=1.0,
             step=0.1,
-            format="%.4f",
+            format="%.2f",
             key="ann_payment",
         )
         ann_defer = st.number_input(
@@ -307,8 +385,21 @@ with col_specs:
             "Exposure at issue",
             value=1.0,
             step=1.0,
-            format="%.4f",
+            format="%.2f",
             key="ann_exposure",
+        )
+        ann_include_terminal = st.checkbox(
+            "Include terminal benefit",
+            value=False,
+            key="pr_ann_include_terminal",
+        )
+        ann_terminal_notional = st.number_input(
+            "Terminal notional (paid at maturity × survival)",
+            value=0.0,
+            step=1.0,
+            format="%.4f",
+            key="pr_ann_terminal_notional",
+            disabled=not ann_include_terminal,
         )
 
         instruments["life_annuity"] = CohortLifeAnnuitySpec(
@@ -317,8 +408,8 @@ with col_specs:
             maturity_years=int(ann_T),
             defer_years=int(ann_defer),
             exposure_at_issue=float(ann_exposure),
-            include_terminal=False,
-            terminal_notional=0.0,
+            include_terminal=ann_include_terminal,
+            terminal_notional=ann_terminal_notional,
         )
 
 if not instruments:
@@ -337,17 +428,25 @@ with st.sidebar:
     if mode.startswith("Mode A"):
         st.subheader("Mode A — choose λ")
         if k_lam == 1:
-            lam_A = st.number_input("λ (fixed)", value=0.0, step=0.1, format="%.3f", key="lam_A_1d")
+            lam_A = st.number_input(
+                "λ (fixed)", value=0.0, step=0.1, format="%.2f", key="lam_A_1d"
+            )
             lam_A_vec = [float(lam_A)]
         else:
             st.caption("CBDM7 → λ is 3D (one per RW factor).")
-            lam1 = st.number_input("λ1", value=0.0, step=0.1, format="%.3f", key="lam_A_1")
-            lam2 = st.number_input("λ2", value=0.0, step=0.1, format="%.3f", key="lam_A_2")
-            lam3 = st.number_input("λ3", value=0.0, step=0.1, format="%.3f", key="lam_A_3")
+            lam1 = st.number_input(
+                "λ1", value=0.0, step=0.1, format="%.2f", key="lam_A_1"
+            )
+            lam2 = st.number_input(
+                "λ2", value=0.0, step=0.1, format="%.2f", key="lam_A_2"
+            )
+            lam3 = st.number_input(
+                "λ3", value=0.0, step=0.1, format="%.2f", key="lam_A_3"
+            )
             lam_A_vec = [float(lam1), float(lam2), float(lam3)]
 
         st.button(
-            "🚀 Build Q (Fixed λ)",
+            "Build Q (Fixed λ)",
             type="primary",
             on_click=_request_run_A,
         )
@@ -365,14 +464,20 @@ with st.sidebar:
 
         if k_lam == 1:
             lam_true = st.number_input(
-                "λ_true", value=0.3, step=0.1, format="%.3f", key="lam_true_1d"
+                "λ_true", value=0.3, step=0.1, format="%.2f", key="lam_true_1d"
             )
             lam_true_vec = [float(lam_true)]
         else:
             st.caption("CBDM7 → λ_true is 3D.")
-            lt1 = st.number_input("λ_true1", value=0.3, step=0.1, format="%.3f", key="lam_true_1")
-            lt2 = st.number_input("λ_true2", value=0.0, step=0.1, format="%.3f", key="lam_true_2")
-            lt3 = st.number_input("λ_true3", value=0.0, step=0.1, format="%.3f", key="lam_true_3")
+            lt1 = st.number_input(
+                "λ_true1", value=0.3, step=0.1, format="%.2f", key="lam_true_1"
+            )
+            lt2 = st.number_input(
+                "λ_true2", value=0.0, step=0.1, format="%.2f", key="lam_true_2"
+            )
+            lt3 = st.number_input(
+                "λ_true3", value=0.0, step=0.1, format="%.2f", key="lam_true_3"
+            )
             lam_true_vec = [float(lt1), float(lt2), float(lt3)]
 
         noise_std = st.number_input(
@@ -385,7 +490,9 @@ with st.sidebar:
         seed_syn = st.number_input("Synthetic seed", value=0, step=1)
 
         st.divider()
-        lambda0 = st.number_input("Initial λ (solver)", value=0.0, step=0.1, format="%.3f")
+        lambda0 = st.number_input(
+            "Initial λ (solver)", value=0.0, step=0.1, format="%.3f"
+        )
         lam_lb = st.number_input("λ lower bound", value=-5.0, step=0.5, format="%.2f")
         lam_ub = st.number_input("λ upper bound", value=5.0, step=0.5, format="%.2f")
 
@@ -394,7 +501,7 @@ with st.sidebar:
             on_click=_request_gen_synth,
         )
         st.button(
-            "🚀 Calibrate λ and build Q",
+            "Calibrate λ and build Q",
             type="primary",
             on_click=_request_run_B,
         )
@@ -436,7 +543,6 @@ if mode.startswith("Mode B") and st.session_state.get("do_gen_synth", False):
             "base_model_prices": df_prices.to_dict(orient="records"),
         }
 
-        st.success("Synthetic market prices generated ✅")
         st.rerun()
 
     except Exception as e:
@@ -447,34 +553,38 @@ if mode.startswith("Mode B") and st.session_state.get("do_gen_synth", False):
 # -----------------------------
 market_prices: dict[str, float] = {}
 
-with col_prices:
-    st.markdown("### Market prices / Calibration inputs")
+st.divider()
+st.markdown("### Market prices / Calibration inputs")
 
-    if mode.startswith("Mode A"):
-        st.info("Mode A: no market prices needed. We'll build Q directly from your chosen λ.")
-    else:
-        st.write(
-            "Mode B: edit market prices manually, or click the synthetic generator in the sidebar."
-        )
+if mode.startswith("Mode A"):
+    st.markdown("")
+    st.info(
+        "Mode A: no market prices needed. We'll build Q directly from your chosen λ."
+    )
+else:
+    st.write(
+        "Mode B: edit market prices manually, or click the synthetic generator in the sidebar."
+    )
+    st.markdown("")
 
-        for k in calibration_keys:
-            widget_key = f"mkt_{k}"
+    for k in calibration_keys:
+        widget_key = f"mkt_{k}"
 
-            if widget_key in st.session_state:
-                market_prices[k] = st.number_input(
-                    f"Market price for '{k}'",
-                    step=1.0,
-                    format="%.6f",
-                    key=widget_key,
-                )
-            else:
-                market_prices[k] = st.number_input(
-                    f"Market price for '{k}'",
-                    value=0.0,
-                    step=1.0,
-                    format="%.6f",
-                    key=widget_key,
-                )
+        if widget_key in st.session_state:
+            market_prices[k] = st.number_input(
+                f"Market price for '{k}'",
+                step=1.0,
+                format="%.3f",
+                key=widget_key,
+            )
+        else:
+            market_prices[k] = st.number_input(
+                f"Market price for '{k}'",
+                value=0.0,
+                step=1.0,
+                format="%.3f",
+                key=widget_key,
+            )
 
 # -----------------------------
 # Run Mode A
@@ -507,11 +617,16 @@ if mode.startswith("Mode A") and st.session_state.get("do_run_A", False):
         st.session_state["calibration_summary"] = summary
         st.session_state["calibration_cache"] = cache
         st.session_state["risk_neutral_mode"] = "A"
+        # attach what Sensitivities expects
+        scen_Q.metadata["measure"] = "Q"
+        scen_Q.metadata["lambda_star"] = lamA  # treat fixed λ as λ_star for downstream
+        scen_Q.metadata["calibration_cache"] = cache
+
+        st.session_state["lambda_star"] = lamA
+        st.session_state["calibration_cache"] = cache
 
         for kk in ["prices", "pv_paths", "cf_paths", "hedge_result", "risk_report"]:
             st.session_state[kk] = None
-
-        st.success("Q scenarios built (Mode A) ✅")
 
     except Exception as e:
         st.error(f"Mode A failed: {e}")
@@ -523,7 +638,9 @@ if mode.startswith("Mode B") and st.session_state.get("do_run_B", False):
     st.session_state["do_run_B"] = False
 
     # read market prices from widgets
-    market_prices = {k: float(st.session_state.get(f"mkt_{k}", 0.0)) for k in calibration_keys}
+    market_prices = {
+        k: float(st.session_state.get(f"mkt_{k}", 0.0)) for k in calibration_keys
+    }
 
     try:
         calibration_kwargs = {
@@ -547,17 +664,20 @@ if mode.startswith("Mode B") and st.session_state.get("do_run_B", False):
         calib_summary = dict(calib_summary)
         calib_summary["mode"] = "B_synthetic_or_manual_calibration"
         if "synthetic_market_debug" in st.session_state:
-            calib_summary["synthetic_market_debug"] = st.session_state["synthetic_market_debug"]
+            calib_summary["synthetic_market_debug"] = st.session_state[
+                "synthetic_market_debug"
+            ]
 
         st.session_state["scen_Q"] = scen_Q
         st.session_state["calibration_summary"] = calib_summary
         st.session_state["calibration_cache"] = cache_out
         st.session_state["risk_neutral_mode"] = "B"
+        # ensure metadata has everything for vega
+        scen_Q.metadata["calibration_cache"] = cache_out
+        st.session_state["lambda_star"] = scen_Q.metadata.get("lambda_star")
 
         for kk in ["prices", "pv_paths", "cf_paths", "hedge_result", "risk_report"]:
             st.session_state[kk] = None
-
-        st.success("Q scenarios built (Mode B) ✅")
 
     except Exception as e:
         st.error(f"Mode B calibration failed: {e}")
@@ -567,6 +687,7 @@ if mode.startswith("Mode B") and st.session_state.get("do_run_B", False):
 # -----------------------------
 st.divider()
 st.subheader("Results")
+st.markdown("")
 
 scen_Q = st.session_state.get("scen_Q")
 summary = st.session_state.get("calibration_summary")
@@ -575,7 +696,7 @@ if scen_Q is None or summary is None:
     st.info("Build Q using Mode A or Mode B.")
     st.stop()
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3 = st.columns(3)
 
 lam_star = summary.get("lambda_star", None)
 lam_used = summary.get("lambda_used", None)
@@ -588,13 +709,6 @@ else:
     lam_disp = None
 
 lam = np.atleast_1d(lam_disp).astype(float)
-
-if lam.size == 1:
-    c4.metric("λ", f"{lam[0]:.3f}")
-else:
-    lc1, lc2, lc3 = st.columns(lam.size)
-    for i, col in enumerate([lc1, lc2, lc3][: lam.size]):
-        col.metric(f"λ{i + 1}", f"{lam[i]:.3f}")
 
 c2.metric(
     "RMSE pricing error",
@@ -616,26 +730,105 @@ c1.metric("Success", str(bool(summary.get("success", True))))
 
 residuals = summary.get("residuals", [])
 if residuals:
-    st.markdown("### Residuals (model vs market)")
-    st.dataframe(pd.DataFrame(residuals), use_container_width=True)
+    st.markdown("##### Residuals (model vs market)")
+    df_res = pd.DataFrame(residuals)
+    df_res = _clean_small(df_res, ["model_price", "market_price", "error"], eps=1e-9)
 
-st.markdown("### Model prices under current Q scenarios")
-try:
-    df_model = _build_price_table(scen_Q, instruments, short_rate=float(short_rate))
-    st.dataframe(df_model, use_container_width=True)
-except Exception as e:
-    st.warning(f"Could not compute model prices table: {e}")
+    st.dataframe(
+        df_res,
+        use_container_width=True,
+        column_config={
+            "model_price": st.column_config.NumberColumn(format="%.4f"),
+            "market_price": st.column_config.NumberColumn(format="%.4f"),
+            "error": st.column_config.NumberColumn(format="%.4f"),
+        },
+    )
 
-with st.expander("Full summary JSON"):
-    st.json(summary)
+st.markdown("")
+st.markdown("##### Model prices under current Q scenarios")
+st.markdown("")
+col_left, col_mid, col_right = st.columns([1, 4, 1])
 
-st.subheader("Scenario set Q summary")
-qQ = np.asarray(scen_Q.q_paths, dtype=float)
-N, A, Hq = qQ.shape
-d1, d2, d3, d4 = st.columns(4)
-d1.metric("N scenarios", f"{N}")
-d2.metric("Ages", f"{int(np.min(scen_Q.ages))} → {int(np.max(scen_Q.ages))}")
-d3.metric("Horizon", f"{Hq} years")
-d4.metric("Measure", str(scen_Q.metadata.get("measure", "Q")))
+with col_mid:
+    try:
+        df_model = _build_price_table(scen_Q, instruments, short_rate=float(short_rate))
+        df_model = _clean_small(df_model, ["model_price", "strike"], eps=1e-9)
 
-st.success("Next: go to **Pricing** once you're happy with Q scenarios.")
+        st.dataframe(
+            df_model,
+            use_container_width=True,
+            column_config={
+                "model_price": st.column_config.NumberColumn(format="%.4f"),
+                "strike": st.column_config.NumberColumn(format="%.4f"),
+            },
+        )
+    except Exception as e:
+        st.warning(f"Could not compute model prices table: {e}")
+
+
+st.divider()
+st.subheader("🧭 Visual checks (P vs Q)")
+
+age_vis = st.slider(
+    "Age for fan charts (comparison)",
+    min_value=float(np.min(scen_Q.ages)),
+    max_value=float(np.max(scen_Q.ages)),
+    value=float(round(np.median(scen_Q.ages))),
+    step=1.0,
+    key="q_age_vis_comp",
+)
+
+col1, col2, col3, col4 = st.columns([3, 1, 3, 1])
+
+with col1:
+    val = st.selectbox("Lexis surface", ["q", "S"], index=0, key="q_lexis_val")
+with col3:
+    stat = st.selectbox("Lexis stat", ["median", "mean"], index=0, key="q_lexis_stat")
+
+colL, col1, colR, col4 = st.columns([3, 0.5, 3, 0.5])
+
+with colL:
+    st.markdown("")
+    st.markdown("**Lexis (P)**")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    plot_lexis(scen_P, value=val, statistic=stat, cohorts=None, ax=ax)
+    st.pyplot(fig, use_container_width=True)
+
+with colR:
+    st.markdown("")
+    st.markdown("**Lexis (Q)**")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    plot_lexis(scen_Q, value=val, statistic=stat, cohorts=None, ax=ax)
+    st.pyplot(fig, use_container_width=True)
+
+st.divider()
+st.markdown("### Fan charts (P vs Q)")
+st.markdown("")
+
+c1, c12, c2 = st.columns([5, 1, 5])
+with c1:
+    st.markdown("**Survival fan (P)**")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    plot_survival_fan(scen_P, age=float(age_vis), ax=ax)
+    st.pyplot(fig, use_container_width=True)
+    st.markdown("")
+
+    st.markdown("**Mortality fan (P)**")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    plot_mortality_fan(scen_P, age=float(age_vis), ax=ax)
+    st.pyplot(fig, use_container_width=True)
+
+with c2:
+    st.markdown("**Survival fan (Q)**")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    plot_survival_fan(scen_Q, age=float(age_vis), ax=ax)
+    st.pyplot(fig, use_container_width=True)
+    st.markdown("")
+
+    st.markdown("**Mortality fan (Q)**")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    plot_mortality_fan(scen_Q, age=float(age_vis), ax=ax)
+    st.pyplot(fig, use_container_width=True)
+
+st.markdown("")
+st.success("Next: go to **Pricing** page.")

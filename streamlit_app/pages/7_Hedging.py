@@ -1,19 +1,19 @@
-# streamlit_app/pages/7_Hedging.py
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
+from assets.logo import LOGO_PATH, add_logo_top_right
 
 from pymort.pipeline import hedging_pipeline
 
-from assets.logo import add_logo_top_right
-
-
 add_logo_top_right()
-st.set_page_config(page_title="Hedging", page_icon="🛡️", layout="wide")
-st.title("🛡️ Hedging")
-st.caption("Build hedge weights from scenario PV/CF paths computed on the Pricing page.")
+st.set_page_config(page_title="Hedging", page_icon=LOGO_PATH, layout="wide")
+st.title("Hedging")
+st.caption(
+    "Build hedge weights from scenario PV/CF paths computed on the Pricing page."
+)
 
 
 # -----------------------------
@@ -29,7 +29,9 @@ if prices is None or specs is None:
     st.stop()
 
 if pv_paths is None or not isinstance(pv_paths, dict) or len(pv_paths) == 0:
-    st.warning("No pv_paths found. In Pricing, make sure you store per-scenario pv_paths.")
+    st.warning(
+        "No pv_paths found. In Pricing, make sure you store per-scenario pv_paths."
+    )
     st.stop()
 
 # cf_paths is optional (only needed for multihorizon)
@@ -132,6 +134,10 @@ def _try_get_discount_factors(n: int, t: int) -> np.ndarray | None:
     return None
 
 
+def invalidate_hedge():
+    st.session_state["hedge_result"] = None
+
+
 # -----------------------------
 # Sidebar controls
 # -----------------------------
@@ -140,8 +146,20 @@ all_names = list(specs.keys())
 with st.sidebar:
     st.header("Hedging settings")
 
-    st.write("Pricing measure:", st.session_state.get("pricing_measure", "?"))
-    st.write("Short rate:", st.session_state.get("pricing_short_rate", "?"))
+    meas = st.session_state.get("pricing_measure", "?")
+    r = float(st.session_state.get("pricing_short_rate", 0.0))
+    ir_model = st.session_state.get("pricing_ir_model", "Flat")
+    hw = st.session_state.get("pricing_hw_params")
+
+    st.metric("Pricing measure", meas)
+    st.metric("Short rate (flat input)", f"{r:.2%}")  # ou f"{r:.4f}"
+
+    if ir_model == "Hull-White" and hw is not None:
+        st.caption(
+            f"Discounting: **Hull–White**  (a={hw['a']:.2f}, σ={hw['sigma']:.3f}, seed={hw['seed']})"
+        )
+    else:
+        st.caption("Discounting: **Flat**")
 
     st.divider()
     st.subheader("1) Select liability")
@@ -161,6 +179,8 @@ with st.sidebar:
         "Hedge set",
         options=hedge_candidates,
         default=default_hedges[:4] if default_hedges else hedge_candidates[:3],
+        key="hedge_set",
+        on_change=invalidate_hedge,
     )
 
     st.divider()
@@ -183,7 +203,9 @@ with st.sidebar:
         constraints = {"lb": float(lb), "ub": float(ub)}
 
     if method == "multihorizon (CF)":
-        mode = st.selectbox("Multihorizon mode", options=["pv_by_horizon", "pv_cashflows"], index=0)
+        mode = st.selectbox(
+            "Multihorizon mode", options=["pv_by_horizon", "pv_cashflows"], index=0
+        )
         constraints["mode"] = mode
 
         use_time_weights = st.checkbox("Use time weights", value=False)
@@ -193,7 +215,7 @@ with st.sidebar:
             constraints["time_weights_power"] = float(t_power)
 
     st.divider()
-    run = st.button("🚀 Compute hedge", type="primary")
+    run = st.button("Compute hedge", type="primary")
 
 
 # -----------------------------
@@ -227,7 +249,9 @@ if run:
     try:
         if method.startswith("min_variance"):
             hedge_method = (
-                "min_variance" if "constrained" not in method else "min_variance_constrained"
+                "min_variance"
+                if "constrained" not in method
+                else "min_variance_constrained"
             )
             res = hedging_pipeline(
                 liability_pv_paths=L,
@@ -290,19 +314,47 @@ if res is None:
     st.info("Set inputs and click **Compute hedge**.")
     st.stop()
 
-st.success("Hedge computed ✅")
-
+st.divider()
 # Weights table
 weights = np.asarray(res.weights, dtype=float).reshape(-1)
-df_w = pd.DataFrame({"instrument": list(selected_hedges), "weight": weights}).sort_values(
-    "instrument"
-)
 
+hedge_names = None
+for attr in ("hedge_names", "instrument_names", "names"):
+    if hasattr(res, attr):
+        hedge_names = list(getattr(res, attr))
+        break
+
+if hedge_names is None:
+    hedge_names = list(selected_hedges)
+
+df_w = pd.DataFrame(
+    {"instrument": list(selected_hedges), "weight": weights}
+).sort_values("instrument")
 st.subheader("Hedge weights")
-st.dataframe(df_w, use_container_width=True)
+st.markdown("")
+col_left, col_mid, col_right = st.columns([1, 3, 1])
+with col_mid:
+    st.dataframe(df_w, use_container_width=True)
+
+st.divider()
+st.subheader("Hedge weights (bar)")
+st.markdown("")
+col_left, col_mid, col_right = st.columns([1, 4, 1])
+
+with col_mid:
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar(df_w["instrument"].values, df_w["weight"].values)
+    ax.axhline(0.0, linewidth=1.0)
+    ax.set_xlabel("Instrument")
+    ax.set_ylabel("Weight")
+    ax.grid(True, alpha=0.2)
+    ax.tick_params(axis="x", rotation=20)
+    st.pyplot(fig, use_container_width=True)
 
 # Summary
+st.divider()
 st.subheader("Summary (before vs after)")
+st.markdown("")
 summary = res.summary if hasattr(res, "summary") else {}
 if summary:
     s = summary
@@ -316,24 +368,44 @@ if summary:
     )
 
 # Distributions
+st.divider()
 L_plot = _as_1d(res.liability_pv_paths)
 net_plot = _as_1d(res.net_pv_paths)
 
 st.subheader("Distributions")
-col1, col2 = st.columns(2)
+st.markdown("")
+col1, col2, col3, col4, col5 = st.columns([0.3, 5, 0.7, 5, 0.6])
 
-with col1:
+with col2:
     st.markdown("**Liability PV paths**")
     hist_L = np.histogram(L_plot, bins=40)
     st.bar_chart(pd.Series(hist_L[0]))
 
-with col2:
+with col4:
     st.markdown("**Net PV paths (after hedge)**")
     hist_N = np.histogram(net_plot, bins=40)
     st.bar_chart(pd.Series(hist_N[0]))
 
+st.divider()
+st.subheader("Liability vs Net (after hedge)")
+st.markdown("")
+col_left, col_mid, col_right = st.columns([1, 4, 1])
+
+with col_mid:
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.scatter(L_plot, net_plot, s=5, alpha=0.4)
+    ax.set_xlabel("Liability PV")
+    ax.set_ylabel("Net PV (hedged)")
+    ax.grid(True, alpha=0.2)
+    ax.tick_params(labelsize=6)
+    ax.xaxis.label.set_size(7)
+    ax.yaxis.label.set_size(7)
+    st.pyplot(fig)
+
 # Quick quantiles table
+st.divider()
 st.subheader("Risk stats (PV)")
+st.markdown("")
 
 
 def qstats(x: np.ndarray) -> dict:
@@ -356,11 +428,26 @@ stats_df = pd.DataFrame(
 )
 st.dataframe(stats_df, use_container_width=True)
 
-with st.expander("Session debug (hedging)"):
-    st.write("Available session keys:", list(st.session_state.keys()))
-    st.write("pv_paths instruments:", list(pv_paths.keys()))
-    st.write("cf_paths instruments:", None if cf_paths is None else list(cf_paths.keys()))
-    st.write("Selected liability:", liability_name)
-    st.write("Selected hedges:", selected_hedges)
-    st.write("Method:", method)
-    st.write("Constraints:", constraints)
+st.divider()
+st.subheader("Correlation heatmap (PV paths)")
+st.markdown("")
+col_left, col_mid, col_right = st.columns([1, 4, 1])
+
+with col_mid:
+    # Build a matrix: liability + hedges PV paths
+    mat = np.column_stack([L_plot, H_pv])  # (N, 1+M)
+    names = [f"LIAB:{liability_name}"] + [f"H:{h}" for h in selected_hedges]
+
+    corr = np.corrcoef(mat, rowvar=False)
+    fig, ax = plt.subplots(figsize=(7, 6))
+    im = ax.imshow(corr, aspect="auto")
+    ax.set_xticks(range(len(names)))
+    ax.set_xticklabels(names, rotation=45, ha="right")
+    ax.set_yticks(range(len(names)))
+    ax.set_yticklabels(names)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    ax.set_title("Correlation of PV paths", pad=15)
+    st.pyplot(fig, use_container_width=True)
+
+st.markdown("")
+st.success("Next: go to **Scenario Analysis** page.")

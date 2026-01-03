@@ -43,7 +43,8 @@ streamlit_app/
 │   ├── 9_Sensitivities.py
 │   └── 10_Report_Export.py
 ├── assets/
-│   └── logo.png
+│   ├── logo.png
+│   └── logo.py
 └── README.md
 
 The app follows a linear and transparent workflow, allowing users to move sequentially from raw data to pricing and risk outputs.

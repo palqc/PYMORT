@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
-
 from assets.logo import add_logo_top_right
 
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
@@ -85,7 +84,7 @@ def render_sidebar_state() -> None:
     """Sidebar: quick status indicators + reset."""
     st.sidebar.header("Project state")
 
-    st.sidebar.write(("✅" if _is_set("raw_df") else "❌") + " Data loaded")
+    st.sidebar.write(("✅" if _is_set("m") else "❌") + " Data loaded")
     st.sidebar.write(("✅" if _is_set("m_slice") else "❌") + " Data sliced")
     st.sidebar.write(
         ("✅" if _is_set("fitted_model") else "❌") + " Model fitted/selected"
@@ -94,6 +93,14 @@ def render_sidebar_state() -> None:
     st.sidebar.write(("✅" if _is_set("scen_Q") else "❌") + " Scenarios Q built")
     st.sidebar.write(("✅" if _is_set("prices") else "❌") + " Pricing done")
     st.sidebar.write(("✅" if _is_set("hedge_result") else "❌") + " Hedge computed")
+    st.sidebar.write(
+        ("✅" if _is_set("scenario_analysis_result") else "❌")
+        + " Scenario analysis computed"
+    )
+    st.sidebar.write(
+        ("✅" if _is_set("sensitivities_result") else "❌")
+        + " Sensitivity analysis computed"
+    )
     st.sidebar.write(("✅" if _is_set("risk_report") else "❌") + " Report generated")
 
     st.sidebar.divider()
@@ -110,14 +117,14 @@ def main() -> None:
     add_logo_top_right()
     st.set_page_config(
         page_title="PYMORT — Longevity Risk Lab",
-        page_icon="📈",
+        page_icon=LOGO_PATH,
         layout="wide",
     )
 
     init_session_state()
     render_sidebar_state()
 
-    st.title("📈 PYMORT — Longevity Risk Lab")
+    st.title("PYMORT — Longevity Risk Lab")
     st.caption(
         "Workflow: HMD table → slice → fit/select → P scenarios → Q scenarios (λ) → pricing → hedging → scenario analysis → sensitivities → reporting."
     )
@@ -140,7 +147,7 @@ Tip: the sidebar shows what’s already computed (✅/❌).
     with st.expander("Debug: current session keys", expanded=False):
         st.json(
             {
-                "data_loaded": _is_set("raw_df"),
+                "data_loaded": _is_set("m"),
                 "slice_ready": _is_set("m_slice"),
                 "fitted_model": _is_set("fitted_model"),
                 "scen_P": _is_set("scen_P"),

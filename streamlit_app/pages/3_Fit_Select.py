@@ -1,18 +1,20 @@
-# streamlit_app/pages/3_Fit_Select.py
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+from assets.logo import LOGO_PATH, add_logo_top_right
 
 from pymort.analysis.fitting import select_and_fit_best_model_for_pricing
 
-from assets.logo import add_logo_top_right
-
 add_logo_top_right()
-st.set_page_config(page_title="Fit & Model Selection", page_icon="🧠", layout="wide")
-st.title("🧠 Fit & Model Selection")
-st.caption("Select best mortality model (or force one) and fit on the chosen training window.")
+st.set_page_config(
+    page_title="Fit & Model Selection", page_icon=LOGO_PATH, layout="wide"
+)
+st.title("Fit & Model Selection")
+st.caption(
+    "Select best mortality model (or force one) and fit on the chosen training window."
+)
 
 # ---- Get data (prefer sliced if available)
 ages_slice = st.session_state.get("ages_slice")
@@ -37,11 +39,15 @@ m = np.asarray(m, dtype=float)
 with st.sidebar:
     st.header("Selection / fit options")
 
-    mode = st.radio("Mode", ["Auto (select best + fit)", "Manual (choose model)"], index=0)
+    mode = st.radio(
+        "Mode", ["Auto (select best + fit)", "Manual (choose model)"], index=0
+    )
 
     model_names_all = ["LCM1", "LCM2", "APCM3", "CBDM5", "CBDM6", "CBDM7"]
     if mode.startswith("Auto"):
-        model_names = st.multiselect("Candidate models", model_names_all, default=model_names_all)
+        model_names = st.multiselect(
+            "Candidate models", model_names_all, default=model_names_all
+        )
     else:
         model_choice = st.selectbox("Model to fit", model_names_all, index=1)
         model_names = [model_choice]
@@ -65,9 +71,15 @@ with st.sidebar:
     cpsplines_kwargs = None
     if use_cps:
         # Keep minimal & safe defaults; you can expose more later
-        k = st.number_input("k (basis dimension)", min_value=5, max_value=20, value=12, step=5)
-        deg = st.number_input("deg (B-spline degree)", min_value=1, max_value=5, value=3, step=1)
-        ord_ = st.number_input("ord (penalty order)", min_value=1, max_value=4, value=2, step=1)
+        k = st.number_input(
+            "k (basis dimension)", min_value=5, max_value=20, value=12, step=5
+        )
+        deg = st.number_input(
+            "deg (B-spline degree)", min_value=1, max_value=5, value=3, step=1
+        )
+        ord_ = st.number_input(
+            "ord (penalty order)", min_value=1, max_value=4, value=2, step=1
+        )
         cpsplines_kwargs = {"k": int(k), "deg": int(deg), "ord": int(ord_)}
 
     st.divider()
@@ -119,39 +131,21 @@ for k in [
     st.session_state[k] = None
 
 # ---- Display results
-st.success(f"Done ✅ Best model: **{getattr(fitted_best, 'name', 'unknown')}**")
-
-col1, col2 = st.columns([2, 1])
+st.subheader("Selection table")
+st.markdown("")
+st.markdown("")
+col, col1, col2 = st.columns([1, 6, 1])
 with col1:
-    st.subheader("Selection table")
     if isinstance(selected_df, pd.DataFrame) and not selected_df.empty:
         st.dataframe(selected_df, use_container_width=True)
     else:
         st.write(selected_df)
 
-with col2:
-    st.subheader("Fit summary")
-    st.write("**Selected model:**", getattr(fitted_best, "name", None))
-    st.write("**train_end:**", int(train_end))
-    st.write("**metric:**", metric)
-    st.write("**slice used:**", st.session_state["fit_cfg"]["using_slice"])
-    if cpsplines_kwargs is not None:
-        st.write("**CPsplines:**", cpsplines_kwargs)
+st.markdown("")
+st.markdown("")
+st.write("**Selected model:**", getattr(fitted_best, "name", None))
 
-st.divider()
-st.subheader("Quick sanity checks")
 
-# show surface stats if present
-m_fit = getattr(fitted_best, "m_fit_surface", None)
-if m_fit is not None:
-    m_fit = np.asarray(m_fit, dtype=float)
-    c1, c2, c3 = st.columns(3)
-    c1.metric("m_fit min", f"{float(np.min(m_fit)):.2e}")
-    c2.metric("m_fit max", f"{float(np.max(m_fit)):.2e}")
-    c3.metric("m_fit shape", f"{m_fit.shape[0]} × {m_fit.shape[1]}")
-else:
-    st.info(
-        "No m_fit_surface found on fitted model object (that's ok depending on your fitting code)."
-    )
-
-st.success("Next: go to **Projections (P-measure)**.")
+st.markdown("")
+st.markdown("")
+st.success("Next: go to **Projection P** page.")

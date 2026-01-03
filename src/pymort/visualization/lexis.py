@@ -103,5 +103,5 @@ def plot_lexis(
 
     ax.set_xlabel("Calendar year")
     ax.set_ylabel("Age")
-    ax.set_title(f"Lexis diagram ({value}, {statistic})")
+    ax.set_title(f"Lexis diagram ({value}, {statistic})", pad=15)
     return ax
