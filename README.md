@@ -2,16 +2,31 @@
 
 <p align="center">
   <em>A teaching-size Python library and CLI for pricing longevity-linked securities and modeling mortality risk.</em><br>
+
   <a href="https://github.com/palqc/PYMORT/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
   </a>
-  <img src="https://img.shields.io/badge/tests-coming%20soon-orange?style=flat-square" />
-  <a href="https://pypi.org/project/pymort">
+
+  <a href="https://github.com/palqc/PYMORT/actions/workflows/ci.yml">
+    <img src="https://github.com/palqc/PYMORT/actions/workflows/ci.yml/badge.svg" />
+  </a>
+  <a href="https://codecov.io/gh/palqc/PYMORT">
+    <img src="https://codecov.io/gh/palqc/PYMORT/branch/main/graph/badge.svg" />
+  </a>
+
+  <a href="https://github.com/palqc/PYMORT/actions/workflows/release.yml">
+    <img src="https://github.com/palqc/PYMORT/actions/workflows/release.yml/badge.svg?branch=main" />
+  </a>
+
+  <img src="https://img.shields.io/badge/coverage-%E2%89%A580%25-brightgreen?style=flat-square" />
+  <img src="https://img.shields.io/badge/ruff-strict-blueviolet?style=flat-square" />
+  <img src="https://img.shields.io/badge/mypy-strict-blue?style=flat-square" />
+
+  <a href="https://pypi.org/project/pymort/">
     <img src="https://img.shields.io/pypi/v/pymort?style=flat-square" />
   </a>
-  <a href="#">
-    <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" />
-  </a>
+
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" />
 </p>
 
 ---
