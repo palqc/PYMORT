@@ -38,7 +38,7 @@ from pymort.analysis.sensitivities import (
     rate_convexity,
     rate_sensitivity,
 )
-from pymort.lifetables import m_to_q
+from pymort.lifetables import Sex, load_m_from_excel_any, m_to_q
 from pymort.pipeline import (
     BumpsConfig,
     HedgeConstraints,
@@ -207,6 +207,16 @@ def _load_m_surface(
     years_path: Path | None,
     preferred_rate_col: str | None = None,
 ) -> tuple[AnyArray, AnyArray, FloatArray]:
+    def _normalize_excel_sex(value: str | None) -> Sex:
+        if value is None:
+            return "Total"
+        key = value.strip().lower()
+        if key in {"total", "female", "male"}:
+            return cast(Sex, key.capitalize())
+        raise typer.BadParameter(
+            "Excel mortality tables accept rate columns: Total, Female, or Male."
+        )
+
     ext = m_path.suffix.lower()
     ages = _parse_number_list(ages_inline) if ages_inline else None
     years = _parse_number_list(years_inline) if years_inline else None
@@ -215,6 +225,22 @@ def _load_m_surface(
     if years_path is not None:
         years = _read_numeric_series(years_path)
 
+    if ext in {".xlsx", ".xls"}:
+        sex = _normalize_excel_sex(preferred_rate_col)
+        out = load_m_from_excel_any(
+            str(m_path),
+            sex=sex,
+            age_min=60,
+            age_max=110,
+            year_min=None,
+            year_max=None,
+        )
+        ages_xlsx, years_xlsx, m_xlsx = out["m"]
+        return (
+            ages_xlsx.astype(float),
+            years_xlsx.astype(int),
+            np.asarray(m_xlsx, dtype=float),
+        )
     if ext in {".npy", ".npz"}:
         data = np.load(m_path)
         if isinstance(data, np.lib.npyio.NpzFile):
@@ -450,6 +476,19 @@ def _to_spec(
     raise typer.BadParameter(f"Unknown instrument kind '{kind}'.")
 
 
+def _is_range_flag(s: str | None) -> bool:
+    if s is None:
+        return False
+    txt = s.strip()
+    return (("-" in txt) or (":" in txt)) and ("," not in txt)
+
+
+def _is_list_flag(s: str | None) -> bool:
+    if s is None:
+        return False
+    return "," in s
+
+
 @dataclass
 class CLIContext:
     outdir: Path
@@ -523,7 +562,18 @@ def data_validate_m(
     years_path: Path | None = typer.Option(None, help="Path to years (csv/parquet/npy)."),
 ) -> None:
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     report = {
         "shape": m.shape,
         "ages_min": float(ages_arr.min()),
@@ -554,7 +604,18 @@ def data_clip_m(
     output: Path | None = typer.Option(None, help="Output path (.npz or .npy)."),
 ) -> None:
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     m_clipped = np.clip(m, eps, None)
     out = output or c.outdir / "m_clipped.npz"
     _save_npz({"m": m_clipped, "ages": ages_arr, "years": years_arr}, out)
@@ -572,7 +633,18 @@ def data_to_q(
     output: Path | None = typer.Option(None, help="Output path (.npz)."),
 ) -> None:
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     q = m_to_q(m)
     out = output or c.outdir / "q_surface.npz"
     _save_npz({"q": q, "ages": ages_arr, "years": years_arr}, out)
@@ -606,7 +678,18 @@ def smooth_cpsplines_cmd(
     output: Path | None = typer.Option(None, help="Output npz path for fitted surface."),
 ) -> None:
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     deg_tuple = cast(tuple[int, int], tuple(int(x) for x in deg.split(",")))
     ord_tuple = cast(tuple[int, int], tuple(int(x) for x in ord_d.split(",")))
     k_tuple: tuple[int, int] | None = None
@@ -734,7 +817,20 @@ def fit_one_cmd(
     output: Path | None = typer.Option(None, help="Pickle path for fitted model."),
 ) -> None:
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     cps_kwargs = (
         {"k": cpsplines_k, "horizon": cpsplines_horizon, "verbose": c.verbose}
         if smoothing == "cpsplines"
@@ -771,7 +867,20 @@ def fit_select_cmd(
     output: Path | None = typer.Option(None, help="Selection table path."),
 ) -> None:
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     model_names: Sequence[ModelName] = (
         tuple(cast(ModelName, name.upper()) for name in models)
         if models
@@ -815,7 +924,20 @@ def fit_select_and_fit_cmd(
     selection_output: Path | None = typer.Option(None, help="Selection table path."),
 ) -> None:
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     model_names: Sequence[ModelName] = (
         tuple(cast(ModelName, name.upper()) for name in models)
         if models
@@ -892,7 +1014,18 @@ def scen_build_p_cmd(
         output: Output scenarios path.
     """
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     model_names: Sequence[str] = (
         tuple(name.upper() for name in models)
         if models
@@ -945,7 +1078,18 @@ def scen_build_q_cmd(
     output: Path | None = typer.Option(None, help="Output scenarios npz."),
 ) -> None:
     c = _ctx(ctx)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     cache = build_calibration_cache(
         ages=ages_arr,
         years=years_arr,
@@ -1445,7 +1589,18 @@ def rn_calibrate_lambda_cmd(
             weight=float(d.get("weight", 1.0)),
         )
 
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     instruments: dict[str, Any] = {}
     market_prices: dict[str, float] = {}
     for i, d in enumerate(quotes_cfg):
@@ -1515,7 +1670,18 @@ def rn_price_under_lambda_cmd(
 ) -> None:
     c = _ctx(ctx)
     spec_cfg = _load_config(specs)
-    ages_arr, years_arr, m = _load_m_surface(m_path, ages, years, ages_path, years_path)
+    ages_inline = ages if _is_list_flag(ages) else None
+    years_inline = years if _is_list_flag(years) else None
+    ages_arr, years_arr, m = _load_m_surface(
+        m_path, ages_inline, years_inline, ages_path, years_path
+    )
+    ages_arr, years_arr, m = _slice_surface(
+        ages_arr,
+        years_arr,
+        m,
+        age_range=_parse_range_spec(ages) if _is_range_flag(ages) else None,
+        year_range=_parse_range_spec(years) if _is_range_flag(years) else None,
+    )
     cache = build_calibration_cache(
         ages=ages_arr,
         years=years_arr,
