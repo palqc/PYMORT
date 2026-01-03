@@ -116,3 +116,36 @@ def test_cpsplines_knots_auto_and_manual():
         m=m, ages=ages, years=years, k=(4, 4), horizon=0, verbose=False
     )
     assert res_manual["m_fitted"].shape == m.shape
+
+
+def test_cpsplines_raises_if_k_not_greater_than_deg():
+    ages, years, m = _toy_surface(A=6, T=6)
+    # deg par défaut (3,3) => il faut k <= 3 pour déclencher
+    with pytest.raises(ValueError):
+        smooth_mortality_with_cpsplines(m=m, ages=ages, years=years, k=(3, 4), horizon=0)
+
+    with pytest.raises(ValueError):
+        smooth_mortality_with_cpsplines(m=m, ages=ages, years=years, k=(4, 3), horizon=0)
+
+
+def test_cpsplines_raises_on_negative_horizon():
+    ages, years, m = _toy_surface()
+    with pytest.raises(ValueError):
+        smooth_mortality_with_cpsplines(m=m, ages=ages, years=years, horizon=-1)
+
+
+def test_cpsplines_raises_if_ages_or_years_not_1d():
+    ages, years, m = _toy_surface()
+    with pytest.raises(ValueError):
+        smooth_mortality_with_cpsplines(m=m, ages=ages.reshape(-1, 1), years=years)
+
+    with pytest.raises(ValueError):
+        smooth_mortality_with_cpsplines(m=m, ages=ages, years=years.reshape(-1, 1))
+
+
+def test_cpsplines_default_sp_args_path():
+    ages, years, m = _toy_surface()
+    res = smooth_mortality_with_cpsplines(
+        m=m, ages=ages, years=years, sp_args=None, horizon=0, verbose=False
+    )
+    assert res["m_fitted"].shape == m.shape
