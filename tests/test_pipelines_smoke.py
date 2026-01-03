@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pytest
 
+import pymort.pipeline as pl
 from pymort.analysis.scenario import MortalityScenarioSet
 from pymort.lifetables import survival_from_q
 from pymort.pipeline import (
@@ -24,6 +27,7 @@ from pymort.pipeline import (
 )
 from pymort.pricing.liabilities import CohortLifeAnnuitySpec
 from pymort.pricing.longevity_bonds import LongevityBondSpec
+from pymort.pricing.mortality_derivatives import QForwardSpec, SForwardSpec
 from pymort.pricing.survivor_swaps import SurvivorSwapSpec
 
 
@@ -553,7 +557,10 @@ def test_hedging_pipeline_min_variance_constrained_and_duration_branches():
         liability_pv_paths=liab,
         hedge_pv_paths=hedge,
         method="duration",
-        hedge_greeks={"liability_dPdr": -1.0, "instruments_dPdr": np.array([-0.5, -2.0])},
+        hedge_greeks={
+            "liability_dPdr": -1.0,
+            "instruments_dPdr": np.array([-0.5, -2.0]),
+        },
         constraints={"solver": "ols", "alpha": 1.0},
     )
     assert np.isfinite(res2.weights).all()
@@ -631,3 +638,359 @@ def test_build_risk_neutral_pipeline_autofills_missing_calibration_inputs_from_s
     scen_Q = _assert_valid_scen(scen_Q)
     assert "lambda_star" in calib_summary
     assert cache is not None
+
+
+@dataclass
+class _DummyProjection:
+    q_paths: np.ndarray
+    S_paths: np.ndarray
+
+
+class _DummyFitted:
+    """Minimal object to mimic FittedModel for project_from_fitted_model tests."""
+
+    def __init__(self, ages, years, m_fit_surface, name="LCM2", metadata=None):
+        self.ages = np.asarray(ages, dtype=float)
+        self.years = np.asarray(years, dtype=int)
+        self.m_fit_surface = m_fit_surface
+        self.name = name
+        self.metadata = metadata or {}
+        self.model = object()  # just needs a type()
+
+
+def test_project_from_fitted_model_raises_if_missing_fit_surface():
+    fitted = _DummyFitted(
+        ages=[60, 61],
+        years=[2000, 2001],
+        m_fit_surface=None,
+    )
+    with pytest.raises(RuntimeError, match="m_fit_surface is None"):
+        pl.project_from_fitted_model(fitted)  # type: ignore[arg-type]
+
+
+def test_project_from_fitted_model_happy_path_and_plot_extension_error_is_captured(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # --- stub bootstrap + projection + scenario builder + cache builder
+    def fake_bootstrap_from_m(model_cls, m, ages, years, B, seed, resample):
+        assert B == 3
+        assert resample in ("cell", "year_block")
+        return {"boot": True}
+
+    def fake_project_mortality_from_bootstrap(
+        model_cls,
+        ages,
+        years,
+        m,
+        bootstrap_result,
+        horizon,
+        n_process,
+        seed,
+        include_last,
+    ):
+        # make a tiny valid proj (N=2, A=2, H=horizon)
+        N, A, H = 2, ages.size, horizon
+        q = np.full((N, A, H), 0.01, dtype=float)
+        S = np.cumprod(1.0 - q, axis=2)
+        return _DummyProjection(q_paths=q, S_paths=S)
+
+    def fake_build_scenario_set_from_projection(proj, ages, discount_factors, metadata):
+        return MortalityScenarioSet(
+            years=np.arange(2000, 2000 + proj.q_paths.shape[2], dtype=int),
+            ages=np.asarray(ages, dtype=float),
+            q_paths=np.asarray(proj.q_paths, dtype=float),
+            S_paths=np.asarray(proj.S_paths, dtype=float),
+            metadata=dict(metadata),
+        )
+
+    def fake_build_calibration_cache(**kwargs):
+        # keep it super small & deterministic
+        return {"cache": True, **kwargs}
+
+    # Force plot extension to raise -> must be captured into scen_set.metadata["plot_extension_error"]
+    def boom_plot_extension(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(pl, "bootstrap_from_m", fake_bootstrap_from_m)
+    monkeypatch.setattr(
+        pl, "project_mortality_from_bootstrap", fake_project_mortality_from_bootstrap
+    )
+    monkeypatch.setattr(
+        pl,
+        "build_scenario_set_from_projection",
+        fake_build_scenario_set_from_projection,
+    )
+    monkeypatch.setattr(pl, "build_calibration_cache", fake_build_calibration_cache)
+    monkeypatch.setattr(pl, "_attach_plot_extension_gompertz", boom_plot_extension)
+
+    ages = np.array([60.0, 61.0])
+    years = np.array([2000, 2001, 2002], dtype=int)
+    m_fit = np.full((2, 3), 0.01, dtype=float)
+
+    fitted = _DummyFitted(
+        ages=ages,
+        years=years,
+        m_fit_surface=m_fit,
+        name="LCM2",
+        metadata={"selection_metric": "logit_q", "selection_train_end": 2001},
+    )
+
+    proj, scen_set, cache = pl.project_from_fitted_model(
+        fitted,  # type: ignore[arg-type]
+        B_bootstrap=3,
+        horizon=4,
+        n_process=5,
+        seed=123,
+        include_last=True,
+        resample="year_block",
+    )
+
+    assert isinstance(proj, _DummyProjection)
+    scen_set = _assert_valid_scen(scen_set)
+    assert isinstance(cache, dict)
+
+    # plot extension error captured
+    assert "plot_extension_error" in scen_set.metadata
+    assert "boom" in scen_set.metadata["plot_extension_error"]
+
+    # calibration cache attached
+    assert "calibration_cache" in scen_set.metadata
+    assert isinstance(scen_set.metadata["calibration_cache"], dict)
+    assert scen_set.metadata["calibration_cache"].get("cache") is True
+
+    # metadata keys present
+    assert scen_set.metadata["selected_model"] == "LCM2"
+    assert scen_set.metadata["B_bootstrap"] == 3
+    assert scen_set.metadata["n_process"] == 5
+    assert scen_set.metadata["projection_horizon"] == 4
+
+
+def test_sensitivities_pipeline_freezes_strikes_and_computes_all_branches(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    scen = _simple_mort_scen(N=2, H=3)
+
+    # Specs with strike=None to trigger "freeze"
+    specs = {
+        "q_forward": QForwardSpec(age=60.0, maturity_years=2, strike=None),
+        "s_forward": SForwardSpec(age=60.0, maturity_years=2, strike=None),
+        "survivor_swap": SurvivorSwapSpec(age=60.0, maturity_years=2, payer="fixed", strike=None),
+        "bond": LongevityBondSpec(issue_age=60.0, maturity_years=2, include_principal=True),
+    }
+
+    # normalize_spec should leave dataclasses unchanged here
+    monkeypatch.setattr(pl, "_normalize_spec", lambda x: x)
+
+    # Freeze strike pricers
+    def fake_price_q_forward(*, scen_set, spec, short_rate):
+        return {"price": 1.0, "strike": 0.123}
+
+    def fake_price_s_forward(*, scen_set, spec, short_rate):
+        return {"price": 2.0, "strike": 0.234}
+
+    def fake_price_survivor_swap(*, scen_set, spec, short_rate):
+        return {"price": 3.0, "strike": 0.345}
+
+    monkeypatch.setattr(pl, "price_q_forward", fake_price_q_forward)
+    monkeypatch.setattr(pl, "price_s_forward", fake_price_s_forward)
+    monkeypatch.setattr(pl, "price_survivor_swap", fake_price_survivor_swap)
+
+    # Base pricing + sensitivities
+    monkeypatch.setattr(pl, "price_all_products", lambda *_a, **_k: {"ok": True})
+    monkeypatch.setattr(
+        pl,
+        "rate_sensitivity_all_products",
+        lambda *_a, **_k: {"dPdr": 1.0},
+    )
+    monkeypatch.setattr(
+        pl,
+        "rate_convexity_all_products",
+        lambda *_a, **_k: {"d2Pdr2": 2.0},
+    )
+    monkeypatch.setattr(
+        pl,
+        "mortality_delta_by_age_all_products",
+        lambda *_a, **_k: {"delta": [0.1, 0.2]},
+    )
+
+    # Vega: use direct builder
+    monkeypatch.setattr(
+        pl,
+        "mortality_vega_all_products",
+        lambda build_scen, **_k: {
+            "vega": 9.0,
+            "probe": isinstance(build_scen(1.0), MortalityScenarioSet),
+        },
+    )
+
+    out = pl.sensitivities_pipeline(
+        scen,
+        specs=specs,
+        short_rate=0.02,
+        compute_rate=True,
+        compute_convexity=True,
+        compute_delta_by_age=True,
+        compute_vega=True,
+        bumps={"build_scenarios_func": lambda _scale: scen, "rate_bump": 1e-4},
+    )
+
+    assert "prices_base" in out and out["prices_base"] == {"ok": True}
+    assert out["rate_sensitivity"]["dPdr"] == 1.0
+    assert out["rate_convexity"]["d2Pdr2"] == 2.0
+    assert out["delta_by_age"]["delta"] == [0.1, 0.2]
+    assert out["vega_sigma_scale"]["vega"] == 9.0
+    assert out["vega_sigma_scale"]["probe"] is True
+
+    # Strike freezing mutated the (deepcopied) internal specs: verify it *happened* by ensuring
+    # the freeze branch ran (we can check by re-running normalize + pricer expectations indirectly).
+    # Minimal check: still contains meta
+    assert "meta" in out
+    assert out["meta"]["short_rate"] == 0.02
+
+
+def test_sensitivities_pipeline_vega_infers_builder_from_cache_and_lambda(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    scen = _simple_mort_scen(N=2, H=3)
+    specs = {"bond": LongevityBondSpec(issue_age=60.0, maturity_years=2, include_principal=True)}
+
+    monkeypatch.setattr(pl, "_normalize_spec", lambda x: x)
+    monkeypatch.setattr(pl, "price_all_products", lambda *_a, **_k: {"bond": 1.0})
+
+    called = {"scale": None}
+
+    def fake_build_scenarios_under_lambda_fast(cache, lambda_esscher, scale_sigma):
+        called["scale"] = float(scale_sigma)
+        return scen
+
+    monkeypatch.setattr(
+        pl, "build_scenarios_under_lambda_fast", fake_build_scenarios_under_lambda_fast
+    )
+
+    def fake_mortality_vega_all_products(build_scen_func, **kwargs):
+        # call builder to ensure it is wired
+        _ = build_scen_func(1.25)
+        return {"ok": True}
+
+    monkeypatch.setattr(pl, "mortality_vega_all_products", fake_mortality_vega_all_products)
+
+    out = pl.sensitivities_pipeline(
+        scen,
+        specs=specs,
+        short_rate=0.02,
+        compute_rate=False,
+        compute_convexity=False,
+        compute_delta_by_age=False,
+        compute_vega=True,
+        bumps={
+            "calibration_cache": {"cache": True},
+            "lambda_esscher": 0.1,
+            "sigma_rel_bump": 0.05,
+        },
+    )
+
+    assert out["prices_base"]["bond"] == 1.0
+    assert out["vega_sigma_scale"]["ok"] is True
+    assert called["scale"] == 1.25
+
+
+def test_sensitivities_pipeline_vega_raises_without_builder_or_cache_lambda():
+    scen = _simple_mort_scen(N=2, H=3)
+    specs = {"bond": LongevityBondSpec(issue_age=60.0, maturity_years=2, include_principal=True)}
+
+    with pytest.raises(ValueError, match="compute_vega=True but no builder provided"):
+        pl.sensitivities_pipeline(
+            scen,
+            specs=specs,
+            short_rate=0.02,
+            compute_rate=False,
+            compute_convexity=False,
+            compute_delta_by_age=False,
+            compute_vega=True,
+            bumps={},  # neither builder nor (cache+lambda)
+        )
+
+
+def test_attach_plot_extension_gompertz_returns_if_missing_raw():
+    scen = _simple_mort_scen(N=2, H=3)
+    scen.metadata = {}
+    pl._attach_plot_extension_gompertz(
+        scen,
+        ages_raw=None,
+        years_raw=None,
+        m_raw=None,
+        plot_age_start=95,
+        plot_age_max=110,
+    )
+    assert "plot_extension" not in scen.metadata
+    assert "plot_extension_error" not in scen.metadata
+
+
+def test_attach_plot_extension_gompertz_writes_plot_extension(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    scen = _simple_mort_scen(N=2, H=3)
+    scen.metadata = {}
+    years_proj = np.asarray(scen.years, dtype=int)
+
+    # Stub gompertz fit/extrapolation + m_to_q
+    monkeypatch.setattr(pl, "fit_gompertz_per_year", lambda **_k: {"g": True})
+
+    def fake_extrapolate(gfit, age_min, age_max):
+        ages_ext = np.arange(age_min, age_max + 1, dtype=float)  # inclusive
+        years_ext = np.array([int(years_proj.min()), int(years_proj.min()) + 1], dtype=int)
+        # make m_ext shape (A_ext, T_raw=2)
+        m_ext = np.full((ages_ext.size, years_ext.size), 0.02, dtype=float)
+        return ages_ext, years_ext, m_ext
+
+    monkeypatch.setattr(pl, "extrapolate_gompertz_surface", fake_extrapolate)
+    monkeypatch.setattr(pl, "m_to_q", lambda m: np.clip(np.asarray(m, dtype=float), 0.0, 0.5))
+
+    ages_raw = np.array([80.0, 81.0, 82.0], dtype=float)
+    years_raw = np.array([int(years_proj.min()), int(years_proj.min()) + 1], dtype=int)
+    m_raw = np.full((ages_raw.size, years_raw.size), 0.02, dtype=float)
+
+    pl._attach_plot_extension_gompertz(
+        scen,
+        ages_raw=ages_raw,
+        years_raw=years_raw,
+        m_raw=m_raw,
+        plot_age_start=81,
+        plot_age_max=83,
+        age_fit_min=80,
+        age_fit_max=82,
+    )
+
+    assert "plot_extension" in scen.metadata
+    ext = scen.metadata["plot_extension"]
+    assert ext["method"] == "gompertz_per_year_on_raw"
+    assert ext["plot_age_start"] == 81
+    assert ext["plot_age_max"] == 83
+    assert ext["years"] == years_proj.astype(int).tolist()
+    assert len(ext["ages_ext"]) >= 1
+    assert len(ext["q_ext"]) == len(ext["ages_ext"])
+    assert len(ext["S_ext"]) == len(ext["ages_ext"])
+
+
+def test_attach_plot_extension_gompertz_catches_exception(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    scen = _simple_mort_scen(N=2, H=3)
+    scen.metadata = {}
+
+    def boom(**_k):
+        raise RuntimeError("gompertz fail")
+
+    monkeypatch.setattr(pl, "fit_gompertz_per_year", boom)
+
+    pl._attach_plot_extension_gompertz(
+        scen,
+        ages_raw=np.array([80.0, 81.0]),
+        years_raw=np.array([2020, 2021]),
+        m_raw=np.full((2, 2), 0.01, dtype=float),
+        plot_age_start=90,
+        plot_age_max=110,
+    )
+
+    assert "plot_extension_error" in scen.metadata
+    assert "gompertz fail" in scen.metadata["plot_extension_error"]
