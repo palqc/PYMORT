@@ -9,7 +9,7 @@ This project enforces strict software engineering practices. All contributions m
 1. **Pass ALL quality checks** - No exceptions
 2. **Include comprehensive tests** - Minimum 80% coverage
 3. **Be fully typed** - MyPy runs in strict mode
-4. **Follow code style** - Enforced by Black, Ruff, and isort
+4. **Follow code style** - Enforced by Ruff (linting + formatting)
 5. **Include documentation** - Google-style docstrings for all public APIs
 
 ## 🚀 Getting Started
@@ -21,19 +21,52 @@ This project enforces strict software engineering practices. All contributions m
    cd pymort
    ```
 
-3. **Set up development environment**:
+3. **Set up development environment (recommended)**:
    ```bash
-   # Install uv package manager
-   pip install uv
+   python -m venv .venv
+   source .venv/bin/activate  # macOS / Linux
+   # .venv\Scripts\activate   # Windows
    
    # Install all development dependencies
-   make install-dev
+   pip install --upgrade pip
+   pip install -e .[dev]
    ```
 
-4. **Create a feature branch**:
+4. **Install pre-commit hooks**:
+   ```bash
+   pre-commit install
+   ```
+
+5. **Create a feature branch**:
    ```bash
    git checkout -b feature/your-feature-name
    ```
+
+## 📦 Optional Dependencies
+
+PyMort provides optional dependency groups for advanced or UI-related features.
+
+### Streamlit application
+
+To run the interactive Streamlit application:
+   ```bash
+   pip install -e .[app]
+   ```
+Then:
+   ```bash
+   streamlit run streamlit_app/App.py
+   ```
+⚠️ Make sure your virtual environment is activated **before** running Streamlit.
+
+### CPsplines smoothing (Python ≥ 3.12 only)
+
+CPsplines-based smoothing is optional and only supported on **Python 3.12+**.
+   ```bash
+   pip install -e .[cpsplines]
+   ```
+
+⚠️ Do **NOT** install this extra on Python 3.10 or 3.11.
+
 
 ## 📝 Development Workflow
 
@@ -158,7 +191,7 @@ class TestFeature:
 
 - **Line length**: 100 characters maximum
 - **Imports**: Sorted with isort
-- **Formatting**: Black with default settings
+- **Formatting**: Ruff formatter
 - **Linting**: Ruff with extensive rules
 - **Docstrings**: Google style
 
@@ -257,11 +290,25 @@ def generic_function(
     return [processor(item) for item in items]
 ```
 
+## 🤖 Continuous Integration (CI)
+
+The CI pipeline runs on:
+- **Python**: 3.10, 3.11, 3.12
+- **OS**: Linux, macOS, Windows
+
+CI installs:
+   ```bash
+   pip install -e .[dev]
+   ```
+Optional extras (app, cpsplines) are **not** installed in CI.
+
+Coverage reports are generated via pytest-cov and uploaded to Codecov (from Python 3.12 on Linux only).
+
 ## 🔄 Pull Request Process
 
 1. **Ensure all checks pass**:
    ```bash
-   make ci  # Simulate full CI pipeline
+   make ci  # Simulate full CI pipeline locally
    ```
 
 2. **Update documentation** if needed

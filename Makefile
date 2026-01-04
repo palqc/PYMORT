@@ -5,7 +5,6 @@
 
 # Variables
 PYTHON := python3
-UV := uv
 SRC_DIR := src
 TEST_DIR := tests
 PKG_NAME := pymort
@@ -28,15 +27,15 @@ help: ## Show this help message
 
 install: ## Install production dependencies
 	@echo "$(GREEN)Installing production dependencies...$(NC)"
-	$(UV) sync
-	$(UV) pip install -e .
+	$(PYTHON) -m pip install --upgrade pip
+	$(PYTHON) -m pip install -e .
 
 install-dev: ## Install development dependencies
 	@echo "$(GREEN)Installing development dependencies...$(NC)"
-	$(UV) sync --extra dev
-	$(UV) pip install -e .
+	$(PYTHON) -m pip install --upgrade pip
+	$(PYTHON) -m pip install -e .[dev]
 	@echo "$(GREEN)Installing pre-commit hooks...$(NC)"
-	$(UV) run pre-commit install
+	pre-commit install
 	@echo "$(GREEN)✓ Development environment ready!$(NC)"
 
 clean: ## Clean up generated files
@@ -57,49 +56,49 @@ clean: ## Clean up generated files
 
 test: ## Run tests with coverage
 	@echo "$(GREEN)Running tests with coverage...$(NC)"
-	$(UV) run pytest $(TEST_DIR) -v --cov=$(PKG_NAME) --cov-report=term-missing --cov-report=html --cov-fail-under=80
+	pytest $(TEST_DIR) -v --cov=$(PKG_NAME) --cov-report=term-missing --cov-report=html --cov-fail-under=80
 	@echo "$(GREEN)✓ Tests passed! Coverage report: htmlcov/index.html$(NC)"
 
 test-fast: ## Run tests without coverage (faster)
 	@echo "$(GREEN)Running tests (fast mode)...$(NC)"
-	$(UV) run pytest $(TEST_DIR) -v -n auto
+	pytest $(TEST_DIR) -v -n auto
 
 test-watch: ## Run tests in watch mode
 	@echo "$(GREEN)Running tests in watch mode...$(NC)"
-	$(UV) run pytest-watch -- -v
+	pytest-watch -- -v
 
 lint: ## Run linting checks
 	@echo "$(GREEN)Running linters...$(NC)"
 	@echo "  Ruff..."
-	@$(UV) run ruff check $(SRC_DIR) $(TEST_DIR)
+	ruff check $(SRC_DIR) $(TEST_DIR)
 	@echo "$(GREEN)✓ Linting complete!$(NC)"
 
 format-check: ## Check code formatting
 	@echo "$(GREEN)Checking code format...$(NC)"
-	@$(UV) run ruff format --check $(SRC_DIR) $(TEST_DIR)
+	ruff format --check $(SRC_DIR) $(TEST_DIR)
 	@echo "$(GREEN)✓ Format check complete!$(NC)"
 
 format: ## Auto-format code
 	@echo "$(GREEN)Formatting code...$(NC)"
-	@$(UV) run ruff format $(SRC_DIR) $(TEST_DIR)
-	@$(UV) run ruff check --fix $(SRC_DIR) $(TEST_DIR)
+	ruff format $(SRC_DIR) $(TEST_DIR)
+	ruff check --fix $(SRC_DIR) $(TEST_DIR)
 	@echo "$(GREEN)✓ Code formatted!$(NC)"
 
 type-check: ## Run type checking with mypy
 	@echo "$(GREEN)Running type checker...$(NC)"
-	$(UV) run mypy $(SRC_DIR) --config-file=pyproject.toml
+	mypy $(SRC_DIR) --config-file=pyproject.toml
 	@echo "$(GREEN)✓ Type checking complete!$(NC)"
 
 security: ## Run security checks
 	@echo "$(GREEN)Running security checks...$(NC)"
 	@echo "  Bandit..."
-	@$(UV) run bandit -r $(SRC_DIR) -ll --skip B101
+	bandit -r $(SRC_DIR) -ll --skip B101
 	@echo "$(GREEN)✓ Security checks complete!$(NC)"
 
 docs: ## Check documentation
 	@echo "$(GREEN)Checking documentation...$(NC)"
 	@echo "  Docstring coverage..."
-	@$(UV) run interrogate -vv $(SRC_DIR) --fail-under 80
+	interrogate -vv $(SRC_DIR) --fail-under 80
 	@echo "$(GREEN)✓ Documentation check complete!$(NC)"
 
 build: clean ## Build distribution packages
@@ -109,16 +108,16 @@ build: clean ## Build distribution packages
 
 run: ## Run the CLI application
 	@echo "$(GREEN)Running pymort CLI...$(NC)"
-	$(UV) run pymort --help
+	pymort --help
 
 pre-commit: ## Run pre-commit hooks on all files
 	@echo "$(GREEN)Running pre-commit hooks...$(NC)"
-	$(UV) run pre-commit run --all-files
+	pre-commit run --all-files
 	@echo "$(GREEN)✓ Pre-commit checks complete!$(NC)"
 
 pre-commit-update: ## Update pre-commit hooks
 	@echo "$(GREEN)Updating pre-commit hooks...$(NC)"
-	$(UV) run pre-commit autoupdate
+	pre-commit autoupdate
 	@echo "$(GREEN)✓ Hooks updated!$(NC)"
 
 # Composite targets
@@ -130,7 +129,7 @@ fix: format lint-fix ## Auto-fix all possible issues
 
 lint-fix: ## Auto-fix linting issues
 	@echo "$(GREEN)Auto-fixing linting issues...$(NC)"
-	@$(UV) run ruff check --fix $(SRC_DIR) $(TEST_DIR)
+	ruff check --fix $(SRC_DIR) $(TEST_DIR)
 	@echo "$(GREEN)✓ Linting issues fixed!$(NC)"
 
 all: clean install-dev check build ## Full CI pipeline
