@@ -19,7 +19,7 @@
     <img src="https://codecov.io/gh/palqc/PYMORT/branch/main/graph/badge.svg" />
   </a>
 
-  <a href="https://pypi.org/project/pymort/">
+  <a href="https://pypi.org/project/pymort-palqc/">
     <img src="https://img.shields.io/pypi/v/pymort?style=flat-square" />
   </a>
 
