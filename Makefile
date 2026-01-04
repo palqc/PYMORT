@@ -29,11 +29,12 @@ help: ## Show this help message
 install: ## Install production dependencies
 	@echo "$(GREEN)Installing production dependencies...$(NC)"
 	$(UV) sync
+	$(UV) pip install -e .
 
 install-dev: ## Install development dependencies
 	@echo "$(GREEN)Installing development dependencies...$(NC)"
 	$(UV) sync --extra dev
-	$(UV) run python -m pip install -e .
+	$(UV) pip install -e .
 	@echo "$(GREEN)Installing pre-commit hooks...$(NC)"
 	$(UV) run pre-commit install
 	@echo "$(GREEN)✓ Development environment ready!$(NC)"

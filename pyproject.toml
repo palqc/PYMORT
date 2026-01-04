@@ -37,6 +37,7 @@ dev = [
     "scikit-learn>=1.3",
     "bandit>=1.7",
     "streamlit>=1.30",
+    "interrogate>=1.7",
 ]
 cpsplines = [
   "cpsplines @ https://github.com/ManuelNavarroGarcia/cpsplines/archive/89c3cf8.zip ; python_version >= \"3.12\"",
