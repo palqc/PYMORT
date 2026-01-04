@@ -259,7 +259,9 @@ def test_risk_neutral_from_cbdm7_raises_if_estimate_rw_wrong_length():
         rn.risk_neutral_from_cbdm7(DummyCBDM7(), lambda_esscher=0.0)  # type: ignore[arg-type]
 
 
-def test_risk_neutral_from_cbdm7_calls_esscher_with_3dim_vectors(monkeypatch: pytest.MonkeyPatch):
+def test_risk_neutral_from_cbdm7_calls_esscher_with_3dim_vectors(
+    monkeypatch: pytest.MonkeyPatch,
+):
     class DummyCBDM7:
         def estimate_rw(self):
             # mu1,s1, mu2,s2, mu3,s3
@@ -272,7 +274,9 @@ def test_risk_neutral_from_cbdm7_calls_esscher_with_3dim_vectors(monkeypatch: py
         captured["sigma_P"] = np.asarray(sigma_P)
         captured["lambda"] = lambda_esscher
         return type(
-            "EsscherRes", (), {"mu_Q": mu_P, "sigma_Q": sigma_P, "lambda_esscher": lambda_esscher}
+            "EsscherRes",
+            (),
+            {"mu_Q": mu_P, "sigma_Q": sigma_P, "lambda_esscher": lambda_esscher},
         )()
 
     monkeypatch.setattr(rn, "esscher_shift_normal_rw", fake_esscher_shift_normal_rw)
@@ -438,7 +442,9 @@ def test_apply_cohort_trend_shock_to_qpaths_all_branches_and_validate_q_called(
 
     called = {"validate": 0}
     monkeypatch.setattr(
-        rn, "validate_q", lambda x: called.__setitem__("validate", called["validate"] + 1)
+        rn,
+        "validate_q",
+        lambda x: called.__setitem__("validate", called["validate"] + 1),
     )
 
     out1 = rn.apply_cohort_trend_shock_to_qpaths(
@@ -464,7 +470,12 @@ def test_apply_cohort_trend_shock_to_qpaths_all_branches_and_validate_q_called(
     assert called["validate"] == 2
 
     out3 = rn.apply_cohort_trend_shock_to_qpaths(
-        q, ages=scen.ages, years=scen.years, shock_type="cohort_step", magnitude=0.02, cap=0.5
+        q,
+        ages=scen.ages,
+        years=scen.years,
+        shock_type="cohort_step",
+        magnitude=0.02,
+        cap=0.5,
     )
     assert out3.shape == q.shape
     assert called["validate"] == 3

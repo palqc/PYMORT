@@ -98,7 +98,7 @@ security: ## Run security checks
 docs: ## Check documentation
 	@echo "$(GREEN)Checking documentation...$(NC)"
 	@echo "  Docstring coverage..."
-	interrogate -vv $(SRC_DIR) --fail-under 80
+	interrogate $(SRC_DIR)
 	@echo "$(GREEN)✓ Documentation check complete!$(NC)"
 
 build: clean ## Build distribution packages

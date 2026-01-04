@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pymort"
-version = "1.0.0"
+name = "pymort-palqc"
+version = "1.0.2"
 description = "Longevity bond pricing and mortality modeling toolkit"
 authors = [{name = "Pierre-Antoine Le Quellec", email = "pierre-antoine.lequellec@unil.ch"}]
 readme = "README.md"
@@ -41,9 +41,6 @@ dev = [
 ]
 app = [
   "streamlit>=1.30",
-]
-cpsplines = [
-  "cpsplines @ https://github.com/ManuelNavarroGarcia/cpsplines/archive/89c3cf8.zip ; python_version >= \"3.12\"",
 ]
 
 [project.scripts]
@@ -153,3 +150,16 @@ exclude_lines = [
 ]
 precision = 2
 show_missing = true
+
+[tool.interrogate]
+fail-under = 80
+verbose = 2
+ignore-init-module = true
+ignore-private = true
+ignore-private-functions = true
+ignore-magic = true
+exclude = [
+  "src/pymort/cli.py",
+  "src/pymort/_types.py",
+  "src/pymort/**/__init__.py",
+]

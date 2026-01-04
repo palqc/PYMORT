@@ -86,6 +86,16 @@ InstrumentSpec = (
 
 
 class BootstrapKwargs(TypedDict, total=False):
+    """Overrides for bootstrap scenario generation.
+
+    Attributes:
+        B: Number of bootstrap replications.
+        B_bootstrap: Bootstrap sample size.
+        n_process: Parallel worker count.
+        resample: Resampling mode string.
+        include_last: Whether to include the last observed year.
+    """
+
     B: int
     B_bootstrap: int
     n_process: int
@@ -94,6 +104,19 @@ class BootstrapKwargs(TypedDict, total=False):
 
 
 class BumpsConfig(TypedDict, total=False):
+    """Configuration for sensitivity bump sizes and scenario builders.
+
+    Attributes:
+        build_scenarios_func: Factory to rebuild scenarios given sigma scale.
+        calibration_cache: Precomputed calibration cache for fast rebuilds.
+        lambda_esscher: Esscher tilt parameter(s).
+        short_rate_for_pricing: Override short rate for pricing.
+        sigma_rel_bump: Relative bump for sigma scaling.
+        q_rel_bump: Relative bump for q in delta-by-age.
+        rate_bump: Additive bump for rate sensitivities.
+        ages_for_delta: Optional ages subset for delta-by-age.
+    """
+
     build_scenarios_func: Callable[[float], MortalityScenarioSet]
     calibration_cache: CalibrationCache
     lambda_esscher: float | Sequence[float] | FloatArray
@@ -105,6 +128,19 @@ class BumpsConfig(TypedDict, total=False):
 
 
 class HedgeConstraints(TypedDict, total=False):
+    """Constraints for hedging optimizers.
+
+    Attributes:
+        lb: Lower bound on weights.
+        ub: Upper bound on weights.
+        mode: Constraint mode identifier.
+        discount_factors: Discount factors for time weighting.
+        time_weights: Explicit time weights for objectives.
+        instrument_names: Optional instrument names for reporting.
+        solver: Solver name or backend identifier.
+        alpha: Regularization or penalty strength.
+    """
+
     lb: float
     ub: float
     mode: str
@@ -116,6 +152,17 @@ class HedgeConstraints(TypedDict, total=False):
 
 
 class HedgeGreeks(TypedDict, total=False):
+    """Greek targets used by hedge construction routines.
+
+    Attributes:
+        liability: Liability PV paths.
+        instruments: Instrument PV paths.
+        liability_dPdr: Liability first-order rate sensitivity.
+        instruments_dPdr: Instrument first-order rate sensitivities.
+        liability_d2Pdr2: Liability second-order rate sensitivity.
+        instruments_d2Pdr2: Instrument second-order rate sensitivities.
+    """
+
     liability: Iterable[float]
     instruments: FloatArray
     liability_dPdr: float

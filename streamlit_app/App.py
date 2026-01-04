@@ -7,9 +7,6 @@ from assets.logo import add_logo_top_right
 
 LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
 
-# -----------------------------
-# Session state helpers
-# -----------------------------
 STATE_KEYS = [
     # data
     "raw_df",
@@ -35,11 +32,13 @@ STATE_KEYS = [
     "cf_paths",
     "hedge_result",
     "risk_report",
+    # analysis outputs (fix)
+    "scenario_analysis_result",
+    "sensitivities_result",
 ]
 
 
 def init_session_state() -> None:
-    """Create default keys if missing (do not overwrite existing values)."""
     defaults = {
         "raw_df": None,
         "ages": None,
@@ -61,13 +60,15 @@ def init_session_state() -> None:
         "cf_paths": None,
         "hedge_result": None,
         "risk_report": None,
+        # analysis outputs (fix)
+        "scenario_analysis_result": None,
+        "sensitivities_result": None,
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 
 
 def reset_session_state(keep: tuple[str, ...] = ()) -> None:
-    """Remove known keys from session_state."""
     for k in STATE_KEYS:
         if k in keep:
             continue
@@ -81,7 +82,6 @@ def _is_set(key: str) -> bool:
 
 
 def render_sidebar_state() -> None:
-    """Sidebar: quick status indicators + reset."""
     st.sidebar.header("Project state")
 
     st.sidebar.write(("✅" if _is_set("m") else "❌") + " Data loaded")
@@ -110,16 +110,24 @@ def render_sidebar_state() -> None:
         st.rerun()
 
 
-# -----------------------------
-# App
-# -----------------------------
+def render_session_summary() -> None:
+    fitted = st.session_state.get("fitted_model")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Data loaded", "Yes" if _is_set("m") else "No")
+    c2.metric("Sliced", "Yes" if _is_set("m_slice") else "No")
+    c3.metric("Model", type(fitted).__name__ if fitted is not None else "—")
+    c4.metric("Pricing", "Done" if _is_set("prices") else "—")
+
+
 def main() -> None:
-    add_logo_top_right()
+    # ✅ set_page_config doit venir en premier
     st.set_page_config(
         page_title="PYMORT — Longevity Risk Lab",
-        page_icon=LOGO_PATH,
+        page_icon=str(LOGO_PATH),
         layout="wide",
     )
+    add_logo_top_right()
 
     init_session_state()
     render_sidebar_state()
@@ -129,33 +137,58 @@ def main() -> None:
         "Workflow: HMD table → slice → fit/select → P scenarios → Q scenarios (λ) → pricing → hedging → scenario analysis → sensitivities → reporting."
     )
 
-    st.markdown(
-        """
-### Start here
-Use the left sidebar to navigate pages:
-- **Data Upload**: drag & drop your HMD life table / mortality surface
-- **Fit & Model Selection**
-- **Projection (P)**
-- **Risk-neutral (Q)**
-- **Pricing / Hedging / Reporting**
+    render_session_summary()
 
-Tip: the sidebar shows what’s already computed (✅/❌).
+    st.divider()
+
+    left, right = st.columns([2, 1])
+
+    with left:
+        st.subheader("Quickstart")
+        st.markdown(
+            """
+1) **Data Upload** — import life table / mortality surface  
+2) **Data Slicing** — select ages/years window  
+3) **Fit Select** — choose model (LC / CBD / APC …) + diagnostics  
+4) **Projection & Pricing** — generate P/Q scenarios → price → hedge → report
 """
-    )
-
-    # Quick peek at what's loaded
-    with st.expander("Debug: current session keys", expanded=False):
-        st.json(
-            {
-                "data_loaded": _is_set("m"),
-                "slice_ready": _is_set("m_slice"),
-                "fitted_model": _is_set("fitted_model"),
-                "scen_P": _is_set("scen_P"),
-                "scen_Q": _is_set("scen_Q"),
-                "prices": _is_set("prices"),
-                "hedge_result": _is_set("hedge_result"),
-            }
         )
+        st.subheader("Data requirements")
+        st.markdown(
+            """
+- **Rates must be consistent** (e.g., central death rates `m_x,t` or equivalent)
+- **No negative values**, handle missing values (NaN) before fit if possible
+- Prefer **rectangular age×year grid**
+"""
+        )
+
+        with st.expander("Troubleshooting", expanded=False):
+            st.markdown(
+                """
+- If a page stays ❌ in the sidebar: check you didn’t reset the session.
+- If fits fail: try narrower slicing (shorter years range) or remove sparse ages.
+- For reproducibility: keep the same slice window when comparing models.
+"""
+            )
+
+    with right:
+        st.subheader("Pages")
+        st.markdown(
+            """
+- **Data Upload**
+- **Data Slicing**  
+- **Fit Select**  
+- **Projection (P)**  
+- **Risk Neutral (Q)**  
+- **Pricing**  
+- **Hedging**  
+- **Scenario Analysis**  
+- **Sensitivities**  
+- **Report Export**
+"""
+        )
+    st.markdown("")
+    st.info("Tip: the sidebar shows what’s already computed ( ✅ / ❌ ).")
 
 
 if __name__ == "__main__":

@@ -60,12 +60,15 @@ class MortalityScenarioSet:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def n_scenarios(self) -> int:
+        """Return the number of scenarios stored in the set."""
         return int(self.q_paths.shape[0])
 
     def n_ages(self) -> int:
+        """Return the number of ages in the scenario grid."""
         return int(self.ages.shape[0])
 
     def horizon(self) -> int:
+        """Return the projection horizon length."""
         return int(self.years.shape[0])
 
 

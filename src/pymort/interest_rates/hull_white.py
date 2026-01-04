@@ -32,9 +32,11 @@ class InterestRateScenarioSet:
     metadata: dict[str, object]
 
     def n_scenarios(self) -> int:
+        """Return the number of simulated rate scenarios."""
         return int(self.r_paths.shape[0])
 
     def horizon(self) -> int:
+        """Return the number of time steps in the scenario grid."""
         return int(self.times.shape[0])
 
 

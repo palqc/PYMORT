@@ -58,13 +58,13 @@ Then:
    ```
 ⚠️ Make sure your virtual environment is activated **before** running Streamlit.
 
-### CPsplines smoothing (Python ≥ 3.12 only)
+### CPsplines smoothing (Python ≥ 3.12)
 
-CPsplines-based smoothing is optional and **only** supported on **Python 3.12+**.
+CPsplines is not published on PyPI. To enable CPsplines-based smoothing, install it manually:
    ```bash
-   pip install -e .[cpsplines]
+   pip install "cpsplines @ https://github.com/ManuelNavarroGarcia/cpsplines/archive/89c3cf8.zip"
+   pip install -e .
    ```
-
 ⚠️ Do **NOT** install this extra on Python 3.10 or 3.11.
 
 
