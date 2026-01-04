@@ -60,7 +60,7 @@ Then:
 
 ### CPsplines smoothing (Python ≥ 3.12 only)
 
-CPsplines-based smoothing is optional and only supported on **Python 3.12+**.
+CPsplines-based smoothing is optional and **only** supported on **Python 3.12+**.
    ```bash
    pip install -e .[cpsplines]
    ```

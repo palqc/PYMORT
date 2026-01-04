@@ -85,7 +85,7 @@ def reconstruct_log_m(params: LCM1Params) -> FloatArray:
     Returns:
         Log-mortality surface log m_{x,t}, shape (A, T).
     """
-    return params.a[:, None] + np.outer(params.b, params.k)
+    return np.asarray(params.a[:, None] + np.outer(params.b, params.k), dtype=float)
 
 
 class LCM1:
