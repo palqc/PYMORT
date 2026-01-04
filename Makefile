@@ -8,7 +8,7 @@ PYTHON := python3
 UV := uv
 SRC_DIR := src
 TEST_DIR := tests
-PKG_NAME := simclt
+PKG_NAME := pymort
 
 # Colors for output
 RED := \033[0;31m
@@ -33,6 +33,7 @@ install: ## Install production dependencies
 install-dev: ## Install development dependencies
 	@echo "$(GREEN)Installing development dependencies...$(NC)"
 	$(UV) sync --extra dev
+	$(UV) run python -m pip install -e .
 	@echo "$(GREEN)Installing pre-commit hooks...$(NC)"
 	$(UV) run pre-commit install
 	@echo "$(GREEN)✓ Development environment ready!$(NC)"
@@ -106,8 +107,8 @@ build: clean ## Build distribution packages
 	@echo "$(GREEN)✓ Build complete! Check dist/ directory$(NC)"
 
 run: ## Run the CLI application
-	@echo "$(GREEN)Running simclt CLI...$(NC)"
-	$(UV) run simclt --help
+	@echo "$(GREEN)Running pymort CLI...$(NC)"
+	$(UV) run pymort --help
 
 pre-commit: ## Run pre-commit hooks on all files
 	@echo "$(GREEN)Running pre-commit hooks...$(NC)"

@@ -394,7 +394,7 @@ def _maybe_pickle(obj: Any, path: Path | None) -> None:
 
 def _load_pickle(path: Path) -> Any:
     with path.open("rb") as f:
-        return pickle.load(f)
+        return pickle.load(f)  # nosec: B301
 
 
 def _normalize_model_flag(model: str) -> ModelName:

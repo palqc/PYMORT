@@ -713,7 +713,7 @@ lam = np.atleast_1d(lam_disp).astype(float)
 c2.metric(
     "RMSE pricing error",
     (
-        f"{float(summary.get('rmse_pricing_error', np.nan)):.4f}"
+        f"{float(summary.get('rmse_pricing_error', np.nan)):.3f}"
         if np.isfinite(float(summary.get("rmse_pricing_error", np.nan)))
         else "n/a"
     ),
@@ -721,7 +721,7 @@ c2.metric(
 c3.metric(
     "Objective",
     (
-        f"{float(summary.get('objective_value', np.nan)):.4f}"
+        f"{float(summary.get('objective_value', np.nan)):.3f}"
         if np.isfinite(float(summary.get("objective_value", np.nan)))
         else "n/a"
     ),
@@ -758,8 +758,8 @@ with col_mid:
             df_model,
             use_container_width=True,
             column_config={
-                "model_price": st.column_config.NumberColumn(format="%.4f"),
-                "strike": st.column_config.NumberColumn(format="%.4f"),
+                "model_price": st.column_config.NumberColumn(format="%.2f"),
+                "strike": st.column_config.NumberColumn(format="%.3f"),
             },
         )
     except Exception as e:

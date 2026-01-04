@@ -121,7 +121,6 @@ else:
         f"{len(years_s)} pts",
     )
     s3.metric("Slice m shape", f"{m_s.shape[0]} × {m_s.shape[1]}", "age × year")
-
-st.markdown("")
-st.markdown("")
-st.success("Next: go to **Fit & Model Selection** page.")
+    st.markdown("")
+    st.markdown("")
+    st.success("Next: go to **Fit & Model Selection** page.")

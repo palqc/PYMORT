@@ -388,7 +388,7 @@ def cohort_survival_from_q_paths(q_paths: FloatArray) -> FloatArray:
         q_diag = q[:, a + idx, idx]  # (N, K)
         S[:, a, :K] = np.cumprod(1.0 - q_diag, axis=1)
 
-    return np.clip(S, 1e-12, 1.0)
+    return cast(FloatArray, np.clip(S, 1e-12, 1.0))
 
 
 def survival_paths_from_q_paths(q_paths: FloatArray) -> FloatArray:

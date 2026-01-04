@@ -36,13 +36,8 @@ repos:
     rev: v1.9.0
     hooks:
       - id: mypy
-        args: ['--config-file=pyproject.toml']
-        additional_dependencies:
-          - numpy>=1.26
-          - pandas-stubs>=2.1.4.240218
-          - types-setuptools>=69.0
+        args: ['--config-file=pyproject.toml', 'src/']
         pass_filenames: false
-        args: ['src/']
 
   # Security checks with Bandit
   - repo: https://github.com/PyCQA/bandit

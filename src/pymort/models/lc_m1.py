@@ -10,7 +10,6 @@ Note:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
 
 import numpy as np
 
@@ -86,7 +85,7 @@ def reconstruct_log_m(params: LCM1Params) -> FloatArray:
     Returns:
         Log-mortality surface log m_{x,t}, shape (A, T).
     """
-    return cast(FloatArray, params.a[:, None] + np.outer(params.b, params.k))
+    return params.a[:, None] + np.outer(params.b, params.k)
 
 
 class LCM1:

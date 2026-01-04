@@ -17,7 +17,7 @@ This project enforces strict software engineering practices. All contributions m
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR-USERNAME/pymort.git
+   git clone https://github.com/palqc/pymort.git
    cd pymort
    ```
 
@@ -316,21 +316,105 @@ Include:
 ## 🏗️ Project Structure
 
 ```
-src/pymort/        # Main package
-├── __init__.py    # Public API exports
-├── cli.py         # CLI interface
-├── triangle.py    # Triangle data structures
-├── mack.py        # Mack chain-ladder implementation
-└── bootstrap.py   # Bootstrap simulation
-
-tests/             # Test suite
-├── conftest.py    # Pytest fixtures
-├── test_*.py      # Test modules
-└── data/          # Test data
-
-docs/              # Documentation
-├── api/           # API documentation
-└── guides/        # User guides
+pymort/
+├── src/
+│   └── pymort/
+│       ├── analysis/                 # Mortality analysis & risk tools
+│       │   ├── bootstrap.py
+│       │   ├── fitting.py
+│       │   ├── projections.py
+│       │   ├── reporting.py
+│       │   ├── risk_tools.py
+│       │   ├── scenario.py
+│       │   ├── scenario_analysis.py
+│       │   ├── sensitivities.py
+│       │   ├── smoothing.py           # CPsplines-based smoothing (optional)
+│       │   └── validation.py
+│       │
+│       ├── interest_rates/            # Interest-rate models
+│       │   └── hull_white.py
+│       │
+│       ├── models/                    # Mortality models
+│       │   ├── apc_m3.py
+│       │   ├── cbd_m5.py
+│       │   ├── cbd_m6.py
+│       │   ├── cbd_m7.py
+│       │   ├── gompertz.py
+│       │   ├── lc_m1.py
+│       │   ├── lc_m2.py
+│       │   └── utils.py
+│       │
+│       ├── pricing/                   # Pricing of longevity-linked instruments
+│       │   ├── hedging.py
+│       │   ├── liabilities.py
+│       │   ├── longevity_bonds.py
+│       │   ├── mortality_derivatives.py
+│       │   ├── risk_neutral.py
+│       │   ├── survivor_swaps.py
+│       │   └── utils.py
+│       │
+│       ├── visualization/             # Plotting & diagnostics
+│       │   ├── fans.py
+│       │   └── lexis.py
+│       │
+│       ├── cli.py                     # Command-line interface
+│       ├── lifetables.py
+│       ├── pipeline.py                # High-level pricing & sensitivity pipeline
+│       ├── utils.py
+│       ├── _types.py
+│       └── py.typed                   # PEP 561 typing marker
+│
+├── streamlit_app/                     # Interactive Streamlit application
+│   ├── App.py
+│   ├── pages/
+│   │   ├── 1_Data_Upload.py
+│   │   ├── 2_Data_Slicing.py
+│   │   ├── 3_Fit_Select.py
+│   │   ├── 4_Projection_P.py
+│   │   ├── 5_Risk_Neutral_Q.py
+│   │   ├── 6_Pricing.py
+│   │   ├── 7_Hedging.py
+│   │   ├── 8_Scenario_Analysis.py
+│   │   ├── 9_Sensitivities.py
+│   │   └── 10_Report_Export.py
+│   ├── assets/
+│   │   └── logo.png
+│   └── .streamlit/
+│       ├── config.toml
+│       └── secrets.toml
+│
+├── cpsplines/                         # External CPsplines dependency (optional)
+│   └── README.md                      # Install notes & Python ≥ 3.12 requirement
+│
+├── tests/                             # Pytest suite (≥80% coverage)
+│
+├── validation_against_StMoMo/         # External validation vs R (StMoMo)
+│   ├── stmomo_fit_cbd.R
+│   ├── stmomo_fit_lc.R
+│   ├── validate_vs_stmomo.py
+│   └── outputs/
+│
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                     # CI: tests, coverage, ruff, mypy
+│       └── release.yml                # Build & PyPI release
+│
+├── .coverage                          # Local coverage database (gitignored)
+├── coverage.xml                       # Coverage report (CI / Codecov)
+│
+├── .editorconfig
+├── .gitignore
+├── .pre-commit-config.yaml            # Pre-commit hooks (ruff, mypy, etc.)
+├── .secrets.baseline                  # Secret scanning baseline
+│
+├── CONTRIBUTING.md                    # Contribution guidelines
+├── PROJECT_SPECIFICATION.md           # Technical & academic specification
+├── README.md                          # Main project README
+├── README_cli.md                      # CLI documentation
+├── LICENSE                            # MIT license
+├── Makefile                           # Developer shortcuts
+├── pyproject.toml                     # Build, deps, tooling config
+└── requirements.txt
 ```
 
 ## 🛠️ Development Tools
