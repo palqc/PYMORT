@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pymort-palqc"
-version = "1.0.2"
+version = "1.0.4"
 description = "Longevity bond pricing and mortality modeling toolkit"
 authors = [{name = "Pierre-Antoine Le Quellec", email = "pierre-antoine.lequellec@unil.ch"}]
 readme = "README.md"

@@ -1,4 +1,4 @@
-% Advanced Programming 2025 - Project Report Template
+% Advanced Programming 2025 - Project Report
 % HEC Lausanne / UNIL
 \documentclass[11pt,a4paper]{article}
 
@@ -16,6 +16,7 @@
 \usepackage{float}
 \usepackage{caption}
 \usepackage{subcaption}
+\usepackage{csquotes}
 \usepackage{biblatex}
 \addbibresource{references.bib} % Create this file for your references
 
@@ -53,6 +54,7 @@
 \rhead{Advanced Programming 2025}
 \lhead{Project Report}
 \rfoot{Page \thepage}
+\setlength{\headheight}{14pt}
 
 % Title page information - MODIFY THESE
 \title{%
@@ -78,24 +80,25 @@
 \begin{abstract}
 \vspace{0.5cm}
 \noindent
-\textbf{PyMORT} develops a Python-based longevity bond pricing engine addressing the growing challenge of \textit{longevity risk}---the financial risk that people live longer than expected, thereby increasing liabilities for pension funds and insurers. The project aims to model the stochastic evolution of mortality rates, forecast survival probabilities, and price securities that transfer this risk to financial markets.
+\textbf{PyMORT} addresses the growing challenge of \textit{longevity risk}---the financial risk that people live longer than expected, thereby increasing liabilities for pension funds and insurers. It develops a Python-based longevity risk analytics engine and provides an end-to-end engineering pipeline from Human Mortality Database (HMD) data ingestion and model calibration to stochastic projections, risk-neutral calibration, scenario-based pricing, and risk reporting, with modular pipelines for hedging, sensitivities, scenario analysis, and optional Hull--White interest-rate modeling.
 
 \medskip
 \noindent
-Our methodology combines actuarial modeling and quantitative finance. Mortality dynamics are estimated using the \textbf{Lee-Carter} and \textbf{Cairns-Blake-Dowd (CBD)} models, fitted to real mortality data from the \textit{Human Mortality Database}. Future mortality is projected through stochastic simulations, incorporating uncertainty and risk-neutral adjustments via a market price of longevity risk parameter. Using these forecasts, we value longevity-linked instruments---notably longevity bonds, survivor swaps, and mortality forwards---through expected discounted cash flows under the risk-neutral measure.
+Our methodology combines actuarial modeling and quantitative finance. Mortality dynamics are estimated using the \textbf{Lee-Carter} and \textbf{Cairns-Blake-Dowd (CBD)} models, fitted to mortality data from the \textit{Human Mortality Database}. Future mortality is projected stochastically, incorporating uncertainty and risk-neutral adjustments via a market price of longevity risk parameter. Using these forecasts, we value longevity-linked instruments---longevity bonds, survivor swaps, and mortality forwards---through expected discounted cash flows under the risk-neutral measure.\textbf{Validation} against published benchmarks and reference implementations is used to check calibration and factor dynamics.
 
 \medskip
 \noindent
-Key results include realistic mortality projections consistent with published studies and internally validated bond prices. The main contribution is a modular, open-source package that integrates actuarial modeling, risk-neutral valuation, and Monte Carlo simulation into a reproducible framework, offering researchers and practitioners a transparent tool for pricing and hedging longevity risk.
+Key results include realistic mortality projections consistent with published studies and internally validated bond prices. The main contribution is a modular, end-to-end software framework that integrates actuarial modeling, risk-neutral valuation, and Monte Carlo simulation into a reproducible, CLI-driven workflow with typing and continuous integration.
 \end{abstract}
 
 \vspace{3cm}
-\noindent\textbf{Keywords:} Data Science, Python, Machine Learning, Longevity risk, Mortality modeling, Lee–Carter, Cairns–Blake–Dowd,
-Risk-neutral valuation, Longevity bonds, Survivor swaps, Quantitative finance.
+\noindent\textbf{Keywords:} Data Science, Python, Machine Learning, Longevity risk, Mortality modeling, Lee--Carter, Cairns--Blake--Dowd, Risk-neutral valuation, Longevity bonds, Survivor swaps, Quantitative finance.
 \vspace{-1.5em}
 
 \newpage
+{\small
 \tableofcontents
+}
 \newpage
 
 % ================== MAIN CONTENT ==================
@@ -111,6 +114,7 @@ While the extension of human life is a social achievement, it poses a financial 
 The longer beneficiaries live, the higher the cumulative liabilities become.
 To hedge against this risk, financial markets have developed a class of \textbf{longevity-linked securities}, whose cashflows depend on realized survival rates.
 These instruments create a bridge between actuarial science and financial engineering, enabling the transfer of longevity risk from pension funds to investors.
+This complexity highlights the need for robust, reproducible, pipeline-based software systems that integrate actuarial modeling with financial pricing and risk reporting.
 
 \subsection{Problem Statement}
 
@@ -118,20 +122,21 @@ The valuation of longevity-linked securities requires accurate \textbf{models of
 Mortality data are inherently complex---age-dependent, non-stationary, and affected by medical progress or sudden shocks such as pandemics. 
 Designing models that capture both the \textbf{age structure} and the \textbf{temporal evolution} of mortality, while remaining stable and interpretable, remains an open problem in quantitative risk management. 
 Furthermore, financial pricing demands translating real-world mortality forecasts into a \textbf{risk-neutral framework}, accounting for the market’s perception of longevity risk. 
-Building such a framework from raw demographic data is both statistically and computationally challenging.
+Building such a framework from raw demographic data is both statistically and computationally challenging, particularly when integrating mortality modeling, projections, scenario-based pricing, hedging, sensitivities, risk reporting, and interest-rate modeling into a coherent workflow.
 
 \subsection{Objectives and Goals}
 
-The aim of this project is to develop \textbf{PyMORT}, a Python-based longevity bond pricing engine that combines \textbf{actuarial modeling} and \textbf{financial mathematics}. 
+The aim of this project is to develop \textbf{PyMORT}, a Python-based integrated actuarial--financial pricing and risk management engine that combines \textbf{actuarial modeling} and \textbf{financial mathematics}. 
 More specifically, PyMORT will:
 \begin{itemize}
     \item Fit and calibrate stochastic mortality models, including \textit{Lee--Carter} and \textit{Cairns--Blake--Dowd};
     \item Generate stochastic forecasts of mortality and survival probabilities with quantified uncertainty;
     \item Implement a \textbf{risk-neutral valuation} framework for longevity bonds and related derivatives;
+    \item Provide pipeline-based scenario pricing, hedging, stress testing, sensitivity analysis, and risk reporting;
     \item Provide a \textbf{command-line interface} with modular components for fitting, forecasting, pricing, and hedging;
-    \item Ensure high code quality through type checking, testing coverage, and continuous integration.
+    \item Emphasize reproducibility and extensibility through typing and continuous integration.
 \end{itemize}
-Through these goals, PYMORT aims to serve as both an educational and practical tool for understanding how demographic dynamics translate into financial risk and asset pricing.
+Through these goals, PyMORT aims to serve as both an educational and practical tool for understanding how demographic dynamics translate into financial risk and asset pricing.
 
 \subsection{Report Organization}
 
@@ -152,127 +157,584 @@ The remainder of this report is structured as follows:
 \section{Literature Review / Related Work}
 \label{sec:literature}
 
-Discuss relevant prior work, existing solutions, or theoretical background. For data science projects, this might include:
-\begin{itemize}
-    \item Previous approaches to similar problems
-    \item Relevant algorithms or methodologies
-    \item Datasets used in related studies
-\end{itemize}
+Longevity risk research combines stochastic mortality modeling with the design and valuation of
+securities whose cashflows depend on survival outcomes. PyMORT is positioned at this
+intersection: it implements classical Lee--Carter and Cairns--Blake--Dowd families, cohort-aware
+extensions, and a pricing layer for longevity bonds and mortality derivatives. The review below
+highlights the strands that motivate these choices and clarifies how the package aligns with
+established methods.
+
+\subsection{Stochastic mortality modeling and cohort effects}
+
+Lee and Carter introduced the benchmark factorization of log mortality rates with a single time
+index, estimated via SVD and projected as a random walk with drift \cite{lee1992modeling}. The
+teaching summary used in this project reiterates the identifiability constraints and SVD strategy
+that inform PyMORT's LCM1 implementation \cite{leecarter_summary2017}. Empirical work has shown
+the need to capture cohort effects, motivating models that add a birth-year term and interpret
+patterns in the Lexis diagram \cite{carstensen2020lexis}. PyMORT's LCM2 and APCM3 modules follow
+this line by adding explicit cohort effects and period dynamics on log mortality.
+
+Cairns, Blake, and Dowd propose modeling logit death probabilities at higher ages with two period
+factors, capturing both the level and slope of the age profile \cite{cairns2006twofactor}. Their
+framework and later index-oriented extensions \cite{chan2014cbdindexes} underpin PyMORT's
+CBDM5/M6/M7 implementations, including cohort terms and a quadratic age component for older ages.
+This aligns the package with the dominant actuarial approach for pension-age mortality while
+preserving interpretability for pricing applications.
+
+\subsection{Smoothing and old-age mortality}
+
+Mortality surfaces are noisy and contain cohort and period irregularities. Smoothing methods that
+respect demographic structure are therefore central to robust calibration. Camarda's constrained
+P-spline approach provides smooth age--time surfaces while enforcing plausible demographic shapes
+\cite{camarda2019smooth}. Dokumentov, Hyndman, and Tickle emphasize that cohort and period ridges
+require flexible two-dimensional smoothing to avoid biased forecasts \cite{dokumentov2018two}.
+PyMORT's optional CP-spline module follows this literature by fitting smooth log-mortality
+surfaces before model selection and projection.
+
+At very old ages, data sparsity motivates parametric tails. Evidence from U.S. old-age data
+suggests Gompertz fits can outperform logistic/Kannisto forms in the 80+ range
+\cite{gavrilova2015oldage}, while more recent work cautions against over-reliance on the Kannisto
+model without checking fit quality \cite{dang2023kannisto}. PyMORT therefore includes
+Gompertz-based extrapolation to extend mortality beyond observed ages and to stabilize survival
+probabilities used in pricing.
+
+\subsection{Longevity-linked securities and market context}
+
+Longevity risk transfer instruments emerged as a response to the growing mismatch between
+pension liabilities and available hedging capacity \cite{jointforum2013longevity}. Blake, Cairns,
+and Dowd provide early analysis of longevity bonds and broader mortality-linked securities,
+outlining their role in transferring aggregate longevity risk to capital markets
+\cite{blake2006living}. Biffis and Blake review the design space of mortality-linked securities
+and derivatives, emphasizing the need for transparent index-based payoffs and investor-friendly
+structures \cite{biffis2009mortality}. Industry-facing notes on the EIB longevity bond illustrate
+the coupon structure based on cohort survival and the practical challenges of demand and pricing
+\cite{understanding2006longevity}. Subsequent analyses of the Swiss Re mortality bond and the
+Kortis longevity trend bond clarify how payoff design and cohort definition affect risk transfer
+and investor appetite \cite{cairns2005pricing,hunt2015modelling}.
+
+Joint modeling of mortality and interest-rate risk has also been emphasized for longevity bonds,
+for example via regime-switching models that allow structural shifts in both mortality and rates
+\cite{shen2013longevity}. These studies motivate PyMORT's separation of mortality dynamics from
+discounting while keeping the architecture open to stochastic-rate extensions in the pricing
+layer.
+
+\subsection{Risk-neutral pricing and longevity derivatives}
+
+Risk-neutral valuation of longevity-linked cashflows requires a market price of longevity risk.
+Cairns, Blake, and Dowd propose risk-adjusted pricing for longevity bonds using observed market
+information and parameter uncertainty \cite{cairns2006twofactor}, while Cui estimates longevity
+risk premia using utility-based indifference pricing \cite{cui2007longevity}. PyMORT operationalizes
+this strand via an Esscher tilt on mortality-factor innovations and calibration to quoted
+instruments, which is consistent with the risk-premium perspective in these papers.
+
+For derivatives, survivor forwards and swaps generalize longevity bond payoffs into swap-like
+contracts and highlight hedging applications across maturities \cite{dawson2007survivor}.
+q-forwards are positioned as standardized building blocks for longevity hedging and as reference
+contracts linked to mortality indices \cite{coughlan2007qforwards}. Barrieu and Veraart show that
+q-forward prices are sensitive to model choice and estimation window, underscoring the need for
+multiple mortality models and robust calibration workflows \cite{barrieu2014pricing}. PyMORT's
+pricing module mirrors this literature by supporting q-forwards, s-forwards, survivor swaps, and
+longevity bonds under multiple mortality models with scenario-based valuation.
 
 \section{Methodology}
 \label{sec:methodology}
 
 \subsection{Data Description}
-Describe your dataset(s):
-\begin{itemize}
-    \item Source and collection method
-    \item Size and characteristics
-    \item Features/variables
-    \item Data quality issues
-\end{itemize}
+PyMORT is calibrated on \textbf{Human Mortality Database (HMD)} period life-table
+exports, using the 1x1 (age-by-year) format for France \cite{hmd2025}. The repository
+contains the HMD text exports for deaths, exposures, and central death rates
+(\path{Deaths_1x1_France.txt}, \path{Exposures_1x1_France.txt},
+\path{Mx_1x1_France.txt}) as well as a cleaned Excel version
+(\path{data_france.xlsx}) that is consumed by the loader in
+\path{src/pymort/lifetables.py}. Each record provides \texttt{Year}, \texttt{Age},
+and sex-specific rates (\texttt{Female}, \texttt{Male}, \texttt{Total}), enabling
+construction of central death rates $m_{x,t}$ and, when needed, one-year death
+probabilities $q_{x,t}$.
+
+For reproducible experiments, the configuration in
+\path{configs/pricing-pipeline.yaml} filters the dataset to
+ages 60--100 and calendar years 1970--2019 for the \texttt{Total} population. The
+age window reflects the empirical focus of CBD-style models on post-60 mortality
+and the age range relevant for pension and longevity-linked contracts
+\cite{cairns2006twofactor,chan2014cbdindexes}. The calibration window ends in 2019
+to avoid the structural break introduced by COVID-19 and to maintain a stable
+pre-pandemic training set for long-horizon projections.
+
+Data quality considerations guide preprocessing. HMD period tables include an
+open-age group (e.g., 110+), which is removed to keep a rectangular age--year
+grid. Missing or extremely small values are handled by numeric coercion,
+interpolation, and a strictly positive floor to support log transformations.
+At advanced ages, sampling noise and sparse exposures motivate smoothing and
+tail treatment; the project therefore supports CP-spline smoothing
+\cite{camarda2019smooth} and Gompertz-based old-age extrapolation, consistent with
+evidence that Gompertz fits can be preferable in the 80+ range
+\cite{gavrilova2015oldage} and with cautions on Kannisto-style tails when data
+quality is limited \cite{dang2023kannisto}.
 
 \subsection{Approach}
-Detail your technical approach:
-\begin{itemize}
-    \item Algorithms used
-    \item Data preprocessing steps
-    \item Model architecture (if applicable)
-    \item Evaluation metrics
-\end{itemize}
+The methodological workflow follows an actuarial--finance sequence aligned with longevity
+risk literature: (i) fit and select mortality models on a historical window,
+(ii) generate stochastic projections with parameter and process uncertainty,
+(iii) transform to a pricing measure, and (iv) value longevity-linked
+cashflows and risk measures. The approach explicitly separates the
+real-world mortality dynamics from the pricing layer, which is consistent
+with the modeling/valuation split emphasized in longevity pricing studies
+\cite{cairns2006twofactor,cui2007longevity}.
+
+\paragraph{Mortality models and transformations.}
+Mortality is modeled either on log-central death rates or on logit
+probabilities to balance interpretability and fit across ages. The Lee--Carter
+family decomposes mortality into age-specific level/sensitivity and a period
+index estimated by SVD \cite{lee1992modeling}, while cohort effects are added
+in LCM2 and APCM3 \cite{carstensen2020lexis}. For older ages, the
+Cairns--Blake--Dowd (CBD) family uses parsimonious level/slope (and curvature
+in M7) factors with optional cohort effects to stabilize pension-age pricing
+\cite{cairns2006twofactor,chan2014cbdindexes}. Central death rates are mapped to
+one-year probabilities and cohort survival is obtained by compounding annual
+death rates; formal definitions are in Appendix~\ref{app:math}. For old-age
+tails, a Gompertz extrapolation is used when needed, consistent with empirical
+findings that Gompertz fits can be appropriate in the 80+ range
+\cite{gavrilova2015oldage}.
+
+\paragraph{Lee--Carter vs.\ CBD trade-offs.}
+LC and CBD families are compared to balance flexibility and
+interpretability. LC is designed for the full age range and achieves lower
+in-sample error on the full grid, whereas CBD is tailored to older ages and
+often trades some fit for robustness and stability in pension-age pricing
+\cite{lee1992modeling,cairns2006twofactor,chan2014cbdindexes}. The comparison in
+Table~\ref{tab:lc_cbd_compare} makes these trade-offs explicit.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Lee--Carter vs.\ CBD models in PyMORT (conceptual trade-offs).}
+\label{tab:lc_cbd_compare}
+\begin{tabular}{p{0.18\textwidth} p{0.36\textwidth} p{0.36\textwidth}}
+\hline
+\textbf{Criterion} & \textbf{Lee--Carter (LC)} & \textbf{CBD (M5--M7)} \\
+\hline
+Primary age focus & Broad age range & Pension/older ages (60+) \\
+Fit vs.\ robustness & Lower RMSE on full grid; more flexible & More parsimonious; stable at high ages \\
+Factor structure & Single period factor (+ cohort) & Level/slope/curvature (+ cohort) \\
+Pricing stability & Sensitive to full-age calibration & Stable for pension-age liabilities \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Smoothing, selection, and diagnostics.}
+To mitigate noise on the age--year grid, CP-spline
+smoothing on $\log m$ with constrained penalties \cite{camarda2019smooth} and
+2D smoothing strategies \cite{dokumentov2018two}. Candidate models
+are compared using in-sample RMSE on $\log m$ or $\text{logit}(q)$ and
+information criteria (AIC/BIC), alongside explicit time-split backtests. All
+diagnostics are computed against the raw surface to avoid overstating fit
+quality on smoothed data.
+
+\paragraph{Stochastic projections and uncertainty.}
+Period factors evolve as random walks with drift,
+\[
+k_t = k_{t-1} + \mu + \sigma \varepsilon_t,
+\]
+with analogous dynamics for CBD factors, following standard practice in
+Lee--Carter and CBD forecasting \cite{lee1992modeling,cairns2006twofactor}.
+Parameter uncertainty (residual bootstrap, year-block or
+cell resampling) is combined with process uncertainty to produce large scenario sets of
+future $m_{x,t}$ and $q_{x,t}$.
+
+\paragraph{Risk-neutral transformation and pricing.}
+Pricing applies a risk-neutral adjustment of factor drifts via an Esscher tilt,
+with $\lambda$ calibrated to observed longevity-linked prices in the
+literature \cite{cairns2006twofactor,cui2007longevity}. Expected discounted
+cashflows are then computed for longevity bonds, survivor swaps, and mortality
+forwards (q- and s-forwards), as well as cohort life annuities, all of which
+are standard instruments in the longevity risk literature
+\cite{blake2006living,dawson2007survivor,coughlan2007qforwards,barrieu2014pricing}.
+Discounting is modeled with flat rates or stochastic interest-rate scenarios;
+when stochastic rates are used, a Hull--White one-factor short-rate model
+aligns valuation with fixed-income practice in longevity bond studies
+\cite{cairns2005pricing,shen2013longevity}. Details of the Hull--White short-rate
+model and its calibration are provided in Appendix~\ref{app:hull_white}.
+
+\paragraph{Scenario analysis, hedging, and sensitivities.}
+Risk measurement is based on scenario distributions of present values using
+quantiles, VaR/CVaR, and distribution moments, a common reporting framework in
+longevity risk management \cite{jointforum2013longevity}. Stress testing uses
+interpretable longevity shocks to evaluate robustness of prices and hedge
+effectiveness. Hedging and sensitivity analysis quantify exposure to mortality
+levels, factor uncertainty, and rate shifts through variance-minimizing hedge
+structures and bump-based measures, consistent with practice in
+mortality-derivative markets \cite{blake2006living}.
 
 \subsection{Implementation}
-Discuss the implementation details:
-\begin{itemize}
-    \item Programming languages and libraries
-    \item System architecture
-    \item Key code components
-\end{itemize}
+The implementation organizes the methodology into a modular Python
+architecture under \path{src/pymort/}, with explicit data contracts between
+modeling, pricing, and risk analysis components.
 
-Example code snippet:
-\begin{lstlisting}[caption={Example data preprocessing function}]
-def preprocess_data(df):
-    """
-    Preprocess the input dataframe.
-    
-    Args:
-        df: Input pandas DataFrame
-    
-    Returns:
-        Preprocessed DataFrame
-    """
-    # Remove missing values
-    df = df.dropna()
-    
-    # Normalize numerical features
-    scaler = StandardScaler()
-    df[numerical_cols] = scaler.fit_transform(df[numerical_cols])
-    
-    return df
-\end{lstlisting}
+\paragraph{Core data structures and artifacts.}
+The codebase standardizes key objects via dataclasses: \texttt{MortalityScenarioSet}
+(mortality paths and metadata), \texttt{InterestRateScenarioSet} (short-rate
+paths and discount factors), \texttt{RiskReport} (VaR/CVaR summaries),
+\texttt{ScenarioBundle} (stressed scenario collections), and
+\texttt{AllSensitivities} (rates and mortality sensitivities). Scenario sets
+and rate scenarios are serialized to compressed \texttt{.npz} with metadata,
+while fitted models and pipeline outputs can be persisted as pickles via the
+CLI for reproducibility and downstream analysis.
+
+\paragraph{Modeling and projection modules.}
+The \path{pymort/models/} package implements LCM1/\allowbreak LCM2/\allowbreak APCM3
+and CBD M5/\allowbreak M6/\allowbreak M7, along with Gompertz tail extrapolation
+and shared utilities. The \path{pymort/analysis/} package houses CP-spline
+smoothing, model fitting and selection, validation/backtesting, residual
+bootstrap, and projection orchestration. Outputs are standardized into
+\texttt{ProjectionResult} and \texttt{MortalityScenarioSet}, so downstream
+pricing and risk tools consume consistent arrays (ages, years, $q$ paths,
+survival paths) with attached metadata.
+
+\paragraph{Scenario analysis (\texttt{analysis/scenario\_analysis.py}).}
+This module provides utilities to apply deterministic shocks to scenario sets
+and recompute survival to enforce monotonicity. It exposes
+\texttt{apply\_\allowbreak mortality\_\allowbreak shock} with named stress
+families (long-life, short-life, pandemic windows, improvement plateaus, and
+accelerated improvements), a life-expectancy shift solver, and cohort trend
+shocks. It also builds structured bundles (\texttt{ScenarioBundle}) and named
+stress maps (\texttt{generate\_\allowbreak stressed\_\allowbreak scenarios})
+that feed the CLI and pipeline.
+
+\paragraph{Sensitivity analysis.}
+This module implements bump/scale utilities to compute rate, mortality, and
+volatility sensitivities on scenario sets. Helpers price instruments on a
+common scenario set, freeze ATM strikes for forwards and swaps to avoid moving
+targets, and aggregate results into \texttt{AllSensitivities}. The pipeline
+reuses calibration caches and common random numbers when rebuilding scenarios,
+improving numerical stability for bump-based measures. Implementation resides
+in \path{analysis/sensitivities.py}.
+
+\paragraph{Pricing and hedging (\texttt{pricing/} and \texttt{pricing/hedging.py}).}
+Pricing modules implement instrument-specific routines for longevity bonds,
+survivor swaps, q- and s-forwards, and cohort life annuities on scenario PV
+matrices using shared cashflow and discounting utilities. The hedging module
+builds hedge weights via least-squares solvers (OLS/ridge/lasso), supports
+bounds and multi-horizon cashflow matching, and emits \texttt{HedgeResult} and
+\texttt{GreekHedgeResult} diagnostics with residual summaries.
+
+\paragraph{Interest rates (\texttt{interest\_rates/hull\_white.py}).}
+Stochastic discounting is supported via a Hull--White short-rate model that
+generates interest-rate scenarios and attaches discount factors to mortality
+scenarios through pipeline utilities. Details of the model and its calibration
+are provided in Appendix~\ref{app:hull_white}.
+
+\paragraph{Pipelines and key functions.}
+\path{pymort/pipeline.py} provides end-to-end functions that wire the modules
+into reproducible flows:
+\small
+\begin{itemize}
+    \item \textbf{Core pipelines:} \texttt{build\_\allowbreak projection\_\allowbreak pipeline} and
+    \texttt{build\_\allowbreak risk\_\allowbreak neutral\_\allowbreak pipeline} for model selection, smoothing,
+    bootstrap, projections, and $\lambda$ calibration under $Q$.
+    \item \textbf{Pricing and risk utilities:} \texttt{pricing\_\allowbreak pipeline},
+    \texttt{sensitivities\_\allowbreak pipeline}, \texttt{risk\_\allowbreak analysis\_\allowbreak pipeline}.
+    \item \textbf{Stress and hedging utilities:} \texttt{stress\_\allowbreak testing\_\allowbreak pipeline},
+    \texttt{hedging\_\allowbreak pipeline}, \texttt{reporting\_\allowbreak pipeline}.
+    \item \textbf{Rate utilities:} \texttt{build\_\allowbreak interest\_\allowbreak rate\_\allowbreak pipeline},
+    \texttt{build\_\allowbreak joint\_\allowbreak scenarios},\\
+    \texttt{apply\_\allowbreak hull\_\allowbreak white\_\allowbreak discounting}.
+\end{itemize}
+\normalsize
+The design emphasizes explicit data flow between scenario sets, pricing
+outputs, and risk reports, while caching calibration objects for reuse across
+valuation and sensitivity runs.
+
+\paragraph{Interfaces and reproducibility.}
+The CLI (\path{pymort/cli.py}) provides command groups for data preparation,
+smoothing, fitting, scenario generation, stress testing, pricing, risk-neutral
+calibration, sensitivities, hedging, reporting, plotting, and one-click
+pipelines. Commands accept JSON/YAML configurations and seeds, and write
+structured outputs to configurable directories. A small Streamlit app mirrors
+the CLI pipeline as a pedagogical and validation front-end; it is secondary to
+the scripted workflow. Visualization utilities (fan charts and Lexis diagrams)
+support inspection of stochastic mortality surfaces and scenario summaries.
 
 \section{Results}
 \label{sec:results}
 
-Present your findings with appropriate visualizations and tables.
-
 \subsection{Experimental Setup}
-Describe your experimental environment:
-\begin{itemize}
-    \item Hardware specifications
-    \item Software versions
-    \item Hyperparameters
-\end{itemize}
+Results are generated on the France HMD period tables (Total population) with
+ages 60--100 and years 1970--2019 (41 ages $\times$ 50 years, 2050 cells). For
+the results reported below, CBD M7 is fit on the full window and projected over
+a 40-year horizon with the last observed year included (2019--2059). A residual
+bootstrap with $B=40$ and $n_{\text{process}}=50$ produces $N=2{,}000$ scenarios
+for tractable sensitivity and hedging analyses. The pipeline configuration
+(\path{configs/pricing-pipeline.yaml}) supports larger runs and identical model
+choices. Risk-neutral pricing uses an Esscher tilt $\lambda=0.1$ and a flat
+discount rate of 2\%. Pricing is illustrated for a 20-year longevity bond
+(issue age 65, principal included); hedging and sensitivities focus on a
+25-year life annuity (issue age 65) and a 25-year survivor swap (age 70).
 
-\subsection{Performance Evaluation}
+To validate calibration behavior, the repository includes StMoMo benchmark
+outputs fitted on the same grid. The files are stored at
+\path{validation_against_StMoMo/outputs} and are used to cross-check the
+Lee--Carter and CBD fits and to inspect factor trends.
+
+\subsection{Model Calibration, Projections, and Pricing Results}
+
+\paragraph{Calibration accuracy.}
+Table~\ref{tab:calibration_rmse} reports in-sample fit errors computed against
+the StMoMo fitted surfaces. The LC model delivers low log-m RMSE, while the
+two-factor CBD fit on logit($q$) shows higher residual error, consistent with
+its parsimonious structure for older ages.
 
 \begin{table}[H]
 \centering
-\caption{Model Performance Metrics}
-\label{tab:performance}
-\begin{tabular}{|l|c|c|c|}
+\caption{In-sample fit errors on the France 1970--2019 grid (StMoMo benchmark).}
+\label{tab:calibration_rmse}
+\begin{tabular}{|l|c|c|}
 \hline
-\textbf{Model} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} \\
+\textbf{Model} & \textbf{Scale} & \textbf{RMSE} \\
 \hline
-Baseline & 0.75 & 0.72 & 0.78 \\
-Your Model & 0.85 & 0.83 & 0.87 \\
+Lee--Carter (LCM1) & $\log m_{x,t}$ & 0.026 \\
+CBD (M5) & $\text{logit}(q_{x,t})$ & 0.129 \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Factor trends.}
+The StMoMo LC time index $k_t$ declines over 1970--2019 with an estimated
+linear slope of $-0.69$ per year, indicating sustained mortality improvement.
+For CBD, $\kappa_{1,t}$ (level) trends downward at approximately $-0.019$ per
+year, while $\kappa_{2,t}$ (slope) trends slightly upward
+($+2.9\times10^{-4}$ per year), suggesting a modest steepening of the age
+gradient at older ages.
+
+\paragraph{Observed mortality improvement.}
+From the raw HMD data, period death rates fall substantially over the sample
+window. For example, the 2019 rates are approximately 56\% lower at age 65,
+62\% lower at age 80, and 47\% lower at age 90 compared to 1970. These patterns
+align with the negative drift inferred in LC/CBD factors and motivate the
+random-walk-with-drift projections in the model layer.
+
+\paragraph{Pricing baseline.}
+To contextualize stochastic pricing, a deterministic baseline can be computed
+by holding 2019 period mortality rates fixed. For a 20-year longevity bond
+issued at age 65 (notional 1.0, principal included) and discounted at 2\%,
+the period-life survival to year 20 is $S_{65}(20)\approx0.620$ and the present
+value of survival-linked coupons plus principal is approximately 14.41. The
+full PyMORT pipeline replaces this deterministic baseline with Q-measure
+scenario pricing, where the Esscher tilt $\lambda$ shifts factor drifts and
+prices are reported as scenario means with risk metrics (VaR/CVaR) via the
+risk-reporting module.
+
+\paragraph{Q-measure pricing and hedging performance.}
+Under the Q-measure scenario set, the 20-year longevity bond price is 15.518
+and the 25-year annuity liability has a mean PV of 17.562. A minimum-variance
+hedge of the annuity using a 25-year longevity bond and a 25-year survivor swap
+yields weights $(-0.973,\;0.037)$ and reduces variance by 99.93\%. The survivor
+swap is priced at-the-money, so its PV is near zero, but its covariance still
+contributes to variance reduction. Table~\ref{tab:hedge_minvar} summarizes the
+resulting risk metrics.
+
+\begin{table}[H]
+\centering
+\caption{Minimum-variance hedge for a 25-year life annuity (age 65).}
+\label{tab:hedge_minvar}
+\begin{tabular}{lcc}
+\hline
+\textbf{Metric} & \textbf{Unhedged} & \textbf{Hedged} \\
+\hline
+Mean PV & 17.562 & 0.000 \\
+Std. dev. & 0.132 & 0.0034 \\
+VaR$_{0.99}$ & 17.859 & 0.0090 \\
+CVaR$_{0.99}$ & 17.888 & 0.0104 \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Rate and mortality sensitivities.}
+Table~\ref{tab:rate_sens} reports rate sensitivities for the longevity bond and
+annuity at a 2\% short rate with a 1~bp bump. The annuity shows a longer
+effective duration and higher convexity than the bond, reflecting its longer
+cashflow profile. Mortality delta-by-age indicates that a 1\% proportional
+increase in $q$ at ages 65, 75, or 85 reduces annuity PV by roughly 1.52. The
+sigma-scale vega is $-0.0149$ for the annuity and $-0.0097$ for the bond,
+implying a small PV change for a $\pm5\%$ volatility scaling. Table
+\ref{tab:mortality_delta} reports the age-specific deltas.
+
+\begin{table}[H]
+\centering
+\caption{Rate sensitivity metrics (2\% base rate, 1~bp bump; convexity normalized by price).}
+\label{tab:rate_sens}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Instrument} & \textbf{Price} & \textbf{Duration} & \textbf{DV01} & \textbf{Convexity} \\
+\hline
+Longevity bond 20y (age 65) & 15.518 & 9.939 & $-0.0154$ & 134.187 \\
+Life annuity 25y (age 65) & 17.562 & 11.547 & $-0.0203$ & 184.221 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Mortality delta-by-age for the 25-year life annuity (1\% $q$ bump).}
+\label{tab:mortality_delta}
+\begin{tabular}{lccc}
+\hline
+\textbf{Age bumped} & 65 & 75 & 85 \\
+\hline
+Delta $\partial P / \partial(1+\varepsilon)$ & $-151.823$ & $-151.795$ & $-151.745$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Scenario analysis.}
+Deterministic mortality shocks generate coherent stress scenarios. Table
+\ref{tab:scenario_shocks} reports percentage price impacts relative to the base
+Q-measure prices for the bond and annuity. The long-life shock increases PVs
+by about 0.9--1.0\%, while a 10\% mortality deterioration decreases PVs by a
+similar magnitude. Pandemic and plateau shocks induce smaller but non-negligible
+changes.
+
+\begin{table}[H]
+\centering
+\caption{Scenario analysis: price impact vs.\ base Q-measure prices.}
+\label{tab:scenario_shocks}
+\begin{tabular}{lcc}
+\hline
+\textbf{Shock} & \textbf{Bond 20y} & \textbf{Annuity 25y} \\
+\hline
+Long-life (10\% lower $q$) & $+0.898\%$ & $+1.024\%$ \\
+Short-life (10\% higher $q$) & $-0.888\%$ & $-1.011\%$ \\
+Pandemic 2025 (+30\% for 2y) & $-0.333\%$ & $-0.357\%$ \\
+Improvement plateau from 2030 & $-0.078\%$ & $-0.182\%$ \\
+Accelerated improvement +1\%/yr from 2025 & $+0.166\%$ & $+0.269\%$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Hull--White discounting.}
+When Hull--White discounting is enabled ($a=0.10$, $\sigma=1\%$), the 20-year
+bond price increases from 15.518 to 15.757 (+1.54\%) relative to flat-rate
+discounting. The simulated discount factor at year 20 has mean 0.678 and
+standard deviation 0.177, capturing rate uncertainty. Table~\ref{tab:hw}
+summarizes the comparison. Model details are provided in
+Appendix~\ref{app:hull_white}.
+
+\begin{table}[H]
+\centering
+\caption{Hull--White discounting impact on the 20-year longevity bond.}
+\label{tab:hw}
+\begin{tabular}{lcc}
+\hline
+\textbf{Metric} & \textbf{Flat 2\%} & \textbf{Hull--White} \\
+\hline
+Bond price & 15.518 & 15.757 \\
+DF$_{20}$ mean & 0.670 & 0.678 \\
+DF$_{20}$ std & -- & 0.177 \\
 \hline
 \end{tabular}
 \end{table}
 
 \subsection{Visualizations}
-
-Include relevant plots and figures. For example:
-
-\begin{figure}[H]
-\centering
-% \includegraphics[width=0.8\textwidth]{figures/results_plot.png}
-\caption{Your results visualization}
-\label{fig:results}
-\end{figure}
+PyMORT produces diagnostic plots that support interpretation of calibration
+and projections. The \texttt{visualization} module provides Lexis diagrams for
+cohort effects and fan charts for mortality and survival distributions. The
+pipeline attaches optional Gompertz tail extensions to fan plots to visualize
+old-age extrapolations, and scenario outputs can be exported as NPZ for
+reproducible plotting and reporting.
 
 \section{Discussion}
 \label{sec:discussion}
 
-Analyze and interpret your results:
-\begin{itemize}
-    \item What worked well?
-    \item What were the challenges?
-    \item How do your results compare to expectations?
-    \item Limitations of your approach
-\end{itemize}
+The discussion targets the project specification by interpreting the results
+for longevity risk management rather than restating them. First, model
+validation against published benchmarks (StMoMo outputs on the same grid)
+supports the credibility of the calibration layer, which is essential before
+using the models for pricing and hedging decisions. Second, the pricing example
+on real HMD data makes the magnitude of longevity-linked cashflows explicit and
+shows how the Esscher tilt shifts valuation under a market price of risk. Third,
+the explicit Lee--Carter vs.\ CBD comparison clarifies a practical trade-off:
+LC offers better full-surface fit but can be less stable for pension-age pricing,
+whereas CBD’s parsimonious structure improves robustness for older ages. In
+practice, this implies that portfolio pricing and hedge design should align the
+model choice with the liability age profile rather than rely on a single
+goodness-of-fit criterion.
+
+From a risk-management perspective, the results imply actionable controls.
+Minimum-variance hedging using longevity bonds and survivor swaps compresses
+tail risk dramatically, suggesting that even a small menu of traded instruments
+can materially reduce longevity exposure when calibrated to the same scenario
+set. Sensitivity analysis links pricing to risk drivers: duration and convexity
+identify rate exposure, while mortality deltas by age and volatility vega
+explain how survival shifts and factor uncertainty influence present values.
+Scenario analysis then stress-tests these conclusions under long-life,
+short-life, and pandemic-style shocks, isolating the pricing and hedge impacts
+that matter most for capital planning. Together, these components move beyond
+static pricing to a coherent longevity risk management workflow.
+
+The implementation’s main strengths are architectural. The codebase is modular
+by construction (data, models, projections, pricing, risk, interest rates),
+and the end-to-end pipelines offer reproducible experiments via explicit
+configs, cached calibration objects, and consistent scenario containers. Strict
+typing and CI checks reinforce correctness and maintainability, which is
+crucial when extending models or adding new instruments. Importantly, key
+risk-management tools are not add-ons: hedging, sensitivities, scenario
+analysis, and Hull--White rate integration are first-class modules wired into
+the pipeline and CLI, making the system reliable and extensible for research
+and applied valuation.
+
+Limitations and assumptions remain material. Mortality dynamics rely on LC/CBD
+structures and random-walk-with-drift factors, which may miss regime changes or
+structural cohort effects. The Esscher transform provides a tractable
+risk-neutral adjustment in an incomplete market, but $\lambda$ is not unique
+and depends on sparse quotes and model choice. Parameter uncertainty is
+mitigated through bootstrap scenarios, yet structural model risk persists,
+especially at the oldest ages where data are thin. When Hull--White
+discounting is used, rates and mortality are still treated as independent, so
+any dependence is ignored. The code mitigates these risks by separating
+calibration from valuation, exposing stress tests and sensitivities, and
+making scenario analysis explicit, but these measures do not eliminate model
+risk—they instead make it transparent and quantifiable.
 
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
 \subsection{Summary}
-Summarize your key findings and contributions.
+This report delivered a complete, reproducible longevity modeling and pricing
+pipeline grounded in the PyMORT codebase and the actuarial literature. Using
+HMD France data for ages 60--100 (1970--2019), the implementation calibrates
+classic log-mortality and logit-mortality frameworks (Lee--Carter, CBD M5/M6/M7,
+and APC), assesses fit against StMoMo benchmarks, and projects mortality via
+random-walk dynamics. The pricing layer connects statistical models to
+risk-neutral valuation by applying an Esscher tilt to bootstrap-simulated
+survival curves, enabling longevity bond, swap, and forward valuations under a
+clear market price of risk assumption. Architecturally, the project emphasizes
+modularity (data, models, pricing, interest rates), a CLI-driven workflow, and
+risk reporting with sensitivities and scenario analysis, yielding a transparent
+research pipeline that can be audited and extended.
+
+Empirically, the results confirm sustained mortality improvements in France
+across adult ages and show that the main period factors explain a large share
+of variation while retaining tractability for pricing. The deterministic
+baseline illustrates the material magnitude of longevity-linked cashflows, and
+the stochastic pricing module exposes sensitivity to both mortality dynamics
+and the market price of longevity risk. Together, these components demonstrate
+how a modern actuarial codebase can unify demographic analysis and financial
+valuation in a consistent workflow.
 
 \subsection{Future Directions}
-Suggest potential improvements or extensions:
 \begin{itemize}
-    \item Methodological improvements
-    \item Additional experiments
-    \item Real-world applications
+    \item \textbf{Modeling extensions:} incorporate coherent multi-population
+    frameworks, richer cohort dynamics, and age-period interactions beyond the
+    APC/CBD families to reduce structural model risk, especially at older ages.
+    \item \textbf{Market calibration:} calibrate the Esscher parameter (or
+    alternative pricing kernels) across broader panels of longevity-linked
+    quotes, and compare with indifference or utility-based pricing approaches
+    in sparse markets, including liquidity and basis risk.
+    \item \textbf{Joint dynamics and portfolio risk:} integrate rate--mortality
+    dependence and portfolio-level hedging analytics to evaluate joint risk and
+    capital allocation under realistic market conditions.
+    \item \textbf{Data scope and product breadth:} expand to multiple countries
+    and product structures while stress-testing robustness to data quality and
+    structural uncertainty.
 \end{itemize}
 
 % ================== REFERENCES ==================
@@ -281,35 +743,306 @@ Suggest potential improvements or extensions:
 \addcontentsline{toc}{section}{References}
 
 % If using biblatex (recommended)
-% \printbibliography[heading=none]
-
-% Or manually:
-\begin{enumerate}
-    \item Author, A. (2024). \textit{Title of Article}. Journal Name, 10(2), 123-145.
-    \item Smith, B. \& Jones, C. (2023). \textit{Book Title}. Publisher.
-    \item Dataset Source. (2024). Dataset Name. Available at: \url{https://example.com}
-\end{enumerate}
+\printbibliography[heading=none]
 
 % ================== APPENDICES ==================
 \newpage
 \appendix
-\section{Additional Figures}
-\label{app:figures}
+\section{Mathematical Details of Mortality Models}
+\label{app:math}
 
-Include supplementary figures or tables that support but aren't essential to the main narrative.
+\subsection{Notation and transformations}
+Let $m_{x,t}$ denote the central death rate at age $x$ and calendar year $t$.
+The code converts $m_{x,t}$ to a one-year death probability via the standard
+approximation
+\begin{equation}
+q_{x,t} = \frac{m_{x,t}}{1 + 0.5\,m_{x,t}},
+\end{equation}
+and the logit transform is defined as
+\begin{equation}
+\operatorname{logit}(q) = \log\left(\frac{q}{1-q}\right).
+\end{equation}
+For a cohort starting at age $x$, survival along a projected path is computed
+as the cumulative product along the time axis,
+\begin{equation}
+S_x(h) = \prod_{u=1}^{h} \left(1 - q_{x+u-1,\,t_0+u-1}\right),
+\end{equation}
+which matches the implementation in \path{lifetables.py} and the scenario
+container in \path{analysis/scenario.py}.
 
-\section{Code Repository}
+\subsection{Lee--Carter M1 and LCM2}
+The baseline Lee--Carter specification is
+\begin{equation}
+\log m_{x,t} = a_x + b_x\,k_t + \varepsilon_{x,t},
+\end{equation}
+with identifiability enforced in code by $\sum_x b_x = 1$ and $\frac{1}{T}\sum_t k_t = 0$.
+The implementation fits $a_x$ as the mean log-mortality over $t$, then applies
+an SVD to the centered surface to recover $b_x$ and $k_t$, followed by the
+normalization above.
+
+The cohort-extended LCM2 model adds a cohort term,
+\begin{equation}
+\log m_{x,t} = a_x + b_x\,k_t + \gamma_{t-x},
+\end{equation}
+which is estimated by (i) fitting the classic LC parameters, (ii) computing
+log-residuals, (iii) averaging residuals by cohort $c=t-x$, and (iv) centering
+$\gamma_c$ to enforce identifiability.
+
+\subsection{APC M3}
+The APC M3 model implemented in \texttt{apc\_m3.py} is
+\begin{equation}
+\log m_{x,t} = \beta_x + \kappa_t + \gamma_{t-x}.
+\end{equation}
+Estimation proceeds by removing the age effect $\beta_x=\frac{1}{T}\sum_t \log m_{x,t}$,
+then fitting period and cohort effects via least squares using dummy variables.
+The first period and cohort levels are set to zero (reference categories) to
+identify the model.
+
+\subsection{CBD M5, M6, and M7}
+For older ages, PyMORT implements CBD variants on the logit scale. The M5 model
+is
+\begin{equation}
+\operatorname{logit}(q_{x,t}) = \kappa^{(1)}_t + \kappa^{(2)}_t\,(x-\bar{x}),
+\end{equation}
+estimated by OLS each year with $x$ centered at $\bar{x}$. The cohort-extended
+M6 model adds
+\begin{equation}
+\operatorname{logit}(q_{x,t}) = \kappa^{(1)}_t + \kappa^{(2)}_t\,(x-\bar{x}) + \gamma_{t-x},
+\end{equation}
+where $\gamma_{t-x}$ is estimated as the average of logit residuals by cohort
+and centered to zero mean for identifiability. The quadratic M7 model includes
+an additional age term,
+\begin{equation}
+\operatorname{logit}(q_{x,t}) =
+\kappa^{(1)}_t
+ + \kappa^{(2)}_t\,(x-\bar{x})
+ + \kappa^{(3)}_t\left((x-\bar{x})^2 - \sigma_x^2\right)
+ + \gamma_{t-x},
+\end{equation}
+with $\sigma_x^2$ the mean squared deviation of ages. The quadratic term is
+centered to keep $\kappa^{(1)}_t$ interpretable as a level factor.
+
+\subsection{Smoothing and tail extrapolation}
+The smoothing module fits a penalized B-spline surface to $\log m_{x,t}$ using
+CPsplines, with separate spline degrees and difference penalties in age and
+time. Forecasts are produced by evaluating the fitted surface on an extended
+year grid. For optional tail handling, \texttt{gompertz.py} fits a per-year
+Gompertz curve on a high-age window:
+\begin{equation}
+m_{x,t} = \exp(a_t + b_t\,x),
+\end{equation}
+and extrapolates $m_{x,t}$ for ages beyond the observed range.
+
+\section{Bootstrap and Projection Algorithm}
+\label{app:bootstrap}
+
+\subsection{Residual bootstrap}
+Parameter uncertainty is captured by residual bootstrap. For log-m models
+(LCM1, LCM2, and APC), residuals are computed on $\log m$; for CBD models, residuals
+are computed on $\operatorname{logit}(q)$. Residuals are resampled by calendar
+year blocks (the default in code), added back to the fitted surface, and the
+model is re-estimated to obtain a new parameter set and drift/volatility
+estimates for the period factors.
+
+\subsection{Random-walk dynamics}
+Projected period factors follow a random walk with drift,
+\begin{equation}
+k_t = k_{t-1} + \mu + \sigma\,\varepsilon_t,\qquad \varepsilon_t \sim \mathcal{N}(0,1),
+\end{equation}
+applied componentwise for CBD factors $(\kappa^{(1)}_t,\kappa^{(2)}_t,
+\kappa^{(3)}_t)$.
+Common random numbers are supported by passing fixed innovation tensors, which
+stabilizes scenario comparisons and risk sensitivities.
+
+\subsection{Scenario assembly (pseudo-code)}
+\begin{lstlisting}[language=Python, caption={Bootstrap projection flow in PyMORT}, label={lst:bootstrap}]
+# Input: mortality surface m, ages, years
+fit base model on observed surface
+residuals = log_m - fitted_log_m  # or logit_q - fitted_logit_q
+
+for b in 1..B:
+    resampled = resample_residuals(residuals, mode="year_block")
+    synthetic_surface = fitted_surface + resampled
+    refit model -> params_b, (mu_b, sigma_b)
+    for p in 1..n_process:
+        simulate factor paths with random walk
+        reconstruct q_paths from simulated factors
+
+stack all paths -> scenario set with q_paths, S_paths
+\end{lstlisting}
+
+\section{Risk-Neutral Valuation and Pricing Formulas}
+\label{app:pricing}
+
+\subsection{Esscher transform}
+PyMORT applies an Esscher tilt to Gaussian random-walk increments. For a factor
+increment $\Delta k_t \sim \mathcal{N}(\mu_P,\sigma_P^2)$ under $\mathbb{P}$ and
+Esscher parameter $\lambda$, the risk-neutral drift is
+\begin{equation}
+\mu_Q = \mu_P + \lambda\,\sigma_P^2,
+\end{equation}
+with $\sigma_Q=\sigma_P$. For multi-factor CBD M7, the tilt is applied
+componentwise to $(\kappa^{(1)},\kappa^{(2)},\kappa^{(3)})$.
+
+\subsection{Scenario pricing}
+For a scenario set of size $N$, discount factors $D_t$ and cashflows
+$CF^{(n)}_t$, PyMORT prices by Monte Carlo expectation,
+\begin{equation}
+P = \frac{1}{N}\sum_{n=1}^{N}\sum_{t=1}^{T} D_t^{(n)}\,CF_t^{(n)}.
+\end{equation}
+The following instruments are implemented:
+\begin{itemize}
+    \item \textbf{Longevity bond:} $CF_t = N_0\,S_x(t)$. The optional principal
+    payment is $N_0\,S_x(T)$ at maturity.
+    \item \textbf{Survivor swap:} for fixed-payer, $CF_t = N_0(S_x(t)-K)$ on
+    scheduled dates. The ATM strike used in code is
+    $K = \sum_t D_t\,\mathbb{E}[S_x(t)]\,/\,\sum_t D_t$.
+    \item \textbf{$q$-forward:} payoff at settlement $T_s$ is
+    $N_0(q_{x,T_m}-K)$ with measurement at $T_m$.
+    \item \textbf{$s$-forward:} payoff at settlement $T_s$ is
+    $N_0(S_{x,T_m}-K)$ with measurement at $T_m$.
+    \item \textbf{Cohort life annuity:} cashflows follow $CF_t = N_0\,S_x(t)$
+    after any deferral period, optionally with a terminal benefit.
+\end{itemize}
+
+\section{Hull--White Interest Rate Model Details}
+\label{app:hull_white}
+
+\subsection{Motivation}
+Longevity-linked cashflows are long dated, so pricing and risk metrics are
+sensitive to the term structure and to rate volatility. A flat discount curve
+can understate convexity and tail risk in present values. The Hull--White
+short-rate model provides a parsimonious way to generate stochastic discount
+factors consistent with an observed initial curve, while remaining compatible
+with Monte Carlo pricing.
+
+\subsection{Model specification}
+The one-factor Hull--White model assumes a mean-reverting short rate
+\begin{equation}
+dr_t = \left(\theta(t) - a\,r_t\right)dt + \sigma\,dW_t,
+\end{equation}
+where $a>0$ controls mean reversion and $\sigma$ controls rate volatility. The
+time-dependent drift $\theta(t)$ is chosen to fit the initial term structure,
+and the simulated short-rate paths are integrated to produce discount factors
+$D_t=\exp\left(-\int_0^t r_s\,ds\right)$ used in scenario pricing.
+
+\subsection{Calibration principle}
+Calibration follows the standard term-structure consistency condition: given
+an input zero-coupon curve, $\theta(t)$ is selected so that model-implied
+zero-coupon prices match the observed curve at $t=0$. This ensures that the
+stochastic scenarios are anchored to the market curve without requiring
+additional derivative calibration.
+
+\subsection{Implementation in PyMORT}
+The rate engine and pipeline hooks map directly to the codebase:
+\begin{itemize}
+    \item \path{interest_rates/hull_white.py} provides
+    \texttt{simulate\_\allowbreak hull\_\allowbreak white\_\allowbreak paths},
+    which returns short-rate paths on a fixed time grid, and
+    \texttt{build\_\allowbreak interest\_\allowbreak rate\_\allowbreak scenarios},
+    which converts these paths into discount-factor arrays and packages them
+    into an \texttt{Interest\allowbreak Rate\allowbreak Scenario\allowbreak Set}
+    scenario container. Metadata include times, horizons, and scenario count.
+    The function
+    \texttt{calibrate\_\allowbreak theta\_\allowbreak from\_\allowbreak zero\_\allowbreak curve}
+    computes $\theta(t)$ from the supplied curve on the simulation grid.
+    \item \path{pipeline.py} exposes
+    \texttt{build\_\allowbreak interest\_\allowbreak rate\_\allowbreak pipeline}
+    to generate rate scenarios, \texttt{build\_\allowbreak joint\_\allowbreak scenarios}
+    to align rate and mortality scenarios in $(N,T)$, and
+    \texttt{apply\_\allowbreak hull\_\allowbreak white\_\allowbreak discounting}
+    to attach the discount-factor cube to a mortality scenario set so pricing
+    functions consume consistent dimensions.
+\end{itemize}
+
+\subsection{Limitations}
+The current implementation does not calibrate $(a,\sigma)$ to liquid
+interest-rate options and does not model correlation between mortality and
+interest rates. Parameter uncertainty in the rate process is also not modeled.
+These extensions are left for future work, while the existing framework allows
+stress tests and sensitivities to quantify the impact of stochastic discounting.
+
+\section{Extended Results Tables}
+\label{app:results}
+
+\begin{table}[H]
+\centering
+\caption{Fit diagnostics against StMoMo reference outputs.}
+\begin{tabular}{lcc}
+\hline
+Model & Metric & Value \\
+\hline
+LC M1 & RMSE of $\log m$ vs StMoMo fitted surface & 0.026 \\
+CBD M5 & RMSE of $\operatorname{logit}(q)$ vs StMoMo fitted surface & 0.129 \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Estimated period-factor drifts (per year).}
+\begin{tabular}{lc}
+\hline
+Factor & Drift \\
+\hline
+$k_t$ (LC) & $-0.69$ \\
+$\kappa^{(1)}_t$ (CBD) & $-0.019$ \\
+$\kappa^{(2)}_t$ (CBD) & $2.9\times 10^{-4}$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Observed mortality improvements in France (1970 to 2019).}
+\begin{tabular}{lcc}
+\hline
+Age & Reduction in $m_{x,t}$ & Approx. percent \\
+\hline
+65 & $m_{2019}/m_{1970} \approx 0.44$ & $56\%$ \\
+80 & $m_{2019}/m_{1970} \approx 0.38$ & $62\%$ \\
+90 & $m_{2019}/m_{1970} \approx 0.53$ & $47\%$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Deterministic pricing baseline (2019 mortality, 2\% flat rate).}
+\begin{tabular}{lc}
+\hline
+Metric & Value \\
+\hline
+$S_{65}(20)$ & $0.620$ \\
+20-year longevity bond PV & $14.41$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Repository Structure and Reproducibility}
 \label{app:code}
 
-\noindent
-\textbf{GitHub Repository:} \url{https://github.com/palqc/PYMORT}
+\subsection{Module layout}
+\begin{lstlisting}[language=Python, caption={Core PyMORT package layout}, label={lst:tree}]
+src/pymort/
+  analysis/          # fitting, bootstrap, projections, reporting
+  models/            # LC, CBD, APC, Gompertz implementations
+  pricing/           # bonds, swaps, forwards, annuities, hedging
+  interest_rates/    # Hull--White scenario generation
+  cli.py             # CLI entrypoints
+  pipeline.py        # high-level pipeline functions
+\end{lstlisting}
 
-\noindent
-Provide information about:
-\begin{itemize}
-    \item Repository structure
-    \item Installation instructions
-    \item How to reproduce results
-\end{itemize}
+\subsection{Reproducible runs}
+The CLI exposes one-click pipelines configured by YAML files stored under
+\path{configs/}. The pricing and hedge pipelines used in this report can be
+executed via:
+\begin{lstlisting}[language=bash, caption={Pipeline entrypoints}]
+pymort run pricing-pipeline --config configs/pricing-pipeline.yaml
+pymort run hedge-pipeline --config configs/hedge-pipeline.yaml
+\end{lstlisting}
+Outputs are written to the configured \texttt{outdir} (default \texttt{outputs/})
+and include fitted parameters, scenario sets, pricing results, and diagnostic
+plots compatible with the reporting utilities.
 
 \end{document}

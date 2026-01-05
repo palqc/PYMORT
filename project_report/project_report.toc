@@ -3,20 +3,67 @@
 \contentsline {subsection}{\numberline {1.1}Background and Motivation}{3}{subsection.1.1}%
 \contentsline {subsection}{\numberline {1.2}Problem Statement}{3}{subsection.1.2}%
 \contentsline {subsection}{\numberline {1.3}Objectives and Goals}{3}{subsection.1.3}%
-\contentsline {subsection}{\numberline {1.4}Report Organization}{3}{subsection.1.4}%
+\contentsline {subsection}{\numberline {1.4}Report Organization}{4}{subsection.1.4}%
 \contentsline {section}{\numberline {2}Literature Review / Related Work}{4}{section.2}%
-\contentsline {section}{\numberline {3}Methodology}{4}{section.3}%
-\contentsline {subsection}{\numberline {3.1}Data Description}{4}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}Approach}{4}{subsection.3.2}%
-\contentsline {subsection}{\numberline {3.3}Implementation}{5}{subsection.3.3}%
-\contentsline {section}{\numberline {4}Results}{5}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Experimental Setup}{5}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}Performance Evaluation}{5}{subsection.4.2}%
-\contentsline {subsection}{\numberline {4.3}Visualizations}{5}{subsection.4.3}%
-\contentsline {section}{\numberline {5}Discussion}{6}{section.5}%
-\contentsline {section}{\numberline {6}Conclusion and Future Work}{6}{section.6}%
-\contentsline {subsection}{\numberline {6.1}Summary}{6}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}Future Directions}{6}{subsection.6.2}%
-\contentsline {section}{References}{7}{section*.4}%
-\contentsline {section}{\numberline {A}Additional Figures}{8}{appendix.A}%
-\contentsline {section}{\numberline {B}Code Repository}{8}{appendix.B}%
+\contentsline {subsection}{\numberline {2.1}Stochastic mortality modeling and cohort effects}{4}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Smoothing and old-age mortality}{5}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}Longevity-linked securities and market context}{5}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}Risk-neutral pricing and longevity derivatives}{5}{subsection.2.4}%
+\contentsline {section}{\numberline {3}Methodology}{6}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Data Description}{6}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Approach}{6}{subsection.3.2}%
+\contentsline {paragraph}{Mortality models and transformations.}{6}{section*.2}%
+\contentsline {paragraph}{Lee--Carter vs.\ CBD trade-offs.}{6}{section*.3}%
+\contentsline {paragraph}{Smoothing, selection, and diagnostics.}{7}{section*.5}%
+\contentsline {paragraph}{Stochastic projections and uncertainty.}{7}{section*.6}%
+\contentsline {paragraph}{Risk-neutral transformation and pricing.}{7}{section*.7}%
+\contentsline {paragraph}{Scenario analysis, hedging, and sensitivities.}{7}{section*.8}%
+\contentsline {subsection}{\numberline {3.3}Implementation}{7}{subsection.3.3}%
+\contentsline {paragraph}{Core data structures and artifacts.}{7}{section*.9}%
+\contentsline {paragraph}{Modeling and projection modules.}{8}{section*.10}%
+\contentsline {paragraph}{Scenario analysis (\texttt {analysis/scenario\_analysis.py}).}{8}{section*.11}%
+\contentsline {paragraph}{Sensitivity analysis.}{8}{section*.12}%
+\contentsline {paragraph}{Pricing and hedging (\texttt {pricing/} and \texttt {pricing/hedging.py}).}{8}{section*.13}%
+\contentsline {paragraph}{Interest rates (\texttt {interest\_rates/hull\_white.py}).}{8}{section*.14}%
+\contentsline {paragraph}{Pipelines and key functions.}{8}{section*.15}%
+\contentsline {paragraph}{Interfaces and reproducibility.}{8}{section*.16}%
+\contentsline {section}{\numberline {4}Results}{9}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Experimental Setup}{9}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Model Calibration, Projections, and Pricing Results}{9}{subsection.4.2}%
+\contentsline {paragraph}{Calibration accuracy.}{9}{section*.17}%
+\contentsline {paragraph}{Factor trends.}{9}{section*.19}%
+\contentsline {paragraph}{Observed mortality improvement.}{9}{section*.20}%
+\contentsline {paragraph}{Pricing baseline.}{9}{section*.21}%
+\contentsline {paragraph}{Q-measure pricing and hedging performance.}{10}{section*.22}%
+\contentsline {paragraph}{Rate and mortality sensitivities.}{10}{section*.24}%
+\contentsline {paragraph}{Scenario analysis.}{10}{section*.27}%
+\contentsline {paragraph}{Hull--White discounting.}{10}{section*.29}%
+\contentsline {subsection}{\numberline {4.3}Visualizations}{11}{subsection.4.3}%
+\contentsline {section}{\numberline {5}Discussion}{11}{section.5}%
+\contentsline {section}{\numberline {6}Conclusion and Future Work}{12}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Summary}{12}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Future Directions}{12}{subsection.6.2}%
+\contentsline {section}{References}{13}{section*.31}%
+\contentsline {section}{\numberline {A}Mathematical Details of Mortality Models}{15}{appendix.A}%
+\contentsline {subsection}{\numberline {A.1}Notation and transformations}{15}{subsection.A.1}%
+\contentsline {subsection}{\numberline {A.2}Lee--Carter M1 and LCM2}{15}{subsection.A.2}%
+\contentsline {subsection}{\numberline {A.3}APC M3}{15}{subsection.A.3}%
+\contentsline {subsection}{\numberline {A.4}CBD M5, M6, and M7}{15}{subsection.A.4}%
+\contentsline {subsection}{\numberline {A.5}Smoothing and tail extrapolation}{16}{subsection.A.5}%
+\contentsline {section}{\numberline {B}Bootstrap and Projection Algorithm}{16}{appendix.B}%
+\contentsline {subsection}{\numberline {B.1}Residual bootstrap}{16}{subsection.B.1}%
+\contentsline {subsection}{\numberline {B.2}Random-walk dynamics}{16}{subsection.B.2}%
+\contentsline {subsection}{\numberline {B.3}Scenario assembly (pseudo-code)}{16}{subsection.B.3}%
+\contentsline {section}{\numberline {C}Risk-Neutral Valuation and Pricing Formulas}{17}{appendix.C}%
+\contentsline {subsection}{\numberline {C.1}Esscher transform}{17}{subsection.C.1}%
+\contentsline {subsection}{\numberline {C.2}Scenario pricing}{17}{subsection.C.2}%
+\contentsline {section}{\numberline {D}Hull--White Interest Rate Model Details}{17}{appendix.D}%
+\contentsline {subsection}{\numberline {D.1}Motivation}{17}{subsection.D.1}%
+\contentsline {subsection}{\numberline {D.2}Model specification}{17}{subsection.D.2}%
+\contentsline {subsection}{\numberline {D.3}Calibration principle}{18}{subsection.D.3}%
+\contentsline {subsection}{\numberline {D.4}Implementation in PyMORT}{18}{subsection.D.4}%
+\contentsline {subsection}{\numberline {D.5}Limitations}{18}{subsection.D.5}%
+\contentsline {section}{\numberline {E}Extended Results Tables}{18}{appendix.E}%
+\contentsline {section}{\numberline {F}Repository Structure and Reproducibility}{19}{appendix.F}%
+\contentsline {subsection}{\numberline {F.1}Module layout}{19}{subsection.F.1}%
+\contentsline {subsection}{\numberline {F.2}Reproducible runs}{19}{subsection.F.2}%

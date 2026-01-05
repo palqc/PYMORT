@@ -1,0 +1,692 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{nty/global//global/global/global}
+    \entry{barrieu2014pricing}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=f384c4253b8fd9cc41246da54416fd09}{%
+           family={Barrieu},
+           familyi={B\bibinitperiod},
+           given={Pauline},
+           giveni={P\bibinitperiod}}}%
+        {{hash=d7cc9740f8d209805ab841805a38acb3}{%
+           family={Veraart},
+           familyi={V\bibinitperiod},
+           given={Luitgard\bibnamedelimb A.\bibnamedelimi M.},
+           giveni={L\bibinitperiod\bibinitdelim A\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+      }
+      \strng{namehash}{2d3f552141e71f2d40e659964baa5d7b}
+      \strng{fullhash}{2d3f552141e71f2d40e659964baa5d7b}
+      \strng{fullhashraw}{2d3f552141e71f2d40e659964baa5d7b}
+      \strng{bibnamehash}{2d3f552141e71f2d40e659964baa5d7b}
+      \strng{authorbibnamehash}{2d3f552141e71f2d40e659964baa5d7b}
+      \strng{authornamehash}{2d3f552141e71f2d40e659964baa5d7b}
+      \strng{authorfullhash}{2d3f552141e71f2d40e659964baa5d7b}
+      \strng{authorfullhashraw}{2d3f552141e71f2d40e659964baa5d7b}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Scandinavian Actuarial Journal}
+      \field{title}{Pricing {q}-Forward Contracts: An Evaluation of Estimation Window and Pricing Method under Different Mortality Models}
+      \field{year}{2014}
+      \verb{doi}
+      \verb 10.1080/03461238.2014.916228
+      \endverb
+    \endentry
+    \entry{jointforum2013longevity}{report}{}{}
+      \name{author}{2}{}{%
+        {{hash=d0ffe6cbb4fa63b7d49592758a445e8c}{%
+           family={{Basel Committee on Banking Supervision}},
+           familyi={B\bibinitperiod}}}%
+        {{hash=5e2a8f2b88ac77574e2cc893c62f6f81}{%
+           family={{Joint Forum}},
+           familyi={J\bibinitperiod}}}%
+      }
+      \list{institution}{1}{%
+        {Bank for International Settlements}%
+      }
+      \strng{namehash}{61af8bb6502d1966b6b463bb2aab1758}
+      \strng{fullhash}{61af8bb6502d1966b6b463bb2aab1758}
+      \strng{fullhashraw}{61af8bb6502d1966b6b463bb2aab1758}
+      \strng{bibnamehash}{61af8bb6502d1966b6b463bb2aab1758}
+      \strng{authorbibnamehash}{61af8bb6502d1966b6b463bb2aab1758}
+      \strng{authornamehash}{61af8bb6502d1966b6b463bb2aab1758}
+      \strng{authorfullhash}{61af8bb6502d1966b6b463bb2aab1758}
+      \strng{authorfullhashraw}{61af8bb6502d1966b6b463bb2aab1758}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Longevity Risk Transfer Markets: Market Structure, Growth Drivers and Impediments, and Potential Risks}
+      \field{type}{techreport}
+      \field{year}{2013}
+    \endentry
+    \entry{biffis2009mortality}{report}{}{}
+      \name{author}{2}{}{%
+        {{hash=0e93a96a8ba9aecf1633fae59faf9dc2}{%
+           family={Biffis},
+           familyi={B\bibinitperiod},
+           given={Enrico},
+           giveni={E\bibinitperiod}}}%
+        {{hash=932caf25b023f69b8fa217509335117b}{%
+           family={Blake},
+           familyi={B\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+      }
+      \list{institution}{2}{%
+        {Imperial College London}%
+        {Cass Business School}%
+      }
+      \strng{namehash}{4ba8fb7def1069088bba153a589f5209}
+      \strng{fullhash}{4ba8fb7def1069088bba153a589f5209}
+      \strng{fullhashraw}{4ba8fb7def1069088bba153a589f5209}
+      \strng{bibnamehash}{4ba8fb7def1069088bba153a589f5209}
+      \strng{authorbibnamehash}{4ba8fb7def1069088bba153a589f5209}
+      \strng{authornamehash}{4ba8fb7def1069088bba153a589f5209}
+      \strng{authorfullhash}{4ba8fb7def1069088bba153a589f5209}
+      \strng{authorfullhashraw}{4ba8fb7def1069088bba153a589f5209}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{SSRN working paper, revised October 7, 2009}
+      \field{title}{Mortality-Linked Securities and Derivatives}
+      \field{type}{techreport}
+      \field{year}{2009}
+    \endentry
+    \entry{blake2006living}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=932caf25b023f69b8fa217509335117b}{%
+           family={Blake},
+           familyi={B\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=2bcb633f5e6b8346e8784f278733df58}{%
+           family={Cairns},
+           familyi={C\bibinitperiod},
+           given={Andrew\bibnamedelimb J.\bibnamedelimi G.},
+           giveni={A\bibinitperiod\bibinitdelim J\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+        {{hash=6812490396e5339d87a39fb6c6eb45d9}{%
+           family={Dowd},
+           familyi={D\bibinitperiod},
+           given={Kevin},
+           giveni={K\bibinitperiod}}}%
+      }
+      \strng{namehash}{206d191863bf27f522cdd4c6645ff24b}
+      \strng{fullhash}{206d191863bf27f522cdd4c6645ff24b}
+      \strng{fullhashraw}{206d191863bf27f522cdd4c6645ff24b}
+      \strng{bibnamehash}{206d191863bf27f522cdd4c6645ff24b}
+      \strng{authorbibnamehash}{206d191863bf27f522cdd4c6645ff24b}
+      \strng{authornamehash}{206d191863bf27f522cdd4c6645ff24b}
+      \strng{authorfullhash}{206d191863bf27f522cdd4c6645ff24b}
+      \strng{authorfullhashraw}{206d191863bf27f522cdd4c6645ff24b}
+      \field{sortinit}{B}
+      \field{sortinithash}{d7095fff47cda75ca2589920aae98399}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{British Actuarial Journal}
+      \field{title}{Living with Mortality: Longevity Bonds and Other Mortality-Linked Securities}
+      \field{year}{2006}
+      \verb{doi}
+      \verb 10.1017/S1357321700004736
+      \endverb
+    \endentry
+    \entry{cairns2006twofactor}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=2bcb633f5e6b8346e8784f278733df58}{%
+           family={Cairns},
+           familyi={C\bibinitperiod},
+           given={Andrew\bibnamedelimb J.\bibnamedelimi G.},
+           giveni={A\bibinitperiod\bibinitdelim J\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+        {{hash=932caf25b023f69b8fa217509335117b}{%
+           family={Blake},
+           familyi={B\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=6812490396e5339d87a39fb6c6eb45d9}{%
+           family={Dowd},
+           familyi={D\bibinitperiod},
+           given={Kevin},
+           giveni={K\bibinitperiod}}}%
+      }
+      \strng{namehash}{a1ac9935b00f8df8c1e102512474f397}
+      \strng{fullhash}{a1ac9935b00f8df8c1e102512474f397}
+      \strng{fullhashraw}{a1ac9935b00f8df8c1e102512474f397}
+      \strng{bibnamehash}{a1ac9935b00f8df8c1e102512474f397}
+      \strng{authorbibnamehash}{a1ac9935b00f8df8c1e102512474f397}
+      \strng{authornamehash}{a1ac9935b00f8df8c1e102512474f397}
+      \strng{authorfullhash}{a1ac9935b00f8df8c1e102512474f397}
+      \strng{authorfullhashraw}{a1ac9935b00f8df8c1e102512474f397}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Risk and Insurance}
+      \field{number}{4}
+      \field{title}{A Two-Factor Model for Stochastic Mortality with Parameter Uncertainty: Theory and Calibration}
+      \field{volume}{73}
+      \field{year}{2006}
+      \field{pages}{687\bibrangedash 718}
+      \range{pages}{32}
+    \endentry
+    \entry{cairns2005pricing}{report}{}{}
+      \name{author}{4}{}{%
+        {{hash=2bcb633f5e6b8346e8784f278733df58}{%
+           family={Cairns},
+           familyi={C\bibinitperiod},
+           given={Andrew\bibnamedelimb J.\bibnamedelimi G.},
+           giveni={A\bibinitperiod\bibinitdelim J\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+        {{hash=932caf25b023f69b8fa217509335117b}{%
+           family={Blake},
+           familyi={B\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=cad5ce9de8e3f889d309f0a3e03baec5}{%
+           family={Dawson},
+           familyi={D\bibinitperiod},
+           given={Paul},
+           giveni={P\bibinitperiod}}}%
+        {{hash=6812490396e5339d87a39fb6c6eb45d9}{%
+           family={Dowd},
+           familyi={D\bibinitperiod},
+           given={Kevin},
+           giveni={K\bibinitperiod}}}%
+      }
+      \strng{namehash}{d22a73f1762b83be36531774c845337e}
+      \strng{fullhash}{4b9ac00e3d3279006b81d39a24f9b5c9}
+      \strng{fullhashraw}{4b9ac00e3d3279006b81d39a24f9b5c9}
+      \strng{bibnamehash}{d22a73f1762b83be36531774c845337e}
+      \strng{authorbibnamehash}{d22a73f1762b83be36531774c845337e}
+      \strng{authornamehash}{d22a73f1762b83be36531774c845337e}
+      \strng{authorfullhash}{4b9ac00e3d3279006b81d39a24f9b5c9}
+      \strng{authorfullhashraw}{4b9ac00e3d3279006b81d39a24f9b5c9}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Working paper, February 22, 2005}
+      \field{title}{Pricing the Risk on Longevity Bonds}
+      \field{type}{techreport}
+      \field{year}{2005}
+    \endentry
+    \entry{camarda2019smooth}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=6def115d04596f1f7f2d9dd6aea727e0}{%
+           family={Camarda},
+           familyi={C\bibinitperiod},
+           given={Carlo\bibnamedelima G.},
+           giveni={C\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+      }
+      \strng{namehash}{6def115d04596f1f7f2d9dd6aea727e0}
+      \strng{fullhash}{6def115d04596f1f7f2d9dd6aea727e0}
+      \strng{fullhashraw}{6def115d04596f1f7f2d9dd6aea727e0}
+      \strng{bibnamehash}{6def115d04596f1f7f2d9dd6aea727e0}
+      \strng{authorbibnamehash}{6def115d04596f1f7f2d9dd6aea727e0}
+      \strng{authornamehash}{6def115d04596f1f7f2d9dd6aea727e0}
+      \strng{authorfullhash}{6def115d04596f1f7f2d9dd6aea727e0}
+      \strng{authorfullhashraw}{6def115d04596f1f7f2d9dd6aea727e0}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Demographic Research}
+      \field{title}{Smooth Constrained Mortality Forecasting}
+      \field{volume}{41}
+      \field{year}{2019}
+      \field{pages}{1091\bibrangedash 1130}
+      \range{pages}{40}
+      \verb{doi}
+      \verb 10.4054/DemRes.2019.41.38
+      \endverb
+    \endentry
+    \entry{carstensen2020lexis}{misc}{}{}
+      \name{author}{1}{}{%
+        {{hash=c4d4265fa2c9f2f92325af95d3d832c2}{%
+           family={Carstensen},
+           familyi={C\bibinitperiod},
+           given={Bendix},
+           giveni={B\bibinitperiod}}}%
+      }
+      \strng{namehash}{c4d4265fa2c9f2f92325af95d3d832c2}
+      \strng{fullhash}{c4d4265fa2c9f2f92325af95d3d832c2}
+      \strng{fullhashraw}{c4d4265fa2c9f2f92325af95d3d832c2}
+      \strng{bibnamehash}{c4d4265fa2c9f2f92325af95d3d832c2}
+      \strng{authorbibnamehash}{c4d4265fa2c9f2f92325af95d3d832c2}
+      \strng{authornamehash}{c4d4265fa2c9f2f92325af95d3d832c2}
+      \strng{authorfullhash}{c4d4265fa2c9f2f92325af95d3d832c2}
+      \strng{authorfullhashraw}{c4d4265fa2c9f2f92325af95d3d832c2}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Course slides, European Doctoral School of Demography}
+      \field{title}{Statistical Analysis in Lexis Diagrams: Age-Period-Cohort Models and Some Cousins}
+      \field{year}{2020}
+    \endentry
+    \entry{chan2014cbdindexes}{inproceedings}{}{}
+      \name{author}{3}{}{%
+        {{hash=904afada4a811f28a37569b8fb5afab4}{%
+           family={Chan},
+           familyi={C\bibinitperiod},
+           given={Wai-Sum},
+           giveni={W\bibinithyphendelim S\bibinitperiod}}}%
+        {{hash=4087686125bda6e3da31648a119f11b0}{%
+           family={Li},
+           familyi={L\bibinitperiod},
+           given={Johnny\bibnamedelima Siu-Hang},
+           giveni={J\bibinitperiod\bibinitdelim S\bibinithyphendelim H\bibinitperiod}}}%
+        {{hash=4abc4f3b21f11a9f94739853d6eb8ec0}{%
+           family={Li},
+           familyi={L\bibinitperiod},
+           given={Jackie},
+           giveni={J\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Orlando, FL}%
+      }
+      \strng{namehash}{ea66379990c6743250490ad036560d93}
+      \strng{fullhash}{ea66379990c6743250490ad036560d93}
+      \strng{fullhashraw}{ea66379990c6743250490ad036560d93}
+      \strng{bibnamehash}{ea66379990c6743250490ad036560d93}
+      \strng{authorbibnamehash}{ea66379990c6743250490ad036560d93}
+      \strng{authornamehash}{ea66379990c6743250490ad036560d93}
+      \strng{authorfullhash}{ea66379990c6743250490ad036560d93}
+      \strng{authorfullhashraw}{ea66379990c6743250490ad036560d93}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Living to 100 Symposium}
+      \field{title}{The {CBD} Mortality Indexes: Modeling and Applications}
+      \field{year}{2014}
+    \endentry
+    \entry{coughlan2007qforwards}{misc}{}{}
+      \name{author}{4}{}{%
+        {{hash=eaf6a1a6269a9a5531f11fa6f055b214}{%
+           family={Coughlan},
+           familyi={C\bibinitperiod},
+           given={Guy},
+           giveni={G\bibinitperiod}}}%
+        {{hash=6f51d161b02b320ee5bd64dfdb7d4113}{%
+           family={Epstein},
+           familyi={E\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=e47cd05f3b68438ffffb08948ae76bf8}{%
+           family={Sinha},
+           familyi={S\bibinitperiod},
+           given={Amit},
+           giveni={A\bibinitperiod}}}%
+        {{hash=3d05a4c700f9b038b52a5554ef6cc73c}{%
+           family={Honig},
+           familyi={H\bibinitperiod},
+           given={Paul},
+           giveni={P\bibinitperiod}}}%
+      }
+      \list{organization}{1}{%
+        {JPMorgan Chase Bank N.A.}%
+      }
+      \strng{namehash}{23e7dbc02d27af5172a8a3e5a008d137}
+      \strng{fullhash}{bc13ff6c3f832fb2e68d63d22249c61a}
+      \strng{fullhashraw}{bc13ff6c3f832fb2e68d63d22249c61a}
+      \strng{bibnamehash}{23e7dbc02d27af5172a8a3e5a008d137}
+      \strng{authorbibnamehash}{23e7dbc02d27af5172a8a3e5a008d137}
+      \strng{authornamehash}{23e7dbc02d27af5172a8a3e5a008d137}
+      \strng{authorfullhash}{bc13ff6c3f832fb2e68d63d22249c61a}
+      \strng{authorfullhashraw}{bc13ff6c3f832fb2e68d63d22249c61a}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Pension Advisory Group report, July 2, 2007}
+      \field{title}{{q}-Forwards: Derivatives for Transferring Longevity and Mortality Risk}
+      \field{year}{2007}
+    \endentry
+    \entry{cui2007longevity}{report}{}{}
+      \name{author}{1}{}{%
+        {{hash=91342a49768fcd875d7213c9651d293b}{%
+           family={Cui},
+           familyi={C\bibinitperiod},
+           given={Jiajia},
+           giveni={J\bibinitperiod}}}%
+      }
+      \list{institution}{1}{%
+        {Tilburg University}%
+      }
+      \strng{namehash}{91342a49768fcd875d7213c9651d293b}
+      \strng{fullhash}{91342a49768fcd875d7213c9651d293b}
+      \strng{fullhashraw}{91342a49768fcd875d7213c9651d293b}
+      \strng{bibnamehash}{91342a49768fcd875d7213c9651d293b}
+      \strng{authorbibnamehash}{91342a49768fcd875d7213c9651d293b}
+      \strng{authornamehash}{91342a49768fcd875d7213c9651d293b}
+      \strng{authorfullhash}{91342a49768fcd875d7213c9651d293b}
+      \strng{authorfullhashraw}{91342a49768fcd875d7213c9651d293b}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Working paper, February 27, 2007}
+      \field{title}{Longevity Risk Pricing}
+      \field{type}{techreport}
+      \field{year}{2007}
+    \endentry
+    \entry{dang2023kannisto}{misc}{}{}
+      \name{author}{4}{}{%
+        {{hash=a3644a0b01efe04cb4155a155c91baa2}{%
+           family={Dang},
+           familyi={D\bibinitperiod},
+           given={Linh\bibnamedelimb H.\bibnamedelimi K.},
+           giveni={L\bibinitperiod\bibinitdelim H\bibinitperiod\bibinitdelim K\bibinitperiod}}}%
+        {{hash=dedbd1b96187802743e379671b35af5c}{%
+           family={Camarda},
+           familyi={C\bibinitperiod},
+           given={Carlo\bibnamedelima Giovanni},
+           giveni={C\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+        {{hash=bf69730780f8d15d8c795fed756dc7d3}{%
+           family={Ouellette},
+           familyi={O\bibinitperiod},
+           given={Nadine},
+           giveni={N\bibinitperiod}}}%
+        {{hash=0ecac3d60a5b73775ffbe91192e921d1}{%
+           family={Mesle},
+           familyi={M\bibinitperiod},
+           given={France},
+           giveni={F\bibinitperiod}}}%
+      }
+      \strng{namehash}{b2399210f7fd28849191c6968af73ae5}
+      \strng{fullhash}{21d78df43ed5e129ed6070bc43eb0a39}
+      \strng{fullhashraw}{21d78df43ed5e129ed6070bc43eb0a39}
+      \strng{bibnamehash}{b2399210f7fd28849191c6968af73ae5}
+      \strng{authorbibnamehash}{b2399210f7fd28849191c6968af73ae5}
+      \strng{authornamehash}{b2399210f7fd28849191c6968af73ae5}
+      \strng{authorfullhash}{21d78df43ed5e129ed6070bc43eb0a39}
+      \strng{authorfullhashraw}{21d78df43ed5e129ed6070bc43eb0a39}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Presentation, Paris, November 17, 2023}
+      \field{title}{On the Use of Kannisto Model for Mortality Trajectory Modeling at Very Old Ages}
+      \field{year}{2023}
+    \endentry
+    \entry{dawson2007survivor}{report}{}{}
+      \name{author}{4}{}{%
+        {{hash=cad5ce9de8e3f889d309f0a3e03baec5}{%
+           family={Dawson},
+           familyi={D\bibinitperiod},
+           given={Paul},
+           giveni={P\bibinitperiod}}}%
+        {{hash=932caf25b023f69b8fa217509335117b}{%
+           family={Blake},
+           familyi={B\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=2bcb633f5e6b8346e8784f278733df58}{%
+           family={Cairns},
+           familyi={C\bibinitperiod},
+           given={Andrew\bibnamedelimb J.\bibnamedelimi G.},
+           giveni={A\bibinitperiod\bibinitdelim J\bibinitperiod\bibinitdelim G\bibinitperiod}}}%
+        {{hash=6812490396e5339d87a39fb6c6eb45d9}{%
+           family={Dowd},
+           familyi={D\bibinitperiod},
+           given={Kevin},
+           giveni={K\bibinitperiod}}}%
+      }
+      \list{institution}{2}{%
+        {Centre for Risk}%
+        {Insurance Studies}%
+      }
+      \strng{namehash}{1e753a2db0dc3e44bc75c414d46c2191}
+      \strng{fullhash}{3178536ae8335c253fd9164f7e2cb92e}
+      \strng{fullhashraw}{3178536ae8335c253fd9164f7e2cb92e}
+      \strng{bibnamehash}{1e753a2db0dc3e44bc75c414d46c2191}
+      \strng{authorbibnamehash}{1e753a2db0dc3e44bc75c414d46c2191}
+      \strng{authornamehash}{1e753a2db0dc3e44bc75c414d46c2191}
+      \strng{authorfullhash}{3178536ae8335c253fd9164f7e2cb92e}
+      \strng{authorfullhashraw}{3178536ae8335c253fd9164f7e2cb92e}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{number}{CRIS Discussion Paper Series 2007.VIII}
+      \field{title}{Survivor Forwards and Survivor Forward Swaps}
+      \field{type}{techreport}
+      \field{year}{2007}
+    \endentry
+    \entry{dokumentov2018two}{misc}{}{}
+      \name{author}{3}{}{%
+        {{hash=7c2bea6d7ad6f2c7faeeab78b34d55e6}{%
+           family={Dokumentov},
+           familyi={D\bibinitperiod},
+           given={Alexander},
+           giveni={A\bibinitperiod}}}%
+        {{hash=2f709db8a046ae1d056e75c1f3aad31c}{%
+           family={Hyndman},
+           familyi={H\bibinitperiod},
+           given={Rob\bibnamedelima J.},
+           giveni={R\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=971783b8ff283d6d3dbed806930334ef}{%
+           family={Tickle},
+           familyi={T\bibinitperiod},
+           given={Leonie},
+           giveni={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{9e20fafe7a2de917fc3034e7c8a8e989}
+      \strng{fullhash}{9e20fafe7a2de917fc3034e7c8a8e989}
+      \strng{fullhashraw}{9e20fafe7a2de917fc3034e7c8a8e989}
+      \strng{bibnamehash}{9e20fafe7a2de917fc3034e7c8a8e989}
+      \strng{authorbibnamehash}{9e20fafe7a2de917fc3034e7c8a8e989}
+      \strng{authornamehash}{9e20fafe7a2de917fc3034e7c8a8e989}
+      \strng{authorfullhash}{9e20fafe7a2de917fc3034e7c8a8e989}
+      \strng{authorfullhashraw}{9e20fafe7a2de917fc3034e7c8a8e989}
+      \field{sortinit}{D}
+      \field{sortinithash}{6f385f66841fb5e82009dc833c761848}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Working paper}
+      \field{title}{Two-Dimensional Smoothing of Mortality Surfaces with Cohort and Period Ridges}
+      \field{year}{2018}
+    \endentry
+    \entry{gavrilova2015oldage}{misc}{}{}
+      \name{author}{2}{}{%
+        {{hash=6165b29d6e5ae2cf1d6da505837376d4}{%
+           family={Gavrilova},
+           familyi={G\bibinitperiod},
+           given={Natalia\bibnamedelima S.},
+           giveni={N\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=e585fcc656cfd0e143c630f8788623f8}{%
+           family={Gavrilov},
+           familyi={G\bibinitperiod},
+           given={Leonid\bibnamedelima A.},
+           giveni={L\bibinitperiod\bibinitdelim A\bibinitperiod}}}%
+      }
+      \strng{namehash}{24c65326a64a05707fa58aa15eaf4632}
+      \strng{fullhash}{24c65326a64a05707fa58aa15eaf4632}
+      \strng{fullhashraw}{24c65326a64a05707fa58aa15eaf4632}
+      \strng{bibnamehash}{24c65326a64a05707fa58aa15eaf4632}
+      \strng{authorbibnamehash}{24c65326a64a05707fa58aa15eaf4632}
+      \strng{authornamehash}{24c65326a64a05707fa58aa15eaf4632}
+      \strng{authorfullhash}{24c65326a64a05707fa58aa15eaf4632}
+      \strng{authorfullhashraw}{24c65326a64a05707fa58aa15eaf4632}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Center on Aging, NORC at the University of Chicago}
+      \field{title}{Mortality Trajectories at Extreme Old Ages: A Comparative Study of Different Data Sources on U.S. Old-Age Mortality}
+      \field{year}{2015}
+    \endentry
+    \entry{hmd2025}{misc}{}{}
+      \name{author}{1}{}{%
+        {{hash=7985bd95964ef8cfb3f808f5f5575fc9}{%
+           family={{Human Mortality Database}},
+           familyi={H\bibinitperiod}}}%
+      }
+      \strng{namehash}{7985bd95964ef8cfb3f808f5f5575fc9}
+      \strng{fullhash}{7985bd95964ef8cfb3f808f5f5575fc9}
+      \strng{fullhashraw}{7985bd95964ef8cfb3f808f5f5575fc9}
+      \strng{bibnamehash}{7985bd95964ef8cfb3f808f5f5575fc9}
+      \strng{authorbibnamehash}{7985bd95964ef8cfb3f808f5f5575fc9}
+      \strng{authornamehash}{7985bd95964ef8cfb3f808f5f5575fc9}
+      \strng{authorfullhash}{7985bd95964ef8cfb3f808f5f5575fc9}
+      \strng{authorfullhashraw}{7985bd95964ef8cfb3f808f5f5575fc9}
+      \field{sortinit}{H}
+      \field{sortinithash}{23a3aa7c24e56cfa16945d55545109b5}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{University of California, Berkeley (USA) and Max Planck Institute for Demographic Research (Germany)}
+      \field{title}{Human Mortality Database}
+      \field{year}{2025}
+      \verb{urlraw}
+      \verb https://www.mortality.org/
+      \endverb
+      \verb{url}
+      \verb https://www.mortality.org/
+      \endverb
+    \endentry
+    \entry{hunt2015modelling}{report}{}{}
+      \name{author}{2}{}{%
+        {{hash=10383d05f32f2a21518b493a3c546e5c}{%
+           family={Hunt},
+           familyi={H\bibinitperiod},
+           given={Andrew},
+           giveni={A\bibinitperiod}}}%
+        {{hash=932caf25b023f69b8fa217509335117b}{%
+           family={Blake},
+           familyi={B\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+      }
+      \list{institution}{1}{%
+        {Cass Business School, City University London}%
+      }
+      \strng{namehash}{0793a1f7dd51e6a11e6f49502e3c3b95}
+      \strng{fullhash}{0793a1f7dd51e6a11e6f49502e3c3b95}
+      \strng{fullhashraw}{0793a1f7dd51e6a11e6f49502e3c3b95}
+      \strng{bibnamehash}{0793a1f7dd51e6a11e6f49502e3c3b95}
+      \strng{authorbibnamehash}{0793a1f7dd51e6a11e6f49502e3c3b95}
+      \strng{authornamehash}{0793a1f7dd51e6a11e6f49502e3c3b95}
+      \strng{authorfullhash}{0793a1f7dd51e6a11e6f49502e3c3b95}
+      \strng{authorfullhashraw}{0793a1f7dd51e6a11e6f49502e3c3b95}
+      \field{sortinit}{H}
+      \field{sortinithash}{23a3aa7c24e56cfa16945d55545109b5}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{note}{Working paper, May 2015}
+      \field{title}{Modelling Longevity Bonds: Analysing the Swiss Re Kortis Bond}
+      \field{type}{techreport}
+      \field{year}{2015}
+    \endentry
+    \entry{lee1992modeling}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=b475c399da410c10adcb66d197893fed}{%
+           family={Lee},
+           familyi={L\bibinitperiod},
+           given={Ronald\bibnamedelima D.},
+           giveni={R\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+        {{hash=5adfedd9f0c86352f8d0231edf4a70d8}{%
+           family={Carter},
+           familyi={C\bibinitperiod},
+           given={Lawrence\bibnamedelima R.},
+           giveni={L\bibinitperiod\bibinitdelim R\bibinitperiod}}}%
+      }
+      \strng{namehash}{efef7f80fbb516850cbf45a635ca23b9}
+      \strng{fullhash}{efef7f80fbb516850cbf45a635ca23b9}
+      \strng{fullhashraw}{efef7f80fbb516850cbf45a635ca23b9}
+      \strng{bibnamehash}{efef7f80fbb516850cbf45a635ca23b9}
+      \strng{authorbibnamehash}{efef7f80fbb516850cbf45a635ca23b9}
+      \strng{authornamehash}{efef7f80fbb516850cbf45a635ca23b9}
+      \strng{authorfullhash}{efef7f80fbb516850cbf45a635ca23b9}
+      \strng{authorfullhashraw}{efef7f80fbb516850cbf45a635ca23b9}
+      \field{sortinit}{L}
+      \field{sortinithash}{7c47d417cecb1f4bd38d1825c427a61a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of the American Statistical Association}
+      \field{number}{419}
+      \field{title}{Modeling and Forecasting U.S. Mortality}
+      \field{volume}{87}
+      \field{year}{1992}
+      \field{pages}{659\bibrangedash 671}
+      \range{pages}{13}
+      \verb{urlraw}
+      \verb https://www.jstor.org/stable/2290201
+      \endverb
+      \verb{url}
+      \verb https://www.jstor.org/stable/2290201
+      \endverb
+    \endentry
+    \entry{shen2013longevity}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=2eaf1ac8cedab60ffc1cc6e343e757df}{%
+           family={Shen},
+           familyi={S\bibinitperiod},
+           given={Yang},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=760185959539f5b627137105d4dbe37e}{%
+           family={Siu},
+           familyi={S\bibinitperiod},
+           given={Tak\bibnamedelima Kuen},
+           giveni={T\bibinitperiod\bibinitdelim K\bibinitperiod}}}%
+      }
+      \strng{namehash}{9095ba0cff5eca955e0517d4209b5f50}
+      \strng{fullhash}{9095ba0cff5eca955e0517d4209b5f50}
+      \strng{fullhashraw}{9095ba0cff5eca955e0517d4209b5f50}
+      \strng{bibnamehash}{9095ba0cff5eca955e0517d4209b5f50}
+      \strng{authorbibnamehash}{9095ba0cff5eca955e0517d4209b5f50}
+      \strng{authornamehash}{9095ba0cff5eca955e0517d4209b5f50}
+      \strng{authorfullhash}{9095ba0cff5eca955e0517d4209b5f50}
+      \strng{authorfullhashraw}{9095ba0cff5eca955e0517d4209b5f50}
+      \field{sortinit}{S}
+      \field{sortinithash}{b164b07b29984b41daf1e85279fbc5ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Insurance: Mathematics and Economics}
+      \field{title}{Longevity Bond Pricing under Stochastic Interest Rate and Mortality with Regime-Switching}
+      \field{volume}{52}
+      \field{year}{2013}
+      \field{pages}{114\bibrangedash 123}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.1016/j.insmatheco.2012.11.006
+      \endverb
+    \endentry
+    \entry{leecarter_summary2017}{misc}{}{}
+      \field{sortinit}{T}
+      \field{sortinithash}{9af77f0292593c26bde9a56e688eaee9}
+      \field{labeltitlesource}{title}
+      \field{note}{Course summary (POP 502 / ECO 572 / SOC 532, Spring 2017)}
+      \field{title}{The Lee-Carter Model}
+      \field{year}{2017}
+    \endentry
+    \entry{understanding2006longevity}{misc}{}{}
+      \field{sortinit}{U}
+      \field{sortinithash}{6901a00e45705986ee5e7ca9fd39adca}
+      \field{labeltitlesource}{title}
+      \field{note}{Technical note, Life \& Pensions}
+      \field{title}{Understanding Longevity Bonds}
+      \field{year}{2006}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+
