@@ -2,7 +2,7 @@ data:
   m_path: Data/data_france.xlsx
   sex: Total
   age_min: 60
-  age_max: 100
+  age_max: 95
   year_min: 1970
   year_max: 2019
 
@@ -17,8 +17,8 @@ fit:
 scenarios:
   measure: Q
   horizon: 40
-  B_bootstrap: 300
-  n_process: 200
+  B_bootstrap: 40
+  n_process: 50
   include_last: true
   lambda_esscher: 0.1
   model_name: CBDM7
@@ -37,9 +37,15 @@ pricing:
       kind: survivor_swap
       spec:
         age: 70
-        maturity_years: 20
+        maturity_years: 25
         payer: fixed
         notional: 1.0
+    annuity:
+      kind: life_annuity
+      spec:
+        issue_age: 65
+        maturity_years: 25
+        payment_per_survivor: 1.0
 
 outputs:
   outdir: outputs/pricing-pipeline

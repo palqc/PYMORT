@@ -253,7 +253,7 @@ probabilities $q_{x,t}$.
 
 For reproducible experiments, the configuration in
 \path{configs/pricing-pipeline.yaml} filters the dataset to
-ages 60--100 and calendar years 1970--2019 for the \texttt{Total} population. The
+ages 60--95 and calendar years 1970--2019 for the \texttt{Total} population. The
 age window reflects the empirical focus of CBD-style models on post-60 mortality
 and the age range relevant for pension and longevity-linked contracts
 \cite{cairns2006twofactor,chan2014cbdindexes}. The calibration window ends in 2019
@@ -459,7 +459,7 @@ support inspection of stochastic mortality surfaces and scenario summaries.
 
 \subsection{Experimental Setup}
 Results are generated on the France HMD period tables (Total population) with
-ages 60--100 and years 1970--2019 (41 ages $\times$ 50 years, 2050 cells). For
+ages 60--95 and years 1970--2019 (36 ages $\times$ 50 years, 1800 cells). For
 the results reported below, CBD M7 is fit on the full window and projected over
 a 40-year horizon with the last observed year included (2019--2059). A residual
 bootstrap with $B=40$ and $n_{\text{process}}=50$ produces $N=2{,}000$ scenarios
@@ -469,46 +469,43 @@ choices. Risk-neutral pricing uses an Esscher tilt $\lambda=0.1$ and a flat
 discount rate of 2\%. Pricing is illustrated for a 20-year longevity bond
 (issue age 65, principal included); hedging and sensitivities focus on a
 25-year life annuity (issue age 65) and a 25-year survivor swap (age 70).
-
-To validate calibration behavior, the repository includes StMoMo benchmark
-outputs fitted on the same grid. The files are stored at
-\path{validation_against_StMoMo/outputs} and are used to cross-check the
-Lee--Carter and CBD fits and to inspect factor trends.
+All results below are computed from the pipeline run and stored under
+\path{outputs/} for reproducibility.
 
 \subsection{Model Calibration, Projections, and Pricing Results}
 
 \paragraph{Calibration accuracy.}
-Table~\ref{tab:calibration_rmse} reports in-sample fit errors computed against
-the StMoMo fitted surfaces. The LC model delivers low log-m RMSE, while the
-two-factor CBD fit on logit($q$) shows higher residual error, consistent with
-its parsimonious structure for older ages.
+Table~\ref{tab:calibration_rmse} reports in-sample fit errors computed on the
+HMD grid. The LC model delivers low log-m RMSE, while the two-factor CBD fit on
+logit($q$) shows higher residual error, consistent with its parsimonious
+structure for older ages.
 
 \begin{table}[H]
 \centering
-\caption{In-sample fit errors on the France 1970--2019 grid (StMoMo benchmark).}
+\caption{In-sample fit errors on the France 1970--2019 HMD grid.}
 \label{tab:calibration_rmse}
 \begin{tabular}{|l|c|c|}
 \hline
 \textbf{Model} & \textbf{Scale} & \textbf{RMSE} \\
 \hline
-Lee--Carter (LCM1) & $\log m_{x,t}$ & 0.026 \\
-CBD (M5) & $\text{logit}(q_{x,t})$ & 0.129 \\
+Lee--Carter (LCM1) & $\log m_{x,t}$ & 0.023 \\
+CBD (M5) & $\text{logit}(q_{x,t})$ & 0.102 \\
 \hline
 \end{tabular}
 \end{table}
 
 \paragraph{Factor trends.}
-The StMoMo LC time index $k_t$ declines over 1970--2019 with an estimated
-linear slope of $-0.69$ per year, indicating sustained mortality improvement.
-For CBD, $\kappa_{1,t}$ (level) trends downward at approximately $-0.019$ per
+The LC time index $k_t$ declines over 1970--2019 with an estimated linear
+slope of $-0.658$ per year, indicating sustained mortality improvement. For
+CBD, $\kappa_{1,t}$ (level) trends downward at approximately $-0.0189$ per
 year, while $\kappa_{2,t}$ (slope) trends slightly upward
-($+2.9\times10^{-4}$ per year), suggesting a modest steepening of the age
+($+1.70\times10^{-4}$ per year), suggesting a modest steepening of the age
 gradient at older ages.
 
 \paragraph{Observed mortality improvement.}
 From the raw HMD data, period death rates fall substantially over the sample
-window. For example, the 2019 rates are approximately 56\% lower at age 65,
-62\% lower at age 80, and 47\% lower at age 90 compared to 1970. These patterns
+window. For example, the 2019 rates are approximately 56.04\% lower at age 65,
+62.07\% lower at age 80, and 46.87\% lower at age 90 compared to 1970. These patterns
 align with the negative drift inferred in LC/CBD factors and motivate the
 random-walk-with-drift projections in the model layer.
 
@@ -516,7 +513,7 @@ random-walk-with-drift projections in the model layer.
 To contextualize stochastic pricing, a deterministic baseline can be computed
 by holding 2019 period mortality rates fixed. For a 20-year longevity bond
 issued at age 65 (notional 1.0, principal included) and discounted at 2\%,
-the period-life survival to year 20 is $S_{65}(20)\approx0.620$ and the present
+the period-life survival to year 20 is $S_{65}(20)\approx0.6205$ and the present
 value of survival-linked coupons plus principal is approximately 14.41. The
 full PyMORT pipeline replaces this deterministic baseline with Q-measure
 scenario pricing, where the Esscher tilt $\lambda$ shifts factor drifts and
@@ -524,10 +521,10 @@ prices are reported as scenario means with risk metrics (VaR/CVaR) via the
 risk-reporting module.
 
 \paragraph{Q-measure pricing and hedging performance.}
-Under the Q-measure scenario set, the 20-year longevity bond price is 15.518
-and the 25-year annuity liability has a mean PV of 17.562. A minimum-variance
+Under the Q-measure scenario set, the 20-year longevity bond price is 15.596
+and the 25-year annuity liability has a mean PV of 17.663. A minimum-variance
 hedge of the annuity using a 25-year longevity bond and a 25-year survivor swap
-yields weights $(-0.973,\;0.037)$ and reduces variance by 99.93\%. The survivor
+yields weights $(-1.133,\;-0.155)$ and reduces variance by 98.81\%. The survivor
 swap is priced at-the-money, so its PV is near zero, but its covariance still
 contributes to variance reduction. Table~\ref{tab:hedge_minvar} summarizes the
 resulting risk metrics.
@@ -540,10 +537,10 @@ resulting risk metrics.
 \hline
 \textbf{Metric} & \textbf{Unhedged} & \textbf{Hedged} \\
 \hline
-Mean PV & 17.562 & 0.000 \\
-Std. dev. & 0.132 & 0.0034 \\
-VaR$_{0.99}$ & 17.859 & 0.0090 \\
-CVaR$_{0.99}$ & 17.888 & 0.0104 \\
+Mean PV & 17.663 & 0.000 \\
+Std. dev. & 0.101 & 0.0110 \\
+VaR$_{0.99}$ & 17.878 & 0.0237 \\
+CVaR$_{0.99}$ & 17.913 & 0.0279 \\
 \hline
 \end{tabular}
 \end{table}
@@ -553,9 +550,9 @@ Table~\ref{tab:rate_sens} reports rate sensitivities for the longevity bond and
 annuity at a 2\% short rate with a 1~bp bump. The annuity shows a longer
 effective duration and higher convexity than the bond, reflecting its longer
 cashflow profile. Mortality delta-by-age indicates that a 1\% proportional
-increase in $q$ at ages 65, 75, or 85 reduces annuity PV by roughly 1.52. The
-sigma-scale vega is $-0.0149$ for the annuity and $-0.0097$ for the bond,
-implying a small PV change for a $\pm5\%$ volatility scaling. Table
+increase in $q$ at ages 65, 75, or 85 reduces annuity PV by about 155.1 (price
+units). The sigma-scale vega is 0.0 for both instruments in this run because
+sensitivities are computed on a fixed scenario set. Table
 \ref{tab:mortality_delta} reports the age-specific deltas.
 
 \begin{table}[H]
@@ -566,8 +563,8 @@ implying a small PV change for a $\pm5\%$ volatility scaling. Table
 \hline
 \textbf{Instrument} & \textbf{Price} & \textbf{Duration} & \textbf{DV01} & \textbf{Convexity} \\
 \hline
-Longevity bond 20y (age 65) & 15.518 & 9.939 & $-0.0154$ & 134.187 \\
-Life annuity 25y (age 65) & 17.562 & 11.547 & $-0.0203$ & 184.221 \\
+Longevity bond 20y (age 65) & 15.596 & 9.956 & $-0.0155$ & 134.543 \\
+Life annuity 25y (age 65) & 17.663 & 11.571 & $-0.0204$ & 184.813 \\
 \hline
 \end{tabular}
 \end{table}
@@ -580,7 +577,7 @@ Life annuity 25y (age 65) & 17.562 & 11.547 & $-0.0203$ & 184.221 \\
 \hline
 \textbf{Age bumped} & 65 & 75 & 85 \\
 \hline
-Delta $\partial P / \partial(1+\varepsilon)$ & $-151.823$ & $-151.795$ & $-151.745$ \\
+Delta $\partial P / \partial(1+\varepsilon)$ & $-155.152$ & $-155.129$ & $-155.085$ \\
 \hline
 \end{tabular}
 \end{table}
@@ -589,7 +586,7 @@ Delta $\partial P / \partial(1+\varepsilon)$ & $-151.823$ & $-151.795$ & $-151.7
 Deterministic mortality shocks generate coherent stress scenarios. Table
 \ref{tab:scenario_shocks} reports percentage price impacts relative to the base
 Q-measure prices for the bond and annuity. The long-life shock increases PVs
-by about 0.9--1.0\%, while a 10\% mortality deterioration decreases PVs by a
+by about 0.85--0.97\%, while a 10\% mortality deterioration decreases PVs by a
 similar magnitude. Pandemic and plateau shocks induce smaller but non-negligible
 changes.
 
@@ -601,20 +598,20 @@ changes.
 \hline
 \textbf{Shock} & \textbf{Bond 20y} & \textbf{Annuity 25y} \\
 \hline
-Long-life (10\% lower $q$) & $+0.898\%$ & $+1.024\%$ \\
-Short-life (10\% higher $q$) & $-0.888\%$ & $-1.011\%$ \\
-Pandemic 2025 (+30\% for 2y) & $-0.333\%$ & $-0.357\%$ \\
-Improvement plateau from 2030 & $-0.078\%$ & $-0.182\%$ \\
-Accelerated improvement +1\%/yr from 2025 & $+0.166\%$ & $+0.269\%$ \\
+Long-life (10\% lower $q$) & $+0.850\%$ & $+0.969\%$ \\
+Short-life (10\% higher $q$) & $-0.840\%$ & $-0.956\%$ \\
+Pandemic 2025 (+30\% for 2y) & $-0.315\%$ & $-0.337\%$ \\
+Improvement plateau from 2030 & $-0.076\%$ & $-0.176\%$ \\
+Accelerated improvement +1\%/yr from 2025 & $+0.156\%$ & $+0.254\%$ \\
 \hline
 \end{tabular}
 \end{table}
 
 \paragraph{Hull--White discounting.}
 When Hull--White discounting is enabled ($a=0.10$, $\sigma=1\%$), the 20-year
-bond price increases from 15.518 to 15.757 (+1.54\%) relative to flat-rate
-discounting. The simulated discount factor at year 20 has mean 0.678 and
-standard deviation 0.177, capturing rate uncertainty. Table~\ref{tab:hw}
+bond price increases from 15.596 to 15.855 (+1.66\%) relative to flat-rate
+discounting. The simulated discount factor at year 20 has mean 0.679 and
+standard deviation 0.179, capturing rate uncertainty. Table~\ref{tab:hw}
 summarizes the comparison. Model details are provided in
 Appendix~\ref{app:hull_white}.
 
@@ -626,9 +623,9 @@ Appendix~\ref{app:hull_white}.
 \hline
 \textbf{Metric} & \textbf{Flat 2\%} & \textbf{Hull--White} \\
 \hline
-Bond price & 15.518 & 15.757 \\
-DF$_{20}$ mean & 0.670 & 0.678 \\
-DF$_{20}$ std & -- & 0.177 \\
+Bond price & 15.596 & 15.855 \\
+DF$_{20}$ mean & 0.670 & 0.679 \\
+DF$_{20}$ std & -- & 0.179 \\
 \hline
 \end{tabular}
 \end{table}
@@ -645,10 +642,10 @@ reproducible plotting and reporting.
 \label{sec:discussion}
 
 The discussion targets the project specification by interpreting the results
-for longevity risk management rather than restating them. First, model
-validation against published benchmarks (StMoMo outputs on the same grid)
-supports the credibility of the calibration layer, which is essential before
-using the models for pricing and hedging decisions. Second, the pricing example
+for longevity risk management rather than restating them. First, in-sample fit
+diagnostics on the HMD grid support the credibility of the calibration layer,
+which is essential before using the models for pricing and hedging decisions.
+Second, the pricing example
 on real HMD data makes the magnitude of longevity-linked cashflows explicit and
 shows how the Esscher tilt shifts valuation under a market price of risk. Third,
 the explicit Lee--Carter vs.\ CBD comparison clarifies a practical trade-off:
@@ -700,10 +697,10 @@ risk—they instead make it transparent and quantifiable.
 \subsection{Summary}
 This report delivered a complete, reproducible longevity modeling and pricing
 pipeline grounded in the PyMORT codebase and the actuarial literature. Using
-HMD France data for ages 60--100 (1970--2019), the implementation calibrates
+HMD France data for ages 60--95 (1970--2019), the implementation calibrates
 classic log-mortality and logit-mortality frameworks (Lee--Carter, CBD M5/M6/M7,
-and APC), assesses fit against StMoMo benchmarks, and projects mortality via
-random-walk dynamics. The pricing layer connects statistical models to
+and APC), assesses fit using in-sample RMSE diagnostics, and projects mortality
+via random-walk dynamics. The pricing layer connects statistical models to
 risk-neutral valuation by applying an Esscher tilt to bootstrap-simulated
 survival curves, enabling longevity bond, swap, and forward valuations under a
 clear market price of risk assumption. Architecturally, the project emphasizes
@@ -967,13 +964,13 @@ stress tests and sensitivities to quantify the impact of stochastic discounting.
 
 \begin{table}[H]
 \centering
-\caption{Fit diagnostics against StMoMo reference outputs.}
+\caption{Fit diagnostics on the HMD grid (in-sample RMSE).}
 \begin{tabular}{lcc}
 \hline
 Model & Metric & Value \\
 \hline
-LC M1 & RMSE of $\log m$ vs StMoMo fitted surface & 0.026 \\
-CBD M5 & RMSE of $\operatorname{logit}(q)$ vs StMoMo fitted surface & 0.129 \\
+LC M1 & RMSE of $\log m$ on HMD grid & 0.023 \\
+CBD M5 & RMSE of $\operatorname{logit}(q)$ on HMD grid & 0.102 \\
 \hline
 \end{tabular}
 \end{table}
@@ -985,9 +982,9 @@ CBD M5 & RMSE of $\operatorname{logit}(q)$ vs StMoMo fitted surface & 0.129 \\
 \hline
 Factor & Drift \\
 \hline
-$k_t$ (LC) & $-0.69$ \\
-$\kappa^{(1)}_t$ (CBD) & $-0.019$ \\
-$\kappa^{(2)}_t$ (CBD) & $2.9\times 10^{-4}$ \\
+$k_t$ (LC) & $-0.658$ \\
+$\kappa^{(1)}_t$ (CBD) & $-0.0189$ \\
+$\kappa^{(2)}_t$ (CBD) & $1.70\times 10^{-4}$ \\
 \hline
 \end{tabular}
 \end{table}
@@ -999,9 +996,9 @@ $\kappa^{(2)}_t$ (CBD) & $2.9\times 10^{-4}$ \\
 \hline
 Age & Reduction in $m_{x,t}$ & Approx. percent \\
 \hline
-65 & $m_{2019}/m_{1970} \approx 0.44$ & $56\%$ \\
-80 & $m_{2019}/m_{1970} \approx 0.38$ & $62\%$ \\
-90 & $m_{2019}/m_{1970} \approx 0.53$ & $47\%$ \\
+65 & $m_{2019}/m_{1970} \approx 0.440$ & $56.04\%$ \\
+80 & $m_{2019}/m_{1970} \approx 0.379$ & $62.07\%$ \\
+90 & $m_{2019}/m_{1970} \approx 0.531$ & $46.87\%$ \\
 \hline
 \end{tabular}
 \end{table}
@@ -1013,7 +1010,7 @@ Age & Reduction in $m_{x,t}$ & Approx. percent \\
 \hline
 Metric & Value \\
 \hline
-$S_{65}(20)$ & $0.620$ \\
+$S_{65}(20)$ & $0.6205$ \\
 20-year longevity bond PV & $14.41$ \\
 \hline
 \end{tabular}

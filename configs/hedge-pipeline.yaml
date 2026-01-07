@@ -1,5 +1,5 @@
 data:
-  scen_path: outputs/scen_Q.npz
+  scen_path: outputs/pricing-pipeline/scenarios_Q.npz
   short_rate: 0.02
 
 liability:

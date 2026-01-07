@@ -1,0 +1,13 @@
+bond:
+  kind: longevity_bond
+  spec:
+    issue_age: 65
+    maturity_years: 20
+    notional: 1.0
+    include_principal: true
+annuity:
+  kind: life_annuity
+  spec:
+    issue_age: 65
+    maturity_years: 25
+    payment_per_survivor: 1.0

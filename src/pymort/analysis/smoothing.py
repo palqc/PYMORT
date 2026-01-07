@@ -97,7 +97,9 @@ def smooth_mortality_with_cpsplines(
 
     # OPTIONAL explicit guard (should never trigger now)
     if ord_d[0] >= deg[0] or ord_d[1] >= deg[1]:
-        raise ValueError(f"CPsplines requires ord_d < deg, got deg={deg}, ord_d={ord_d}")
+        raise ValueError(
+            f"CPsplines requires ord_d < deg, got deg={deg}, ord_d={ord_d}"
+        )
 
     if not np.isfinite(m).all():
         raise ValueError("m must contain finite values (no NaN/Inf).")
